@@ -37,6 +37,7 @@ type Instance struct {
 	BusyCount  int
 	LastActive time.Time
 	StickyKey  string
+	Conn       Conn
 }
 
 type Conn interface {

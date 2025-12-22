@@ -24,9 +24,9 @@
 - `internal/app`: 用例编排，暴露 `Serve(ctx, ServeConfig)` 与 `ValidateConfig(ctx, ValidateConfig)`；装配 catalog loader、transport、lifecycle（stub）、scheduler/router（stub），注入 logger。
 - `internal/domain`: 领域接口与模型（ServerSpec、InstanceState、Transport、Lifecycle、Scheduler、Router、CatalogLoader、HealthProbe）。
 - `internal/infra/catalog`: 读取文件（viper），环境变量覆盖，基础校验（必填、范围、协议版本非空/格式、maxConcurrent>=1、数值非负）。
-- `internal/infra/transport`: 首选复用 `github.com/modelcontextprotocol/go-sdk` 的 Stdio/Command transport 封装 JSON-RPC 读写；M1 可用简化 stub（不落地 JSON-RPC），但接口签名固定。
-- `internal/infra/lifecycle`: 调用 Transport.Start，发送 initialize 请求，校验协议版本（stub 可直接通过），返回 Instance。
-- `internal/infra/router` / `scheduler`: M1 仅占位实现，返回未实现错误；接口和结构预留 Busy/State。
+- `internal/infra/transport`: 首选复用 `github.com/modelcontextprotocol/go-sdk` 的 Stdio/Command transport 封装 JSON-RPC 读写；M1 可用简化 stub（不落地 JSON-RPC），但接口签名固定。当前实现基于子进程 stdio 行分隔 JSON，未接 initialize 语义。
+- `internal/infra/lifecycle`: 调用 Transport.Start，发送 initialize 请求（go-sdk 协议类型），校验协议版本，返回 Instance 并持有 conn/stop。
+- `internal/infra/router` / `scheduler`: 提供 Basic 实现；scheduler 维护实例表、sticky/MaxConcurrent，router 通过 scheduler 获取实例后直接转发 JSON-RPC（无能力过滤）；后续补全 idle/minReady/健康等策略。
 - `internal/infra/telemetry`: zap logger 初始化辅助（可选），metrics 占位。
 
 ### 配置与校验
@@ -47,7 +47,7 @@
 
 ### 运行流程（M1）
 - `mcpd validate`: 读取 config → 校验 → 日志输出结果 → exit code。
-- `mcpd serve`: 读取 config → 校验 → 初始化 transport/lifecycle/router/scheduler stub → 日志提示 “serve stub” → 阻塞或立即返回（建议保留阻塞等待 ctx.Done，用于后续替换主循环）。
+- `mcpd serve`: 读取 config → 校验 → 初始化 transport/lifecycle/router/scheduler → 通过 stdin 接收 JSON（字段 `serverType`/`routingKey`/`payload`），路由到实例后把响应写回 stdout，直到信号退出。
 
 ### 日志与错误
 - 使用 zap JSON Production 配置；字段至少含 `msg`、`config` 路径、错误详情。

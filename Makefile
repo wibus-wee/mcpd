@@ -1,5 +1,5 @@
 GO ?= go
-CONFIG ?= catalog.yaml
+CONFIG ?= docs/catalog.example.yaml
 
 .PHONY: build test fmt tidy vet serve validate
 

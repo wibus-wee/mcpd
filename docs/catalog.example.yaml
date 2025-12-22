@@ -1,0 +1,9 @@
+servers:
+  - name: echo
+    cmd: ["/bin/sh", "-c", "cat"]
+    idleSeconds: 60
+    maxConcurrent: 2
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"

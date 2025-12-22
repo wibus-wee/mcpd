@@ -7,3 +7,4 @@
 - 配置：catalog YAML/JSON + 环境覆盖，启动时校验必填与数值范围；校验失败即退出。
 - 观测：stdout/stderr JSON 日志（zap），暴露启动/回收/失败等关键事件；后续 /metrics（Prometheus exporter）和可选 `healthz`。
 - 安全：本地运行，不暴露远端 HTTP 接口；日志需过滤敏感 env。
+- 输入输出：`serve` 模式当前 stdin 接收 `{serverType,routingKey?,payload}` JSON，stdout 输出响应 JSON；后续可换 JSON-RPC 包装。
