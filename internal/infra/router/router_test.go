@@ -20,10 +20,7 @@ func TestBasicRouter_RouteSuccess(t *testing.T) {
 			Conn: &fakeConn{resp: respPayload},
 		},
 	}
-	r := &BasicRouter{
-		scheduler: sched,
-		capLookup: allowAll{},
-	}
+	r := NewBasicRouter(sched, RouterOptions{})
 
 	resp, err := r.Route(context.Background(), "svc", "rk", json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
 	require.NoError(t, err)
@@ -33,12 +30,9 @@ func TestBasicRouter_RouteSuccess(t *testing.T) {
 
 func TestBasicRouter_AcquireError(t *testing.T) {
 	sched := &fakeScheduler{acquireErr: errors.New("busy")}
-	r := &BasicRouter{
-		scheduler: sched,
-		capLookup: allowAll{},
-	}
+	r := NewBasicRouter(sched, RouterOptions{})
 
-	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{}`))
+	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
 	require.Error(t, err)
 }
 
@@ -46,12 +40,9 @@ func TestBasicRouter_NoConn(t *testing.T) {
 	sched := &fakeScheduler{
 		instance: &domain.Instance{ID: "x"},
 	}
-	r := &BasicRouter{
-		scheduler: sched,
-		capLookup: allowAll{},
-	}
+	r := NewBasicRouter(sched, RouterOptions{})
 
-	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{}`))
+	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
 	require.Error(t, err)
 }
 
@@ -62,22 +53,11 @@ func TestBasicRouter_MethodNotAllowed(t *testing.T) {
 			Conn: &fakeConn{resp: json.RawMessage(`{}`)},
 		},
 	}
-	r := &BasicRouter{
-		scheduler: sched,
-		capLookup: denyAll{},
-	}
+	r := NewBasicRouter(sched, RouterOptions{})
 
-	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{"method":"ping"}`))
+	_, err := r.Route(context.Background(), "svc", "", json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
 	require.Error(t, err)
 }
-
-type allowAll struct{}
-
-func (allowAll) Allowed(serverType, method string) bool { return true }
-
-type denyAll struct{}
-
-func (denyAll) Allowed(serverType, method string) bool { return false }
 
 type fakeScheduler struct {
 	instance   *domain.Instance
@@ -96,6 +76,8 @@ func (f *fakeScheduler) Release(ctx context.Context, instance *domain.Instance) 
 
 func (f *fakeScheduler) StartIdleManager(interval time.Duration) {}
 func (f *fakeScheduler) StopIdleManager()                        {}
+func (f *fakeScheduler) StartPingManager(interval time.Duration) {}
+func (f *fakeScheduler) StopPingManager()                        {}
 func (f *fakeScheduler) StopAll(ctx context.Context)             {}
 
 type fakeConn struct {

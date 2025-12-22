@@ -2,10 +2,12 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
 )
@@ -20,7 +22,7 @@ func TestBasicScheduler_StartsAndReusesInstance(t *testing.T) {
 		MinReady:        0,
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
-	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec})
+	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{})
 
 	inst1, err := s.Acquire(context.Background(), "svc", "")
 	require.NoError(t, err)
@@ -46,7 +48,7 @@ func TestBasicScheduler_StickyBinding(t *testing.T) {
 		Sticky:          true,
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
-	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec})
+	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{})
 
 	inst1, err := s.Acquire(context.Background(), "svc", "userA")
 	require.NoError(t, err)
@@ -63,7 +65,7 @@ func TestBasicScheduler_StickyBinding(t *testing.T) {
 }
 
 func TestBasicScheduler_UnknownServer(t *testing.T) {
-	s := NewBasicScheduler(&fakeLifecycle{}, map[string]domain.ServerSpec{})
+	s := NewBasicScheduler(&fakeLifecycle{}, map[string]domain.ServerSpec{}, SchedulerOptions{})
 	_, err := s.Acquire(context.Background(), "missing", "")
 	require.ErrorIs(t, err, ErrUnknownServerType)
 }
@@ -79,7 +81,7 @@ func TestBasicScheduler_IdleReapRespectsMinReadyAndPersistent(t *testing.T) {
 		Persistent:      false,
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
-	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec})
+	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{})
 
 	inst, err := s.Acquire(context.Background(), "svc", "")
 	require.NoError(t, err)
@@ -105,7 +107,7 @@ func TestBasicScheduler_StickySkipIdle(t *testing.T) {
 		Sticky:          true,
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
-	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec})
+	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{})
 
 	inst, err := s.Acquire(context.Background(), "svc", "rk")
 	require.NoError(t, err)
@@ -113,6 +115,30 @@ func TestBasicScheduler_StickySkipIdle(t *testing.T) {
 
 	s.reapIdle()
 	require.Equal(t, domain.InstanceStateReady, inst.State)
+}
+
+func TestBasicScheduler_PingFailureStopsInstance(t *testing.T) {
+	lc := &fakeLifecycle{}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		IdleSeconds:     10,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{
+		Probe:  &fakeProbe{err: errors.New("ping failed")},
+		Logger: zap.NewNop(),
+	})
+
+	inst, err := s.Acquire(context.Background(), "svc", "")
+	require.NoError(t, err)
+	require.NoError(t, s.Release(context.Background(), inst))
+
+	s.probeInstances()
+
+	require.Equal(t, domain.InstanceStateStopped, inst.State)
+	require.Len(t, s.instances["svc"], 0)
 }
 
 type fakeLifecycle struct {
@@ -130,5 +156,16 @@ func (f *fakeLifecycle) StartInstance(ctx context.Context, spec domain.ServerSpe
 }
 
 func (f *fakeLifecycle) StopInstance(ctx context.Context, instance *domain.Instance, reason string) error {
+	if instance != nil {
+		instance.State = domain.InstanceStateStopped
+	}
 	return nil
+}
+
+type fakeProbe struct {
+	err error
+}
+
+func (f *fakeProbe) Ping(ctx context.Context, conn domain.Conn) error {
+	return f.err
 }

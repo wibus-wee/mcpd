@@ -20,6 +20,15 @@ type Loader struct {
 	logger *zap.Logger
 }
 
+type rawCatalog struct {
+	Servers               []domain.ServerSpec `mapstructure:"servers"`
+	RouteTimeoutSeconds   int                 `mapstructure:"routeTimeoutSeconds"`
+	PingIntervalSeconds   int                 `mapstructure:"pingIntervalSeconds"`
+	ToolRefreshSeconds    int                 `mapstructure:"toolRefreshSeconds"`
+	ExposeTools           bool                `mapstructure:"exposeTools"`
+	ToolNamespaceStrategy string              `mapstructure:"toolNamespaceStrategy"`
+}
+
 func NewLoader(logger *zap.Logger) *Loader {
 	if logger == nil {
 		return &Loader{logger: zap.NewNop()}
@@ -27,14 +36,14 @@ func NewLoader(logger *zap.Logger) *Loader {
 	return &Loader{logger: logger.Named("catalog")}
 }
 
-func (l *Loader) Load(ctx context.Context, path string) (map[string]domain.ServerSpec, error) {
+func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) {
 	if path == "" {
-		return nil, errors.New("config path is required")
+		return domain.Catalog{}, errors.New("config path is required")
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+		return domain.Catalog{}, fmt.Errorf("read config: %w", err)
 	}
 
 	expanded := os.ExpandEnv(string(data))
@@ -46,29 +55,34 @@ func (l *Loader) Load(ctx context.Context, path string) (map[string]domain.Serve
 		ext = "yaml"
 	}
 	v.SetConfigType(ext)
+	v.SetDefault("routeTimeoutSeconds", domain.DefaultRouteTimeoutSeconds)
+	v.SetDefault("pingIntervalSeconds", domain.DefaultPingIntervalSeconds)
+	v.SetDefault("toolRefreshSeconds", domain.DefaultToolRefreshSeconds)
+	v.SetDefault("exposeTools", domain.DefaultExposeTools)
+	v.SetDefault("toolNamespaceStrategy", domain.DefaultToolNamespaceStrategy)
 
 	if err := v.ReadConfig(bytes.NewBufferString(expanded)); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return domain.Catalog{}, fmt.Errorf("parse config: %w", err)
 	}
 
-	var cfg struct {
-		Servers []domain.ServerSpec `mapstructure:"servers"`
-	}
+	var cfg rawCatalog
 	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("decode config: %w", err)
+		return domain.Catalog{}, fmt.Errorf("decode config: %w", err)
 	}
 
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return domain.Catalog{}, err
 	}
 
 	if len(cfg.Servers) == 0 {
-		return nil, errors.New("no servers defined in catalog")
+		return domain.Catalog{}, errors.New("no servers defined in catalog")
 	}
 
 	specs := make(map[string]domain.ServerSpec, len(cfg.Servers))
 	var validationErrors []string
 	nameSeen := make(map[string]struct{})
+	runtime, runtimeErrs := normalizeRuntimeConfig(cfg)
+	validationErrors = append(validationErrors, runtimeErrs...)
 
 	for i, spec := range cfg.Servers {
 		if _, exists := nameSeen[spec.Name]; exists {
@@ -86,10 +100,13 @@ func (l *Loader) Load(ctx context.Context, path string) (map[string]domain.Serve
 	}
 
 	if len(validationErrors) > 0 {
-		return nil, errors.New(strings.Join(validationErrors, "; "))
+		return domain.Catalog{}, errors.New(strings.Join(validationErrors, "; "))
 	}
 
-	return specs, nil
+	return domain.Catalog{
+		Specs:   specs,
+		Runtime: runtime,
+	}, nil
 }
 
 func validateServerSpec(spec domain.ServerSpec, index int) []string {
@@ -123,5 +140,46 @@ func validateServerSpec(spec domain.ServerSpec, index int) []string {
 		}
 	}
 
+	for i, tool := range spec.ExposeTools {
+		if strings.TrimSpace(tool) == "" {
+			errs = append(errs, fmt.Sprintf("servers[%d]: exposeTools[%d] must not be empty", index, i))
+		}
+	}
+
 	return errs
+}
+
+func normalizeRuntimeConfig(cfg rawCatalog) (domain.RuntimeConfig, []string) {
+	var errs []string
+
+	routeTimeout := cfg.RouteTimeoutSeconds
+	if routeTimeout <= 0 {
+		errs = append(errs, "routeTimeoutSeconds must be > 0")
+	}
+
+	pingInterval := cfg.PingIntervalSeconds
+	if pingInterval < 0 {
+		errs = append(errs, "pingIntervalSeconds must be >= 0")
+	}
+
+	toolRefresh := cfg.ToolRefreshSeconds
+	if toolRefresh < 0 {
+		errs = append(errs, "toolRefreshSeconds must be >= 0")
+	}
+
+	strategy := strings.ToLower(strings.TrimSpace(cfg.ToolNamespaceStrategy))
+	if strategy == "" {
+		strategy = domain.DefaultToolNamespaceStrategy
+	}
+	if strategy != "prefix" && strategy != "flat" {
+		errs = append(errs, "toolNamespaceStrategy must be prefix or flat")
+	}
+
+	return domain.RuntimeConfig{
+		RouteTimeoutSeconds:   routeTimeout,
+		PingIntervalSeconds:   pingInterval,
+		ToolRefreshSeconds:    toolRefresh,
+		ExposeTools:           cfg.ExposeTools,
+		ToolNamespaceStrategy: strategy,
+	}, errs
 }

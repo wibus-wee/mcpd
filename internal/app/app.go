@@ -5,12 +5,16 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
+	"mcpd/internal/infra/aggregator"
 	"mcpd/internal/infra/catalog"
 	"mcpd/internal/infra/lifecycle"
+	"mcpd/internal/infra/probe"
 	"mcpd/internal/infra/router"
 	"mcpd/internal/infra/scheduler"
 	"mcpd/internal/infra/server"
+	"mcpd/internal/infra/telemetry"
 	"mcpd/internal/infra/transport"
 )
 
@@ -36,37 +40,54 @@ func New(logger *zap.Logger) *App {
 }
 
 func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
-	loader := catalog.NewLoader(a.logger)
+	logSink := telemetry.NewMCPLogSink("mcpd", zapcore.DebugLevel)
+	logger := a.logger.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewTee(core, logSink.Core())
+	}))
+	loader := catalog.NewLoader(logger)
 
-	specs, err := loader.Load(ctx, cfg.ConfigPath)
+	catalogData, err := loader.Load(ctx, cfg.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	a.logger.Info("configuration loaded", zap.String("config", cfg.ConfigPath), zap.Int("servers", len(specs)))
+	logger.Info("configuration loaded", zap.String("config", cfg.ConfigPath), zap.Int("servers", len(catalogData.Specs)))
 
 	stdioTransport := transport.NewStdioTransport()
-	lc := lifecycle.NewManager(stdioTransport, a.logger)
-	sched := scheduler.NewBasicScheduler(lc, specs)
-	rt := router.NewBasicRouter(sched)
+	lc := lifecycle.NewManager(stdioTransport, logger)
+	pingProbe := &probe.PingProbe{Timeout: 2 * time.Second}
+	metrics := telemetry.NewNoopMetrics()
+	sched := scheduler.NewBasicScheduler(lc, catalogData.Specs, scheduler.SchedulerOptions{
+		Probe:   pingProbe,
+		Logger:  logger,
+		Metrics: metrics,
+	})
+	rt := router.NewBasicRouter(sched, router.RouterOptions{
+		Timeout: time.Duration(catalogData.Runtime.RouteTimeoutSeconds) * time.Second,
+		Logger:  logger,
+		Metrics: metrics,
+	})
+	agg := aggregator.NewToolAggregator(rt, catalogData.Specs, catalogData.Runtime, logger)
 
 	sched.StartIdleManager(time.Second)
+	sched.StartPingManager(time.Duration(catalogData.Runtime.PingIntervalSeconds) * time.Second)
 	defer func() {
+		sched.StopPingManager()
 		sched.StopIdleManager()
 		sched.StopAll(context.Background())
 	}()
 
-	return server.Run(ctx, rt, a.logger)
+	return server.Run(ctx, rt, catalogData.Runtime, agg, logSink, logger)
 }
 
 func (a *App) ValidateConfig(ctx context.Context, cfg ValidateConfig) error {
 	loader := catalog.NewLoader(a.logger)
 
-	specs, err := loader.Load(ctx, cfg.ConfigPath)
+	catalogData, err := loader.Load(ctx, cfg.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	a.logger.Info("configuration validated", zap.String("config", cfg.ConfigPath), zap.Int("servers", len(specs)))
+	a.logger.Info("configuration validated", zap.String("config", cfg.ConfigPath), zap.Int("servers", len(catalogData.Specs)))
 	return nil
 }

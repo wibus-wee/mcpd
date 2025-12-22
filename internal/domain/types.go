@@ -18,6 +18,29 @@ type ServerSpec struct {
 	Persistent      bool              `json:"persistent"`
 	MinReady        int               `json:"minReady"`
 	ProtocolVersion string            `json:"protocolVersion"`
+	ExposeTools     []string          `json:"exposeTools,omitempty"`
+}
+
+type RuntimeConfig struct {
+	RouteTimeoutSeconds   int    `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds   int    `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds    int    `json:"toolRefreshSeconds"`
+	ExposeTools           bool   `json:"exposeTools"`
+	ToolNamespaceStrategy string `json:"toolNamespaceStrategy"`
+}
+
+type Catalog struct {
+	Specs   map[string]ServerSpec
+	Runtime RuntimeConfig
+}
+
+type ServerCapabilities struct {
+	Tools        bool
+	Resources    bool
+	Prompts      bool
+	Logging      bool
+	Completions  bool
+	Experimental bool
 }
 
 type InstanceState string
@@ -32,13 +55,14 @@ const (
 )
 
 type Instance struct {
-	ID         string
-	Spec       ServerSpec
-	State      InstanceState
-	BusyCount  int
-	LastActive time.Time
-	StickyKey  string
-	Conn       Conn
+	ID           string
+	Spec         ServerSpec
+	State        InstanceState
+	BusyCount    int
+	LastActive   time.Time
+	StickyKey    string
+	Conn         Conn
+	Capabilities ServerCapabilities
 }
 
 type Conn interface {
@@ -63,6 +87,8 @@ type Scheduler interface {
 	Release(ctx context.Context, instance *Instance) error
 	StartIdleManager(interval time.Duration)
 	StopIdleManager()
+	StartPingManager(interval time.Duration)
+	StopPingManager()
 	StopAll(ctx context.Context)
 }
 
@@ -71,7 +97,7 @@ type Router interface {
 }
 
 type CatalogLoader interface {
-	Load(ctx context.Context, path string) (map[string]ServerSpec, error)
+	Load(ctx context.Context, path string) (Catalog, error)
 }
 
 type HealthProbe interface {
@@ -79,3 +105,4 @@ type HealthProbe interface {
 }
 
 var ErrMethodNotAllowed = errors.New("method not allowed")
+var ErrInvalidRequest = errors.New("invalid request")

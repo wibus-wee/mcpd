@@ -15,28 +15,28 @@ import (
 
 type serveOptions struct {
 	configPath string
-	logStderr  bool
-	logger     *zap.Logger
+	// logStderr  bool
+	logger *zap.Logger
 }
 
 func main() {
 	opts := serveOptions{
 		configPath: "catalog.yaml",
-		logStderr:  false,
-		logger:     zap.NewNop(),
+		// logStderr:  false,
+		logger: zap.NewNop(),
 	}
 
 	root := &cobra.Command{
 		Use:   "mcpd",
 		Short: "Elastic MCP server orchestrator with scale-to-zero runtime",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if !opts.logStderr {
-				opts.logger = zap.NewNop()
-				return nil
-			}
+			// if !opts.logStderr {
+			// 	opts.logger = zap.NewNop()
+			// 	return nil
+			// }
 			cfg := zap.NewProductionConfig()
-			cfg.OutputPaths = []string{"stderr"}
-			cfg.ErrorOutputPaths = []string{"stderr"}
+			// cfg.OutputPaths = []string{""}
+			// cfg.ErrorOutputPaths = []string{"stderr"}
 			log, err := cfg.Build()
 			if err != nil {
 				return err
@@ -51,7 +51,7 @@ func main() {
 	}
 
 	root.PersistentFlags().StringVar(&opts.configPath, "config", opts.configPath, "path to catalog config file")
-	root.PersistentFlags().BoolVar(&opts.logStderr, "log-stderr", opts.logStderr, "enable structured logs to stderr (off by default to avoid stdio noise)")
+	// root.PersistentFlags().BoolVar(&opts.logStderr, "log-stderr", opts.logStderr, "enable structured logs to stderr (off by default to avoid stdio noise)")
 
 	root.AddCommand(
 		newServeCmd(&opts),
@@ -103,8 +103,8 @@ func applyFlagBindings(flags *pflag.FlagSet, opts *serveOptions) {
 		switch f.Name {
 		case "config":
 			opts.configPath, _ = flags.GetString("config")
-		case "log-stderr":
-			opts.logStderr, _ = flags.GetBool("log-stderr")
+			// case "log-stderr":
+			// 	opts.logStderr, _ = flags.GetBool("log-stderr")
 		}
 	})
 }

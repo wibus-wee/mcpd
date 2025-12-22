@@ -7,70 +7,105 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
 )
 
 type BasicRouter struct {
 	scheduler domain.Scheduler
-	capLookup CapabilityLookup
 	timeout   time.Duration
+	logger    *zap.Logger
+	metrics   domain.Metrics
 }
 
-type CapabilityLookup interface {
-	Allowed(serverType string, method string) bool
+type RouterOptions struct {
+	Timeout time.Duration
+	Logger  *zap.Logger
+	Metrics domain.Metrics
 }
 
-type NoopCapabilities struct{}
-
-func (n NoopCapabilities) Allowed(serverType, method string) bool { return true }
-
-func NewBasicRouter(scheduler domain.Scheduler) *BasicRouter {
+func NewBasicRouter(scheduler domain.Scheduler, opts RouterOptions) *BasicRouter {
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = time.Duration(domain.DefaultRouteTimeoutSeconds) * time.Second
+	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &BasicRouter{
 		scheduler: scheduler,
-		capLookup: NoopCapabilities{},
-		timeout:   10 * time.Second,
+		timeout:   timeout,
+		logger:    logger.Named("router"),
+		metrics:   opts.Metrics,
 	}
 }
 
 func (r *BasicRouter) Route(ctx context.Context, serverType, routingKey string, payload json.RawMessage) (json.RawMessage, error) {
-	method := extractMethod(payload)
-	if !r.capLookup.Allowed(serverType, method) {
-		return nil, domain.ErrMethodNotAllowed
+	method, isCall, err := extractMethod(payload)
+	if err != nil {
+		return nil, fmt.Errorf("decode request: %w", err)
 	}
+	if method == "" || !isCall {
+		return nil, domain.ErrInvalidRequest
+	}
+
+	start := time.Now()
 
 	inst, err := r.scheduler.Acquire(ctx, serverType, routingKey)
 	if err != nil {
+		r.observeRoute(serverType, start, err)
 		return nil, err
 	}
 	defer func() { _ = r.scheduler.Release(ctx, inst) }()
 
 	if inst.Conn == nil {
-		return nil, fmt.Errorf("instance has no connection: %s", inst.ID)
+		err := fmt.Errorf("instance has no connection: %s", inst.ID)
+		r.observeRoute(serverType, start, err)
+		return nil, err
+	}
+
+	if !domain.MethodAllowed(inst.Capabilities, method) {
+		r.logger.Warn("method not allowed", zap.String("serverType", serverType), zap.String("method", method))
+		r.observeRoute(serverType, start, domain.ErrMethodNotAllowed)
+		return nil, domain.ErrMethodNotAllowed
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	if err := inst.Conn.Send(callCtx, payload); err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		sendErr := fmt.Errorf("send request: %w", err)
+		r.observeRoute(serverType, start, sendErr)
+		return nil, sendErr
 	}
 
 	resp, err := inst.Conn.Recv(callCtx)
 	if err != nil {
-		return nil, fmt.Errorf("receive response: %w", err)
+		recvErr := fmt.Errorf("receive response: %w", err)
+		r.observeRoute(serverType, start, recvErr)
+		return nil, recvErr
 	}
 
+	r.observeRoute(serverType, start, nil)
 	return resp, nil
 }
 
-func extractMethod(payload json.RawMessage) string {
+func (r *BasicRouter) observeRoute(serverType string, start time.Time, err error) {
+	if r.metrics == nil {
+		return
+	}
+	r.metrics.ObserveRoute(serverType, time.Since(start), err)
+}
+
+func extractMethod(payload json.RawMessage) (string, bool, error) {
 	msg, err := jsonrpc.DecodeMessage(payload)
 	if err != nil {
-		return ""
+		return "", false, err
 	}
 	if req, ok := msg.(*jsonrpc.Request); ok {
-		return req.Method
+		return req.Method, req.ID.IsValid(), nil
 	}
-	return ""
+	return "", false, nil
 }

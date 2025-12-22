@@ -8,7 +8,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
-	"mcpd/internal/infra/router"
+	"mcpd/internal/domain"
+	"mcpd/internal/infra/aggregator"
+	"mcpd/internal/infra/telemetry"
 )
 
 type routeArgs struct {
@@ -18,7 +20,15 @@ type routeArgs struct {
 }
 
 // Run starts an MCP server over stdio using go-sdk and routes tool calls to the provided router.
-func Run(ctx context.Context, rt *router.BasicRouter, logger *zap.Logger) error {
+func Run(ctx context.Context, rt domain.Router, cfg domain.RuntimeConfig, agg *aggregator.ToolAggregator, logSink *telemetry.MCPLogSink, logger *zap.Logger) error {
+	s, stop := newServer(ctx, rt, cfg, agg, logSink, logger)
+	defer stop()
+
+	logger.Info("mcp server starting (stdio transport)")
+	return s.Run(ctx, &mcp.StdioTransport{})
+}
+
+func newServer(ctx context.Context, rt domain.Router, cfg domain.RuntimeConfig, agg *aggregator.ToolAggregator, logSink *telemetry.MCPLogSink, logger *zap.Logger) (*mcp.Server, func()) {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -40,6 +50,7 @@ func Run(ctx context.Context, rt *router.BasicRouter, logger *zap.Logger) error 
 		}
 		resp, err := rt.Route(ctx, args.ServerType, args.RoutingKey, args.Payload)
 		if err != nil {
+			logger.Warn("route tool failed", zap.String("serverType", args.ServerType), zap.Error(err))
 			return errorResult(err.Error()), nil, nil
 		}
 		return &mcp.CallToolResult{
@@ -49,8 +60,22 @@ func Run(ctx context.Context, rt *router.BasicRouter, logger *zap.Logger) error 
 		}, nil, nil
 	})
 
-	logger.Info("mcp server starting (stdio transport)")
-	return s.Run(ctx, &mcp.StdioTransport{})
+	stop := func() {}
+	if agg != nil && cfg.ExposeTools {
+		agg.RegisterServer(s)
+		agg.Start(ctx)
+		stop = agg.Stop
+	}
+	if logSink != nil {
+		logSink.SetServer(s)
+		previousStop := stop
+		stop = func() {
+			previousStop()
+			logSink.SetServer(nil)
+		}
+	}
+
+	return s, stop
 }
 
 func errorResult(msg string) *mcp.CallToolResult {

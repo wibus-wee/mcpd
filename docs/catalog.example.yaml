@@ -1,8 +1,18 @@
+routeTimeoutSeconds: 10
+pingIntervalSeconds: 30
+toolRefreshSeconds: 60
+exposeTools: true
+toolNamespaceStrategy: "prefix"
 servers:
-  - name: echo
-    cmd: ["/bin/sh", "-c", "cat"]
+  - name: weather
+    cmd:
+      [
+        "/bin/sh",
+        "-c",
+        "node ./weather-demo-mcp/build/index.js",
+      ]
     idleSeconds: 60
-    maxConcurrent: 2
+    maxConcurrent: 1
     sticky: false
     persistent: false
     minReady: 0

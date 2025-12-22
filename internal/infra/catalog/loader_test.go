@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -24,14 +25,14 @@ servers:
     persistent: false
     minReady: 0
     protocolVersion: "2025-11-25"
-`)
+	`)
 
 	loader := NewLoader(zap.NewNop())
-	specs, err := loader.Load(context.Background(), file)
+	catalog, err := loader.Load(context.Background(), file)
 	require.NoError(t, err)
-	require.Len(t, specs, 1)
+	require.Len(t, catalog.Specs, 1)
 
-	got := specs["git-helper"]
+	got := catalog.Specs["git-helper"]
 	expect := domain.ServerSpec{
 		Name:            "git-helper",
 		Cmd:             []string{"./git-helper"},
@@ -45,6 +46,12 @@ servers:
 	if diff := cmp.Diff(expect, got); diff != "" {
 		t.Fatalf("spec mismatch (-want +got):\n%s", diff)
 	}
+
+	require.Equal(t, domain.DefaultRouteTimeoutSeconds, catalog.Runtime.RouteTimeoutSeconds)
+	require.Equal(t, domain.DefaultPingIntervalSeconds, catalog.Runtime.PingIntervalSeconds)
+	require.Equal(t, domain.DefaultToolRefreshSeconds, catalog.Runtime.ToolRefreshSeconds)
+	require.Equal(t, domain.DefaultExposeTools, catalog.Runtime.ExposeTools)
+	require.Equal(t, domain.DefaultToolNamespaceStrategy, catalog.Runtime.ToolNamespaceStrategy)
 }
 
 func TestLoader_EnvExpansion(t *testing.T) {
@@ -62,9 +69,9 @@ servers:
 `)
 
 	loader := NewLoader(zap.NewNop())
-	specs, err := loader.Load(context.Background(), file)
+	catalog, err := loader.Load(context.Background(), file)
 	require.NoError(t, err)
-	require.Equal(t, []string{"./from-env"}, specs["env-server"].Cmd)
+	require.Equal(t, []string{"./from-env"}, catalog.Specs["env-server"].Cmd)
 }
 
 func TestLoader_DuplicateName(t *testing.T) {
@@ -169,12 +176,39 @@ servers:
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestLoader_InvalidRuntimeConfig(t *testing.T) {
+	file := writeTempConfig(t, `
+routeTimeoutSeconds: 0
+pingIntervalSeconds: -1
+toolRefreshSeconds: -2
+toolNamespaceStrategy: "bad"
+servers:
+  - name: ok
+    cmd: ["./a"]
+    idleSeconds: 0
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+`)
+
+	loader := NewLoader(zap.NewNop())
+	_, err := loader.Load(context.Background(), file)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "routeTimeoutSeconds")
+	require.Contains(t, err.Error(), "pingIntervalSeconds")
+	require.Contains(t, err.Error(), "toolRefreshSeconds")
+	require.Contains(t, err.Error(), "toolNamespaceStrategy")
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "catalog.yaml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	normalized := strings.ReplaceAll(content, "\t", "  ")
+	if err := os.WriteFile(path, []byte(normalized), 0o644); err != nil {
 		t.Fatalf("write temp config: %v", err)
 	}
 	return path

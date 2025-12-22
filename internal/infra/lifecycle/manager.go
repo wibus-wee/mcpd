@@ -58,19 +58,21 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 		return nil, fmt.Errorf("unsupported protocol version: %s", spec.ProtocolVersion)
 	}
 
-	if err := m.initialize(ctx, conn); err != nil {
+	caps, err := m.initialize(ctx, conn)
+	if err != nil {
 		_ = conn.Close()
 		_ = stop(ctx)
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
 
 	instance := &domain.Instance{
-		ID:         m.generateInstanceID(spec),
-		Spec:       spec,
-		State:      domain.InstanceStateReady,
-		BusyCount:  0,
-		LastActive: time.Now(),
-		Conn:       conn,
+		ID:           m.generateInstanceID(spec),
+		Spec:         spec,
+		State:        domain.InstanceStateReady,
+		BusyCount:    0,
+		LastActive:   time.Now(),
+		Conn:         conn,
+		Capabilities: caps,
 	}
 
 	m.mu.Lock()
@@ -82,7 +84,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 	return instance, nil
 }
 
-func (m *Manager) initialize(ctx context.Context, conn domain.Conn) error {
+func (m *Manager) initialize(ctx context.Context, conn domain.Conn) (domain.ServerCapabilities, error) {
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -97,11 +99,11 @@ func (m *Manager) initialize(ctx context.Context, conn domain.Conn) error {
 
 	id, err := jsonrpc.MakeID("mcpd-init")
 	if err != nil {
-		return fmt.Errorf("build initialize id: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("build initialize id: %w", err)
 	}
 	rawParams, err := json.Marshal(initParams)
 	if err != nil {
-		return fmt.Errorf("marshal initialize params: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("marshal initialize params: %w", err)
 	}
 	wireMsg := &jsonrpc.Request{
 		ID:     id,
@@ -110,16 +112,16 @@ func (m *Manager) initialize(ctx context.Context, conn domain.Conn) error {
 	}
 	wire, err := jsonrpc.EncodeMessage(wireMsg)
 	if err != nil {
-		return fmt.Errorf("encode initialize: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("encode initialize: %w", err)
 	}
 
 	if err := conn.Send(pingCtx, wire); err != nil {
-		return fmt.Errorf("send initialize: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("send initialize: %w", err)
 	}
 
 	rawResp, err := conn.Recv(pingCtx)
 	if err != nil {
-		return fmt.Errorf("recv initialize: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("recv initialize: %w", err)
 	}
 
 	return m.validateInitializeResponse(rawResp)
@@ -159,38 +161,52 @@ func (m *Manager) generateInstanceID(spec domain.ServerSpec) string {
 	return fmt.Sprintf("%s-%d-%d", spec.Name, time.Now().UnixNano(), rand.Int63())
 }
 
-func (m *Manager) validateInitializeResponse(raw json.RawMessage) error {
+func (m *Manager) validateInitializeResponse(raw json.RawMessage) (domain.ServerCapabilities, error) {
 	respMsg, err := jsonrpc.DecodeMessage(raw)
 	if err != nil {
-		return fmt.Errorf("decode initialize response: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("decode initialize response: %w", err)
 	}
 
 	resp, ok := respMsg.(*jsonrpc.Response)
 	if !ok {
-		return errors.New("initialize response is not a response message")
+		return domain.ServerCapabilities{}, errors.New("initialize response is not a response message")
 	}
 	if resp.Error != nil {
-		return fmt.Errorf("initialize error: %w", resp.Error)
+		return domain.ServerCapabilities{}, fmt.Errorf("initialize error: %w", resp.Error)
 	}
 
 	if len(resp.Result) == 0 {
-		return errors.New("initialize response missing result")
+		return domain.ServerCapabilities{}, errors.New("initialize response missing result")
 	}
 
 	var initResult mcp.InitializeResult
 	if err := json.Unmarshal(resp.Result, &initResult); err != nil {
-		return fmt.Errorf("decode initialize result: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("decode initialize result: %w", err)
 	}
 
 	if initResult.ProtocolVersion != domain.DefaultProtocolVersion {
-		return fmt.Errorf("protocolVersion mismatch: %s", initResult.ProtocolVersion)
+		return domain.ServerCapabilities{}, fmt.Errorf("protocolVersion mismatch: %s", initResult.ProtocolVersion)
 	}
 	if initResult.ServerInfo == nil || initResult.ServerInfo.Name == "" {
-		return errors.New("missing serverInfo")
+		return domain.ServerCapabilities{}, errors.New("missing serverInfo")
 	}
 	if initResult.Capabilities == nil {
-		return errors.New("missing capabilities")
+		return domain.ServerCapabilities{}, errors.New("missing capabilities")
 	}
 
-	return nil
+	return mapCapabilities(initResult.Capabilities), nil
+}
+
+func mapCapabilities(caps *mcp.ServerCapabilities) domain.ServerCapabilities {
+	out := domain.ServerCapabilities{}
+	if caps == nil {
+		return out
+	}
+	out.Tools = caps.Tools != nil
+	out.Resources = caps.Resources != nil
+	out.Prompts = caps.Prompts != nil
+	out.Logging = caps.Logging != nil
+	out.Completions = caps.Completions != nil
+	out.Experimental = len(caps.Experimental) > 0
+	return out
 }
