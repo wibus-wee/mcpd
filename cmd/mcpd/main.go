@@ -16,20 +16,14 @@ import (
 type serveOptions struct {
 	configPath string
 	logStderr  bool
+	logger     *zap.Logger
 }
 
 func main() {
-	rootLogger := zap.NewNop()
-	root := newRootCmd(rootLogger)
-	if err := root.Execute(); err != nil {
-		rootLogger.Fatal("command failed", zap.Error(err))
-	}
-}
-
-func newRootCmd(logger *zap.Logger) *cobra.Command {
 	opts := serveOptions{
 		configPath: "catalog.yaml",
 		logStderr:  false,
+		logger:     zap.NewNop(),
 	}
 
 	root := &cobra.Command{
@@ -37,6 +31,7 @@ func newRootCmd(logger *zap.Logger) *cobra.Command {
 		Short: "Elastic MCP server orchestrator with scale-to-zero runtime",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if !opts.logStderr {
+				opts.logger = zap.NewNop()
 				return nil
 			}
 			cfg := zap.NewProductionConfig()
@@ -47,11 +42,11 @@ func newRootCmd(logger *zap.Logger) *cobra.Command {
 				return err
 			}
 			// replace logger in options
-			logger = log
+			opts.logger = log
 			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			_ = logger.Sync()
+			_ = opts.logger.Sync()
 		},
 	}
 
@@ -59,14 +54,16 @@ func newRootCmd(logger *zap.Logger) *cobra.Command {
 	root.PersistentFlags().BoolVar(&opts.logStderr, "log-stderr", opts.logStderr, "enable structured logs to stderr (off by default to avoid stdio noise)")
 
 	root.AddCommand(
-		newServeCmd(logger, &opts),
-		newValidateCmd(logger, &opts),
+		newServeCmd(&opts),
+		newValidateCmd(&opts),
 	)
 
-	return root
+	if err := root.Execute(); err != nil {
+		opts.logger.Fatal("command failed", zap.Error(err))
+	}
 }
 
-func newServeCmd(logger *zap.Logger, opts *serveOptions) *cobra.Command {
+func newServeCmd(opts *serveOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the MCP orchestrator",
@@ -75,7 +72,7 @@ func newServeCmd(logger *zap.Logger, opts *serveOptions) *cobra.Command {
 			ctx, cancel := signalAwareContext(cmd.Context())
 			defer cancel()
 
-			application := app.New(logger)
+			application := app.New(opts.logger)
 			return application.Serve(ctx, app.ServeConfig{
 				ConfigPath: opts.configPath,
 			})
@@ -85,13 +82,13 @@ func newServeCmd(logger *zap.Logger, opts *serveOptions) *cobra.Command {
 	return cmd
 }
 
-func newValidateCmd(logger *zap.Logger, opts *serveOptions) *cobra.Command {
+func newValidateCmd(opts *serveOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate catalog configuration without running servers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			applyFlagBindings(cmd.Flags(), opts)
-			application := app.New(logger)
+			application := app.New(opts.logger)
 			return application.ValidateConfig(cmd.Context(), app.ValidateConfig{
 				ConfigPath: opts.configPath,
 			})
