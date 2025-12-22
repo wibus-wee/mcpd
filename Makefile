@@ -1,7 +1,7 @@
 GO ?= go
 CONFIG ?= docs/catalog.example.yaml
 
-.PHONY: build test fmt tidy vet serve validate
+.PHONY: dev
 
 build:
 	$(GO) build ./...
@@ -12,14 +12,12 @@ test:
 fmt:
 	$(GO) fmt ./...
 
-tidy:
-	$(GO) mod tidy
+# Docker Compose development environment
+dev:
+	docker compose up -d
 
-vet:
-	$(GO) vet ./...
+down:
+	docker compose down
 
-serve:
-	$(GO) run ./cmd/mcpd serve --config $(CONFIG)
-
-validate:
-	$(GO) run ./cmd/mcpd validate --config $(CONFIG)
+reload:
+	docker compose restart dev

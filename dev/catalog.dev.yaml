@@ -12,15 +12,10 @@ toolRefreshSeconds: 60
 exposeTools: true
 toolNamespaceStrategy: "prefix"
 servers:
-  - name: weather
-    cmd:
-      [
-        "/bin/sh",
-        "-c",
-        "node ./weather-demo-mcp/build/index.js",
-      ]
-    idleSeconds: 60
-    maxConcurrent: 1
+  - name: echo
+    cmd: ["sh", "-c", "echo 'MCP Echo Server Ready' && sleep infinity"]
+    idleSeconds: 300
+    maxConcurrent: 2
     sticky: false
     persistent: false
     minReady: 0

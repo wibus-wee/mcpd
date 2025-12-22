@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -56,7 +57,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	stdioTransport := transport.NewStdioTransport()
 	lc := lifecycle.NewManager(stdioTransport, logger)
 	pingProbe := &probe.PingProbe{Timeout: 2 * time.Second}
-	metrics := telemetry.NewNoopMetrics()
+	metrics := telemetry.NewPrometheusMetrics()
 	sched := scheduler.NewBasicScheduler(lc, catalogData.Specs, scheduler.SchedulerOptions{
 		Probe:   pingProbe,
 		Logger:  logger,
@@ -68,6 +69,17 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 		Metrics: metrics,
 	})
 	agg := aggregator.NewToolAggregator(rt, catalogData.Specs, catalogData.Runtime, logger)
+
+	// Optionally start metrics HTTP server
+	metricsEnabled := os.Getenv("MCPD_METRICS_ENABLED")
+	if metricsEnabled == "true" || metricsEnabled == "1" {
+		go func() {
+			logger.Info("starting metrics server", zap.Int("port", 9090))
+			if err := telemetry.StartMetricsServer(ctx, 9090, logger); err != nil {
+				logger.Error("metrics server failed", zap.Error(err))
+			}
+		}()
+	}
 
 	sched.StartIdleManager(time.Second)
 	sched.StartPingManager(time.Duration(catalogData.Runtime.PingIntervalSeconds) * time.Second)

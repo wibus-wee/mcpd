@@ -1,0 +1,7 @@
+.git
+.github
+*.md
+!README.md
+weather-demo-mcp/node_modules
+.DS_Store
+*.log

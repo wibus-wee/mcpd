@@ -1,0 +1,26 @@
+FROM golang:1.24-bookworm
+
+WORKDIR /app
+
+# Install Node.js for MCP Inspector
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g @modelcontextprotocol/inspector
+
+# Install git and other tools
+RUN apt-get update && apt-get install -y git make
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Expose ports
+# 6274: Inspector UI
+# 6277: Inspector WebSocket
+# 9090: Prometheus metrics
+EXPOSE 6274 6277 9090
+
+CMD ["npx", "@modelcontextprotocol/inspector"]

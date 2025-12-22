@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'mcpd'
+    static_configs:
+      - targets: ['dev:9090']
+        labels:
+          service: 'mcpd'

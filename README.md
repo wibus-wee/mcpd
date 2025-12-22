@@ -13,6 +13,12 @@
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> This project is currently **on hold**. 
+>
+> While I have many different ideas for its development, I noticed that **Mozilla AI** has also introduced their own version of `mcpd`.
+>
+> Although our concepts differ, they share striking similarities. Perhaps this project will wait for a new beginning, blooming again in the future.
+
 ## 🚀 What is mcpd?
 
 **mcpd** is a lightweight elastic orchestrator for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers, providing on-demand startup, auto-scaling, and scale-to-zero capabilities to reduce local resource consumption and simplify multi-service management.

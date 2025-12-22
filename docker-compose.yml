@@ -1,0 +1,55 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: ./dev/Dockerfile.dev
+    ports:
+      - "6274:6274"  # Inspector UI
+      - "6277:6277"  # Inspector WebSocket
+      - "9090:9090"  # Prometheus metrics (from mcpd)
+    environment:
+      HOST: "0.0.0.0"
+      MCP_AUTO_OPEN_ENABLED: "false"
+      MCPD_METRICS_ENABLED: "true"
+    volumes:
+      - ./:/app
+      - go-data:/go/pkg/mod
+      - go-build-data:/root/.cache/go-build
+    stdin_open: true
+    tty: true
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.listen-address=0.0.0.0:9500"
+      - "--storage.tsdb.retention.time=30d"
+    ports:
+      - "9500:9500"
+    depends_on:
+      - dev
+    volumes:
+      - prometheus-data:/prometheus
+      - ./dev/prometheus.yaml:/etc/prometheus/prometheus.yaml
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "4000:4000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./dev/grafana.ini:/etc/grafana/grafana.ini
+      - ./dev/datasources.yaml:/etc/grafana/provisioning/datasources/mcpd-datasources.yml
+      - ./dev/dashboards.yaml:/etc/grafana/provisioning/dashboards/mcpd-dashboards.yml
+      - ./dev/dashboards:/dashboards
+
+volumes:
+  go-data:
+  go-build-data:
+  prometheus-data:
+  grafana-data:
