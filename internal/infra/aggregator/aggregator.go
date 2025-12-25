@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/telemetry"
 )
 
 type ToolIndex struct {
@@ -24,6 +25,7 @@ type ToolIndex struct {
 	specs  map[string]domain.ServerSpec
 	cfg    domain.RuntimeConfig
 	logger *zap.Logger
+	health *telemetry.HealthTracker
 
 	mu          sync.RWMutex
 	started     bool
@@ -33,6 +35,8 @@ type ToolIndex struct {
 	targets     map[string]domain.ToolTarget
 	serverCache map[string]serverCache
 	subs        map[chan domain.ToolSnapshot]struct{}
+
+	refreshBeat *telemetry.Heartbeat
 }
 
 type serverCache struct {
@@ -40,7 +44,7 @@ type serverCache struct {
 	targets map[string]domain.ToolTarget
 }
 
-func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, cfg domain.RuntimeConfig, logger *zap.Logger) *ToolIndex {
+func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker) *ToolIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -49,6 +53,7 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, cfg doma
 		specs:       specs,
 		cfg:         cfg,
 		logger:      logger.Named("tool_index"),
+		health:      health,
 		stop:        make(chan struct{}),
 		targets:     make(map[string]domain.ToolTarget),
 		serverCache: make(map[string]serverCache),
@@ -69,11 +74,16 @@ func (a *ToolIndex) Start(ctx context.Context) {
 	a.started = true
 	a.mu.Unlock()
 
+	interval := time.Duration(a.cfg.ToolRefreshSeconds) * time.Second
+	if interval > 0 && a.health != nil && a.refreshBeat == nil {
+		a.refreshBeat = a.health.Register("tool_index.refresh", interval*3)
+	}
+	if a.refreshBeat != nil {
+		a.refreshBeat.Beat()
+	}
 	if err := a.refresh(ctx); err != nil {
 		a.logger.Warn("initial tool refresh failed", zap.Error(err))
 	}
-
-	interval := time.Duration(a.cfg.ToolRefreshSeconds) * time.Second
 	if interval <= 0 {
 		return
 	}
@@ -90,6 +100,9 @@ func (a *ToolIndex) Start(ctx context.Context) {
 		for {
 			select {
 			case <-a.ticker.C:
+				if a.refreshBeat != nil {
+					a.refreshBeat.Beat()
+				}
 				if err := a.refresh(ctx); err != nil {
 					a.logger.Warn("tool refresh failed", zap.Error(err))
 				}
@@ -107,6 +120,10 @@ func (a *ToolIndex) Stop() {
 	if a.ticker != nil {
 		a.ticker.Stop()
 		a.ticker = nil
+	}
+	if a.refreshBeat != nil {
+		a.refreshBeat.Stop()
+		a.refreshBeat = nil
 	}
 	select {
 	case <-a.stop:

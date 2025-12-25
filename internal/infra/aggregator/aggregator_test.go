@@ -38,7 +38,7 @@ func TestToolIndex_SnapshotPrefixedTool(t *testing.T) {
 		ToolRefreshSeconds:    0,
 	}
 
-	index := NewToolIndex(router, specs, cfg, zap.NewNop())
+	index := NewToolIndex(router, specs, cfg, zap.NewNop(), nil)
 	index.Start(ctx)
 	defer index.Stop()
 
@@ -80,7 +80,7 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, cfg, zap.NewNop())
+	index := NewToolIndex(router, specs, cfg, zap.NewNop(), nil)
 	index.Start(ctx)
 	defer index.Stop()
 
@@ -91,7 +91,7 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 
 func TestToolIndex_CallToolNotFound(t *testing.T) {
 	ctx := context.Background()
-	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, domain.RuntimeConfig{}, zap.NewNop())
+	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, domain.RuntimeConfig{}, zap.NewNop(), nil)
 
 	_, err := index.CallTool(ctx, "missing", nil, "")
 	require.ErrorIs(t, err, domain.ErrToolNotFound)

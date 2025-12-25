@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mcpd catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "routeTimeoutSeconds": {"type": "integer"},
+    "pingIntervalSeconds": {"type": "integer"},
+    "toolRefreshSeconds": {"type": "integer"},
+    "exposeTools": {"type": "boolean"},
+    "toolNamespaceStrategy": {"type": "string"},
+    "rpc": {"$ref": "#/$defs/rpcConfig"},
+    "servers": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/serverSpec"}
+    }
+  },
+  "required": ["servers"],
+  "$defs": {
+    "rpcConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listenAddress": {"type": "string"},
+        "maxRecvMsgSize": {"type": "integer"},
+        "maxSendMsgSize": {"type": "integer"},
+        "keepaliveTimeSeconds": {"type": "integer"},
+        "keepaliveTimeoutSeconds": {"type": "integer"},
+        "tls": {"$ref": "#/$defs/tlsConfig"}
+      }
+    },
+    "tlsConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "certFile": {"type": "string"},
+        "keyFile": {"type": "string"},
+        "caFile": {"type": "string"},
+        "clientAuth": {"type": "boolean"}
+      }
+    },
+    "serverSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "cmd": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "cwd": {"type": "string"},
+        "idleSeconds": {"type": "integer"},
+        "maxConcurrent": {"type": "integer"},
+        "sticky": {"type": "boolean"},
+        "persistent": {"type": "boolean"},
+        "minReady": {"type": "integer"},
+        "protocolVersion": {"type": "string"},
+        "exposeTools": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

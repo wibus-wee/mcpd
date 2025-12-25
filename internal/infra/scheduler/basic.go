@@ -9,6 +9,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"mcpd/internal/infra/telemetry"
+
 	"mcpd/internal/domain"
 )
 
@@ -24,6 +26,7 @@ type SchedulerOptions struct {
 	PingInterval time.Duration
 	Logger       *zap.Logger
 	Metrics      domain.Metrics
+	Health       *telemetry.HealthTracker
 }
 
 type BasicScheduler struct {
@@ -37,11 +40,15 @@ type BasicScheduler struct {
 	probe   domain.HealthProbe
 	logger  *zap.Logger
 	metrics domain.Metrics
+	health  *telemetry.HealthTracker
 
 	idleTicker *time.Ticker
 	stopIdle   chan struct{}
 	pingTicker *time.Ticker
 	stopPing   chan struct{}
+
+	idleBeat *telemetry.Heartbeat
+	pingBeat *telemetry.Heartbeat
 }
 
 type trackedInstance struct {
@@ -67,6 +74,7 @@ func NewBasicScheduler(lifecycle domain.Lifecycle, specs map[string]domain.Serve
 		probe:     opts.Probe,
 		logger:    logger.Named("scheduler"),
 		metrics:   opts.Metrics,
+		health:    opts.Health,
 		stopIdle:  make(chan struct{}),
 		stopPing:  make(chan struct{}),
 	}
@@ -199,6 +207,9 @@ func (s *BasicScheduler) StartIdleManager(interval time.Duration) {
 	if s.stopIdle == nil {
 		s.stopIdle = make(chan struct{})
 	}
+	if s.health != nil && s.idleBeat == nil {
+		s.idleBeat = s.health.Register("scheduler.idle", interval*3)
+	}
 	s.idleTicker = time.NewTicker(interval)
 	s.mu.Unlock()
 
@@ -206,6 +217,9 @@ func (s *BasicScheduler) StartIdleManager(interval time.Duration) {
 		for {
 			select {
 			case <-s.idleTicker.C:
+				if s.idleBeat != nil {
+					s.idleBeat.Beat()
+				}
 				s.reapIdle()
 			case <-s.stopIdle:
 				return
@@ -219,6 +233,10 @@ func (s *BasicScheduler) StopIdleManager() {
 	if s.idleTicker != nil {
 		s.idleTicker.Stop()
 		s.idleTicker = nil
+	}
+	if s.idleBeat != nil {
+		s.idleBeat.Stop()
+		s.idleBeat = nil
 	}
 	if s.stopIdle != nil {
 		close(s.stopIdle)
@@ -239,6 +257,9 @@ func (s *BasicScheduler) StartPingManager(interval time.Duration) {
 	if s.stopPing == nil {
 		s.stopPing = make(chan struct{})
 	}
+	if s.health != nil && s.pingBeat == nil {
+		s.pingBeat = s.health.Register("scheduler.ping", interval*3)
+	}
 	s.pingTicker = time.NewTicker(interval)
 	s.mu.Unlock()
 
@@ -246,6 +267,9 @@ func (s *BasicScheduler) StartPingManager(interval time.Duration) {
 		for {
 			select {
 			case <-s.pingTicker.C:
+				if s.pingBeat != nil {
+					s.pingBeat.Beat()
+				}
 				s.probeInstances()
 			case <-s.stopPing:
 				return
@@ -259,6 +283,10 @@ func (s *BasicScheduler) StopPingManager() {
 	if s.pingTicker != nil {
 		s.pingTicker.Stop()
 		s.pingTicker = nil
+	}
+	if s.pingBeat != nil {
+		s.pingBeat.Stop()
+		s.pingBeat = nil
 	}
 	if s.stopPing != nil {
 		close(s.stopPing)
@@ -289,6 +317,13 @@ func (s *BasicScheduler) reapIdle() {
 			idleFor := now.Sub(inst.instance.LastActive)
 			if idleFor >= time.Duration(spec.IdleSeconds)*time.Second {
 				inst.instance.State = domain.InstanceStateDraining
+				s.logger.Info("idle reap",
+					telemetry.EventField(telemetry.EventIdleReap),
+					telemetry.ServerTypeField(serverType),
+					telemetry.InstanceIDField(inst.instance.ID),
+					telemetry.StateField(string(inst.instance.State)),
+					telemetry.DurationField(idleFor),
+				)
 				candidates = append(candidates, stopCandidate{serverType: serverType, inst: inst, reason: "idle timeout"})
 				readyCount--
 			}
@@ -327,7 +362,13 @@ func (s *BasicScheduler) probeInstances() {
 
 	for _, candidate := range checks {
 		if err := s.probe.Ping(context.Background(), candidate.inst.instance.Conn); err != nil {
-			s.logger.Warn("ping failed", zap.String("serverType", candidate.serverType), zap.String("instanceID", candidate.inst.instance.ID), zap.Error(err))
+			s.logger.Warn("ping failed",
+				telemetry.EventField(telemetry.EventPingFailure),
+				telemetry.ServerTypeField(candidate.serverType),
+				telemetry.InstanceIDField(candidate.inst.instance.ID),
+				telemetry.StateField(string(candidate.inst.instance.State)),
+				zap.Error(err),
+			)
 			candidates = append(candidates, candidate)
 		}
 	}

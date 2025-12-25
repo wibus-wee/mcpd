@@ -31,6 +31,7 @@ services:
       - "9090:9090"  # Prometheus metrics (from core)
     environment:
       MCPD_METRICS_ENABLED: "true"
+      MCPD_HEALTHZ_ENABLED: "true"
     volumes:
       - ./:/app
       - go-data:/go/pkg/mod

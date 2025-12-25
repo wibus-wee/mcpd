@@ -226,6 +226,46 @@ servers:
 	require.Contains(t, err.Error(), "rpc.tls.caFile")
 }
 
+func TestLoader_SchemaUnknownKey(t *testing.T) {
+	file := writeTempConfig(t, `
+unknownKey: true
+servers:
+  - name: ok
+    cmd: ["./a"]
+    idleSeconds: 0
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+`)
+
+	loader := NewLoader(zap.NewNop())
+	_, err := loader.Load(context.Background(), file)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "schema validation failed")
+}
+
+func TestLoader_SchemaWrongType(t *testing.T) {
+	file := writeTempConfig(t, `
+routeTimeoutSeconds: "fast"
+servers:
+  - name: ok
+    cmd: ["./a"]
+    idleSeconds: 0
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+`)
+
+	loader := NewLoader(zap.NewNop())
+	_, err := loader.Load(context.Background(), file)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "schema validation failed")
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 

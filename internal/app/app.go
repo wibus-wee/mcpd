@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -58,27 +59,34 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	lc := lifecycle.NewManager(stdioTransport, logger)
 	pingProbe := &probe.PingProbe{Timeout: 2 * time.Second}
 	metrics := telemetry.NewPrometheusMetrics()
+	health := telemetry.NewHealthTracker()
 	sched := scheduler.NewBasicScheduler(lc, catalogData.Specs, scheduler.SchedulerOptions{
 		Probe:   pingProbe,
 		Logger:  logger,
 		Metrics: metrics,
+		Health:  health,
 	})
 	rt := router.NewBasicRouter(sched, router.RouterOptions{
 		Timeout: time.Duration(catalogData.Runtime.RouteTimeoutSeconds) * time.Second,
 		Logger:  logger,
 		Metrics: metrics,
 	})
-	toolIndex := aggregator.NewToolIndex(rt, catalogData.Specs, catalogData.Runtime, logger)
+	toolIndex := aggregator.NewToolIndex(rt, catalogData.Specs, catalogData.Runtime, logger, health)
 	control := NewControlPlane(toolIndex, logs)
 	rpcServer := rpc.NewServer(control, catalogData.Runtime.RPC, logger)
 
-	// Optionally start metrics HTTP server
-	metricsEnabled := os.Getenv("MCPD_METRICS_ENABLED")
-	if metricsEnabled == "true" || metricsEnabled == "1" {
+	metricsEnabled := envBool("MCPD_METRICS_ENABLED")
+	healthzEnabled := envBool("MCPD_HEALTHZ_ENABLED")
+	if metricsEnabled || healthzEnabled {
 		go func() {
-			logger.Info("starting metrics server", zap.Int("port", 9090))
-			if err := telemetry.StartMetricsServer(ctx, 9090, logger); err != nil {
-				logger.Error("metrics server failed", zap.Error(err))
+			logger.Info("starting observability server", zap.Int("port", 9090))
+			if err := telemetry.StartHTTPServer(ctx, telemetry.HTTPServerOptions{
+				Addr:          "0.0.0.0:9090",
+				EnableMetrics: metricsEnabled,
+				EnableHealthz: healthzEnabled,
+				Health:        health,
+			}, logger); err != nil {
+				logger.Error("observability server failed", zap.Error(err))
 			}
 		}()
 	}
@@ -106,4 +114,9 @@ func (a *App) ValidateConfig(ctx context.Context, cfg ValidateConfig) error {
 
 	a.logger.Info("configuration validated", zap.String("config", cfg.ConfigPath), zap.Int("servers", len(catalogData.Specs)))
 	return nil
+}
+
+func envBool(key string) bool {
+	val := strings.TrimSpace(os.Getenv(key))
+	return val == "1" || strings.EqualFold(val, "true")
 }

@@ -5,6 +5,8 @@
 #   - mcpd_instance_starts_total: Instance start counter
 #   - mcpd_instance_stops_total: Instance stop counter
 #   - mcpd_active_instances: Active instance gauge
+# Healthz:
+# Set MCPD_HEALTHZ_ENABLED=true to expose health on http://localhost:9090/healthz
 
 routeTimeoutSeconds: 10
 pingIntervalSeconds: 30

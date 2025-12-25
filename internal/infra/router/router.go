@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/telemetry"
 )
 
 type BasicRouter struct {
@@ -43,19 +44,23 @@ func NewBasicRouter(scheduler domain.Scheduler, opts RouterOptions) *BasicRouter
 }
 
 func (r *BasicRouter) Route(ctx context.Context, serverType, routingKey string, payload json.RawMessage) (json.RawMessage, error) {
+	start := time.Now()
+
 	method, isCall, err := extractMethod(payload)
 	if err != nil {
-		return nil, fmt.Errorf("decode request: %w", err)
+		decodeErr := fmt.Errorf("decode request: %w", err)
+		r.logRouteError(serverType, "", nil, start, decodeErr)
+		return nil, decodeErr
 	}
 	if method == "" || !isCall {
+		r.logRouteError(serverType, method, nil, start, domain.ErrInvalidRequest)
 		return nil, domain.ErrInvalidRequest
 	}
-
-	start := time.Now()
 
 	inst, err := r.scheduler.Acquire(ctx, serverType, routingKey)
 	if err != nil {
 		r.observeRoute(serverType, start, err)
+		r.logRouteError(serverType, method, nil, start, err)
 		return nil, err
 	}
 	defer func() { _ = r.scheduler.Release(ctx, inst) }()
@@ -63,12 +68,13 @@ func (r *BasicRouter) Route(ctx context.Context, serverType, routingKey string, 
 	if inst.Conn == nil {
 		err := fmt.Errorf("instance has no connection: %s", inst.ID)
 		r.observeRoute(serverType, start, err)
+		r.logRouteError(serverType, method, inst, start, err)
 		return nil, err
 	}
 
 	if !domain.MethodAllowed(inst.Capabilities, method) {
-		r.logger.Warn("method not allowed", zap.String("serverType", serverType), zap.String("method", method))
 		r.observeRoute(serverType, start, domain.ErrMethodNotAllowed)
+		r.logRouteError(serverType, method, inst, start, domain.ErrMethodNotAllowed)
 		return nil, domain.ErrMethodNotAllowed
 	}
 
@@ -78,6 +84,7 @@ func (r *BasicRouter) Route(ctx context.Context, serverType, routingKey string, 
 	if err := inst.Conn.Send(callCtx, payload); err != nil {
 		sendErr := fmt.Errorf("send request: %w", err)
 		r.observeRoute(serverType, start, sendErr)
+		r.logRouteError(serverType, method, inst, start, sendErr)
 		return nil, sendErr
 	}
 
@@ -85,6 +92,7 @@ func (r *BasicRouter) Route(ctx context.Context, serverType, routingKey string, 
 	if err != nil {
 		recvErr := fmt.Errorf("receive response: %w", err)
 		r.observeRoute(serverType, start, recvErr)
+		r.logRouteError(serverType, method, inst, start, recvErr)
 		return nil, recvErr
 	}
 
@@ -97,6 +105,25 @@ func (r *BasicRouter) observeRoute(serverType string, start time.Time, err error
 		return
 	}
 	r.metrics.ObserveRoute(serverType, time.Since(start), err)
+}
+
+func (r *BasicRouter) logRouteError(serverType, method string, inst *domain.Instance, start time.Time, err error) {
+	fields := []zap.Field{
+		telemetry.EventField(telemetry.EventRouteError),
+		telemetry.ServerTypeField(serverType),
+		telemetry.DurationField(time.Since(start)),
+		zap.Error(err),
+	}
+	if method != "" {
+		fields = append(fields, zap.String("method", method))
+	}
+	if inst != nil {
+		fields = append(fields,
+			telemetry.InstanceIDField(inst.ID),
+			telemetry.StateField(string(inst.State)),
+		)
+	}
+	r.logger.Warn("route failed", fields...)
 }
 
 func extractMethod(payload json.RawMessage) (string, bool, error) {

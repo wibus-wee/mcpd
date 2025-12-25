@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/telemetry"
 )
 
 type Manager struct {
@@ -41,25 +42,57 @@ func NewManager(transport domain.Transport, logger *zap.Logger) *Manager {
 }
 
 func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+	started := time.Now()
+	m.logger.Info("instance start attempt",
+		telemetry.EventField(telemetry.EventStartAttempt),
+		telemetry.ServerTypeField(spec.Name),
+	)
+
 	conn, stop, err := m.transport.Start(ctx, spec)
 	if err != nil {
+		m.logger.Error("instance start failed",
+			telemetry.EventField(telemetry.EventStartFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("start transport: %w", err)
 	}
 	if conn == nil {
-		return nil, errors.New("transport returned nil connection")
+		err := errors.New("transport returned nil connection")
+		m.logger.Error("instance start failed",
+			telemetry.EventField(telemetry.EventStartFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
+		return nil, err
 	}
 	if stop == nil {
 		stop = func(context.Context) error { return nil }
 	}
 
 	if spec.ProtocolVersion != domain.DefaultProtocolVersion {
+		err := fmt.Errorf("unsupported protocol version: %s", spec.ProtocolVersion)
+		m.logger.Error("instance start failed",
+			telemetry.EventField(telemetry.EventStartFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
 		_ = conn.Close()
 		_ = stop(ctx)
-		return nil, fmt.Errorf("unsupported protocol version: %s", spec.ProtocolVersion)
+		return nil, err
 	}
 
 	caps, err := m.initialize(ctx, conn)
 	if err != nil {
+		m.logger.Error("instance initialize failed",
+			telemetry.EventField(telemetry.EventInitializeFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
 		_ = conn.Close()
 		_ = stop(ctx)
 		return nil, fmt.Errorf("initialize: %w", err)
@@ -80,7 +113,13 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 	m.stops[instance.ID] = stop
 	m.mu.Unlock()
 
-	m.logger.Info("instance started", zap.String("serverType", spec.Name), zap.String("instanceID", instance.ID))
+	m.logger.Info("instance started",
+		telemetry.EventField(telemetry.EventStartSuccess),
+		telemetry.ServerTypeField(spec.Name),
+		telemetry.InstanceIDField(instance.ID),
+		telemetry.StateField(string(instance.State)),
+		telemetry.DurationField(time.Since(started)),
+	)
 	return instance, nil
 }
 
@@ -132,6 +171,8 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 		return errors.New("instance is nil")
 	}
 
+	started := time.Now()
+
 	m.mu.Lock()
 	conn := m.conns[instance.ID]
 	stop := m.stops[instance.ID]
@@ -148,12 +189,26 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 	}
 	if stop != nil {
 		if err := stop(ctx); err != nil {
+			m.logger.Error("instance stop failed",
+				telemetry.EventField(telemetry.EventStopFailure),
+				telemetry.ServerTypeField(instance.Spec.Name),
+				telemetry.InstanceIDField(instance.ID),
+				telemetry.DurationField(time.Since(started)),
+				zap.Error(err),
+			)
 			return fmt.Errorf("stop instance %s: %w", instance.ID, err)
 		}
 	}
 
 	instance.State = domain.InstanceStateStopped
-	m.logger.Info("instance stopped", zap.String("serverType", instance.Spec.Name), zap.String("instanceID", instance.ID), zap.String("reason", reason))
+	m.logger.Info("instance stopped",
+		telemetry.EventField(telemetry.EventStopSuccess),
+		telemetry.ServerTypeField(instance.Spec.Name),
+		telemetry.InstanceIDField(instance.ID),
+		telemetry.StateField(string(instance.State)),
+		telemetry.DurationField(time.Since(started)),
+		zap.String("reason", reason),
+	)
 	return nil
 }
 

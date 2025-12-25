@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -16,8 +17,7 @@ import (
 
 func TestStartMetricsServer_Success(t *testing.T) {
 	// Use random port to avoid conflicts
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	listener := mustListen(t)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
 
@@ -56,8 +56,7 @@ func TestStartMetricsServer_Success(t *testing.T) {
 
 func TestStartMetricsServer_PortInUse(t *testing.T) {
 	// Start a server on a random port
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	listener := mustListen(t)
 	defer listener.Close()
 	port := listener.Addr().(*net.TCPAddr).Port
 
@@ -65,7 +64,7 @@ func TestStartMetricsServer_PortInUse(t *testing.T) {
 	defer cancel()
 
 	// Try to start metrics server on the same port (should fail quickly)
-	err = StartMetricsServer(ctx, port, zap.NewNop())
+	err := StartMetricsServer(ctx, port, zap.NewNop())
 	// The error could be either from port conflict or context timeout
 	// Both are acceptable for this test
 	if err != nil {
@@ -75,8 +74,7 @@ func TestStartMetricsServer_PortInUse(t *testing.T) {
 }
 
 func TestStartMetricsServer_GracefulShutdown(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	listener := mustListen(t)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
 
@@ -102,4 +100,61 @@ func TestStartMetricsServer_GracefulShutdown(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("graceful shutdown timed out")
 	}
+}
+
+func TestStartHTTPServer_Healthz(t *testing.T) {
+	listener := mustListen(t)
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracker := NewHealthTracker()
+	beat := tracker.Register("test-loop", 200*time.Millisecond)
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- StartHTTPServer(ctx, HTTPServerOptions{
+			Addr:          fmt.Sprintf("127.0.0.1:%d", port),
+			EnableHealthz: true,
+			Health:        tracker,
+		}, zap.NewNop())
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	beat.Beat()
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/healthz", port))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var report HealthReport
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&report))
+	assert.Equal(t, "ok", report.Status)
+
+	time.Sleep(250 * time.Millisecond)
+	resp, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d/healthz", port))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	cancel()
+
+	select {
+	case err := <-errChan:
+		assert.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("server did not stop in time")
+	}
+}
+
+func mustListen(t *testing.T) net.Listener {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("skip test due to listen error: %v", err)
+	}
+	return listener
 }

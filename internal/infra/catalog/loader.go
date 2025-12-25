@@ -66,6 +66,10 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 
 	expanded := os.ExpandEnv(string(data))
 
+	if err := validateCatalogSchema(expanded); err != nil {
+		return domain.Catalog{}, err
+	}
+
 	v := viper.New()
 
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")

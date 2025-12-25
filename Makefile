@@ -29,4 +29,4 @@ down:
 	docker compose down
 
 reload:
-	docker compose restart dev
+	docker compose restart core
