@@ -1,25 +1,29 @@
-/** 
- * This file tells your IDE where the root of your JavaScript project is, and sets some
- * options that it can use to provide autocompletion and other features.  
- */
 {
+  "include": ["**/*.ts", "**/*.tsx", "eslint.config.mjs", "prettier.config.js", "vite.config.js"],
+
   "compilerOptions": {
-    "allowJs": true,
-    "moduleResolution": "bundler",
-    /**
-     * The target and module can be set to ESNext to allow writing modern JavaScript, 
-     * and Vite will compile down to the level of "build.target" specified in the vite config file.
-     * Builds will error if you use a feature that cannot be compiled down to the target level.
-     */
-    "target": "ESNext",
+    "target": "ES2022",
+    "jsx": "react-jsx",
     "module": "ESNext",
-    "resolveJsonModule": true,
-    /**
-     * Enable checkJs if you'd like type checking in `.js` files.
-     */
-    "checkJs": false,
-    "strict": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    /* Linting */
     "skipLibCheck": true,
-  },
-  "include": ["src", "bindings"]
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
 }
