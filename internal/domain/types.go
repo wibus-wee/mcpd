@@ -8,17 +8,18 @@ import (
 )
 
 type ServerSpec struct {
-	Name            string            `json:"name"`
-	Cmd             []string          `json:"cmd"`
-	Env             map[string]string `json:"env,omitempty"`
-	Cwd             string            `json:"cwd,omitempty"`
-	IdleSeconds     int               `json:"idleSeconds"`
-	MaxConcurrent   int               `json:"maxConcurrent"`
-	Sticky          bool              `json:"sticky"`
-	Persistent      bool              `json:"persistent"`
-	MinReady        int               `json:"minReady"`
-	ProtocolVersion string            `json:"protocolVersion"`
-	ExposeTools     []string          `json:"exposeTools,omitempty"`
+	Name                string            `json:"name"`
+	Cmd                 []string          `json:"cmd"`
+	Env                 map[string]string `json:"env,omitempty"`
+	Cwd                 string            `json:"cwd,omitempty"`
+	IdleSeconds         int               `json:"idleSeconds"`
+	MaxConcurrent       int               `json:"maxConcurrent"`
+	Sticky              bool              `json:"sticky"`
+	Persistent          bool              `json:"persistent"`
+	MinReady            int               `json:"minReady"`
+	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
+	ProtocolVersion     string            `json:"protocolVersion"`
+	ExposeTools         []string          `json:"exposeTools,omitempty"`
 }
 
 type RuntimeConfig struct {

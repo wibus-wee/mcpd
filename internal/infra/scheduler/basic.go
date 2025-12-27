@@ -52,7 +52,9 @@ type BasicScheduler struct {
 }
 
 type trackedInstance struct {
-	instance *domain.Instance
+	instance  *domain.Instance
+	drainOnce sync.Once
+	drainDone chan struct{}
 }
 
 type poolState struct {
@@ -62,6 +64,7 @@ type poolState struct {
 	starting  int
 	startCh   chan struct{}
 	instances []*trackedInstance
+	draining  []*trackedInstance
 	sticky    map[string]*trackedInstance
 }
 
@@ -180,14 +183,28 @@ func (s *BasicScheduler) Release(ctx context.Context, instance *domain.Instance)
 
 	state := s.getPool(instance.Spec.Name, instance.Spec)
 	state.mu.Lock()
-	defer state.mu.Unlock()
 
 	if instance.BusyCount > 0 {
 		instance.BusyCount--
 	}
 	instance.LastActive = time.Now()
-	if instance.BusyCount == 0 && instance.State == domain.InstanceStateBusy {
-		instance.State = domain.InstanceStateReady
+
+	var triggerDrain *trackedInstance
+	if instance.BusyCount == 0 {
+		if instance.State == domain.InstanceStateBusy {
+			instance.State = domain.InstanceStateReady
+		} else if instance.State == domain.InstanceStateDraining {
+			triggerDrain = state.findDrainingByIDLocked(instance.ID)
+		}
+	}
+	state.mu.Unlock()
+
+	if triggerDrain != nil && triggerDrain.drainDone != nil {
+		select {
+		case <-triggerDrain.drainDone:
+		default:
+			close(triggerDrain.drainDone)
+		}
 	}
 	return nil
 }
@@ -247,21 +264,40 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 	state := s.getPool(specKey, spec)
 	state.mu.Lock()
 	state.minReady = 0
-	instances := append([]*trackedInstance(nil), state.instances...)
+
+	var immediate []*trackedInstance
+	var deferred []*trackedInstance
+
+	for _, inst := range state.instances {
+		if inst.instance.BusyCount > 0 {
+			inst.instance.State = domain.InstanceStateDraining
+			deferred = append(deferred, inst)
+		} else {
+			inst.instance.State = domain.InstanceStateDraining
+			immediate = append(immediate, inst)
+		}
+	}
 	state.instances = nil
+	state.draining = append(state.draining, deferred...)
 	state.sticky = nil
 	state.mu.Unlock()
 
-	var firstErr error
-	for _, inst := range instances {
+	for _, inst := range immediate {
 		err := s.lifecycle.StopInstance(ctx, inst.instance, reason)
 		s.observeInstanceStop(specKey, err)
-		if err != nil && firstErr == nil {
-			firstErr = err
-		}
 	}
+
+	drainTimeout := time.Duration(spec.DrainTimeoutSeconds) * time.Second
+	if drainTimeout <= 0 {
+		drainTimeout = time.Duration(domain.DefaultDrainTimeoutSeconds) * time.Second
+	}
+
+	for _, inst := range deferred {
+		s.startDrain(specKey, inst, drainTimeout, reason)
+	}
+
 	s.observeActiveInstances(specKey, 0)
-	return firstErr
+	return nil
 }
 
 func (s *BasicScheduler) getPool(specKey string, spec domain.ServerSpec) *poolState {
@@ -617,6 +653,83 @@ func (s *poolState) countReadyLocked() int {
 		}
 	}
 	return count
+}
+
+func (s *poolState) findDrainingByIDLocked(id string) *trackedInstance {
+	for _, inst := range s.draining {
+		if inst.instance.ID == id {
+			return inst
+		}
+	}
+	return nil
+}
+
+func (s *poolState) removeDrainingLocked(inst *trackedInstance) {
+	list := s.draining
+	if len(list) == 0 {
+		return
+	}
+	out := list[:0]
+	for _, candidate := range list {
+		if candidate != inst {
+			out = append(out, candidate)
+		}
+	}
+	if len(out) == 0 {
+		s.draining = nil
+	} else {
+		s.draining = out
+	}
+}
+
+func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeout time.Duration, reason string) {
+	inst.drainOnce.Do(func() {
+		inst.drainDone = make(chan struct{})
+
+		s.logger.Info("drain started",
+			telemetry.EventField("drain_start"),
+			telemetry.ServerTypeField(specKey),
+			telemetry.InstanceIDField(inst.instance.ID),
+			zap.Int("busyCount", inst.instance.BusyCount),
+			zap.Duration("timeout", timeout),
+		)
+
+		go func() {
+			timer := time.NewTimer(timeout)
+			defer timer.Stop()
+
+			timedOut := false
+			select {
+			case <-inst.drainDone:
+			case <-timer.C:
+				timedOut = true
+			}
+
+			state := s.getPool(specKey, inst.instance.Spec)
+			state.mu.Lock()
+			state.removeDrainingLocked(inst)
+			state.mu.Unlock()
+
+			finalReason := reason
+			if timedOut {
+				finalReason = "drain timeout"
+				s.logger.Warn("drain timeout, forcing stop",
+					telemetry.EventField("drain_timeout"),
+					telemetry.ServerTypeField(specKey),
+					telemetry.InstanceIDField(inst.instance.ID),
+				)
+			} else {
+				s.logger.Info("drain completed",
+					telemetry.EventField("drain_complete"),
+					telemetry.ServerTypeField(specKey),
+					telemetry.InstanceIDField(inst.instance.ID),
+				)
+			}
+
+			err := s.lifecycle.StopInstance(context.Background(), inst.instance, finalReason)
+			s.observeInstanceStop(specKey, err)
+		}()
+	})
 }
 
 func (s *BasicScheduler) observeInstanceStart(specKey string, start time.Time, err error) {

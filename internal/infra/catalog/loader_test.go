@@ -34,14 +34,15 @@ servers:
 
 	got := catalog.Specs["git-helper"]
 	expect := domain.ServerSpec{
-		Name:            "git-helper",
-		Cmd:             []string{"./git-helper"},
-		IdleSeconds:     60,
-		MaxConcurrent:   2,
-		Sticky:          false,
-		Persistent:      false,
-		MinReady:        0,
-		ProtocolVersion: domain.DefaultProtocolVersion,
+		Name:                "git-helper",
+		Cmd:                 []string{"./git-helper"},
+		IdleSeconds:         60,
+		MaxConcurrent:       2,
+		Sticky:              false,
+		Persistent:          false,
+		MinReady:            0,
+		DrainTimeoutSeconds: domain.DefaultDrainTimeoutSeconds,
+		ProtocolVersion:     domain.DefaultProtocolVersion,
 	}
 	if diff := cmp.Diff(expect, got); diff != "" {
 		t.Fatalf("spec mismatch (-want +got):\n%s", diff)
@@ -266,6 +267,7 @@ servers:
 	got := catalog.Specs["defaults"]
 	require.Equal(t, domain.DefaultProtocolVersion, got.ProtocolVersion)
 	require.Equal(t, domain.DefaultMaxConcurrent, got.MaxConcurrent)
+	require.Equal(t, domain.DefaultDrainTimeoutSeconds, got.DrainTimeoutSeconds)
 }
 
 func TestLoader_SchemaUnknownKey(t *testing.T) {

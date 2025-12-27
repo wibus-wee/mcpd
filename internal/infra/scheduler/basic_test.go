@@ -235,6 +235,9 @@ func TestBasicScheduler_StopSpecStopsInstances(t *testing.T) {
 	inst, err := s.Acquire(context.Background(), "svc", "")
 	require.NoError(t, err)
 
+	// Release instance first so it's idle (BusyCount == 0)
+	require.NoError(t, s.Release(context.Background(), inst))
+
 	require.NoError(t, s.StopSpec(context.Background(), "svc", "caller inactive"))
 	require.Equal(t, domain.InstanceStateStopped, inst.State)
 
@@ -242,6 +245,46 @@ func TestBasicScheduler_StopSpecStopsInstances(t *testing.T) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	require.Len(t, state.instances, 0)
+}
+
+func TestBasicScheduler_StopSpecDrainsBusyInstances(t *testing.T) {
+	lc := &fakeLifecycle{}
+	spec := domain.ServerSpec{
+		Name:                "svc",
+		Cmd:                 []string{"./svc"},
+		MaxConcurrent:       1,
+		DrainTimeoutSeconds: 1,
+		ProtocolVersion:     domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{
+		Logger: zap.NewNop(),
+	})
+	require.NoError(t, err)
+
+	inst, err := s.Acquire(context.Background(), "svc", "")
+	require.NoError(t, err)
+	require.Equal(t, 1, inst.BusyCount)
+
+	// StopSpec should mark busy instance as draining, not stopped
+	require.NoError(t, s.StopSpec(context.Background(), "svc", "caller inactive"))
+	require.Equal(t, domain.InstanceStateDraining, inst.State)
+
+	state := s.getPool("svc", spec)
+	state.mu.Lock()
+	require.Len(t, state.instances, 0)
+	require.Len(t, state.draining, 1)
+	state.mu.Unlock()
+
+	// Release triggers drain completion
+	require.NoError(t, s.Release(context.Background(), inst))
+
+	// Wait for drain goroutine to complete
+	time.Sleep(50 * time.Millisecond)
+	require.Equal(t, domain.InstanceStateStopped, inst.State)
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	require.Len(t, state.draining, 0)
 }
 
 func TestBasicScheduler_StartGateSingleflight(t *testing.T) {

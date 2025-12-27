@@ -152,6 +152,9 @@ func normalizeServerSpec(spec domain.ServerSpec) domain.ServerSpec {
 	if spec.MaxConcurrent == 0 {
 		spec.MaxConcurrent = domain.DefaultMaxConcurrent
 	}
+	if spec.DrainTimeoutSeconds == 0 {
+		spec.DrainTimeoutSeconds = domain.DefaultDrainTimeoutSeconds
+	}
 	return spec
 }
 

@@ -69,6 +69,7 @@
         "sticky": {"type": "boolean"},
         "persistent": {"type": "boolean"},
         "minReady": {"type": "integer"},
+        "drainTimeoutSeconds": {"type": "integer"},
         "protocolVersion": {"type": "string"},
         "exposeTools": {
           "type": "array",
