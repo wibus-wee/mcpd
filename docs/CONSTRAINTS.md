@@ -1,6 +1,6 @@
 ## 约束与基线
 
-- 语言/运行时：Go 1.24+（工具链 1.24.10），纯 CLI；保持纯 Go、无 CGO，兼容 Wails 3 打包。
+- 语言/运行时：Go 1.25+（工具链 1.25.0），纯 CLI；保持纯 Go、无 CGO，兼容 Wails 3 打包。
 - 传输/协议：MVP 仅支持 MCP stdio 子进程，遵循 MCP 2025-11-25 协议版本校验；初始化需完成 `initialize` 握手。优先复用 `github.com/modelcontextprotocol/go-sdk` 的 Stdio/Command transport 与协议类型。
 - 伸缩：按需启动、idle 超时回收；`sticky`/`persistent` 跳过回收；`minReady` 保温。
 - 并发/回压：每实例 `maxConcurrent` 硬限制，超限快速失败；启动中可返回 `starting`。

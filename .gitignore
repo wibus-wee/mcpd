@@ -91,7 +91,7 @@ Temporary Items
 artifacts
 artifacts/
 bower_components
-build/
+**/build/
 build/Release
 coverage
 default.profraw
@@ -136,3 +136,10 @@ yarn-error.log*
 package-lock.json
 **/*.bun-build
 .gocache
+build/bin
+frontend/dist
+.task/
+frontend/bindings
+!./build/
+settings.local.json
+bin/

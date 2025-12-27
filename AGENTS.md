@@ -11,7 +11,7 @@
 - `make build` 编译全部包；`make test` 运行所有单测。
 - `make fmt` 触发 `go fmt ./...`；`make vet` 做静态检查；`make tidy` 清理/同步依赖。
 - 运行服务：`make serve CONFIG=docs/catalog.example.yaml`；仅验证配置：`make validate CONFIG=docs/catalog.example.yaml`；也可 `go run ./cmd/mcpd serve --config <path>`.
-- Go 版本要求 `go 1.24+`，使用 `go.mod` 中指定版本。
+- Go 版本要求 `go 1.25+`，使用 `go.mod` 中指定版本。
 
 ## 编码风格与命名
 - 采用标准 Go 风格（tabs 缩进，`gofmt` 即规范），禁止自定义格式或手写对齐。

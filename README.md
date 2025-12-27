@@ -10,7 +10,7 @@
   </p>
 </p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 🚀 What is mcpd?
@@ -76,6 +76,26 @@ go run ./cmd/mcpdmcp vscode
 ```
 
 5) In your MCP client, launch `mcpdmcp` as a stdio server.
+
+## 🖥️ GUI Application (Wails)
+
+mcpd also provides a cross-platform GUI application built with Wails v3:
+
+```bash
+# Development mode (hot reload)
+make wails-dev
+
+# Production build
+make wails-build
+```
+
+The GUI application (`cmd/mcpd-wails`) integrates the core control plane with a visual interface, making it easier to:
+- Start/stop the control plane
+- Manage profiles and configurations
+- View logs and server status
+- Monitor resource usage
+
+See [WAILS_STRUCTURE.md](docs/WAILS_STRUCTURE.md) for architecture details.
 
 ## 🧩 Configuration layout
 
