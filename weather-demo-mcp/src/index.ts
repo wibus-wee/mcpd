@@ -221,6 +221,27 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  "echo",
+  {
+    title: "Echo Input",
+    description: "Echoes the input string back to the user",
+    inputSchema: {
+      message: z.string().describe("Message to echo back"),
+    },
+  },
+  async ({ message }) => {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Echo: ${message}`,
+        },
+      ],
+    };
+  },
+)
+
 // Start the server
 async function main() {
   const transport = new StdioServerTransport();
