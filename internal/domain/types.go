@@ -100,6 +100,7 @@ const (
 type Instance struct {
 	ID           string
 	Spec         ServerSpec
+	SpecKey      string
 	State        InstanceState
 	BusyCount    int
 	LastActive   time.Time

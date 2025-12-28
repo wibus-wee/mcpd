@@ -579,12 +579,16 @@ export class RuntimeConfigDetail {
  * ServerRuntimeStatus contains the runtime status of a server and its instances
  */
 export class ServerRuntimeStatus {
+    "specKey": string;
     "serverName": string;
     "instances": InstanceStatus[];
     "stats": PoolStats;
 
     /** Creates a new ServerRuntimeStatus instance. */
     constructor($$source: Partial<ServerRuntimeStatus> = {}) {
+        if (!("specKey" in $$source)) {
+            this["specKey"] = "";
+        }
         if (!("serverName" in $$source)) {
             this["serverName"] = "";
         }
@@ -602,14 +606,14 @@ export class ServerRuntimeStatus {
      * Creates a new ServerRuntimeStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): ServerRuntimeStatus {
-        const $$createField1_0 = $$createType11;
-        const $$createField2_0 = $$createType12;
+        const $$createField2_0 = $$createType11;
+        const $$createField3_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("instances" in $$parsedSource) {
-            $$parsedSource["instances"] = $$createField1_0($$parsedSource["instances"]);
+            $$parsedSource["instances"] = $$createField2_0($$parsedSource["instances"]);
         }
         if ("stats" in $$parsedSource) {
-            $$parsedSource["stats"] = $$createField2_0($$parsedSource["stats"]);
+            $$parsedSource["stats"] = $$createField3_0($$parsedSource["stats"]);
         }
         return new ServerRuntimeStatus($$parsedSource as Partial<ServerRuntimeStatus>);
     }
@@ -620,6 +624,7 @@ export class ServerRuntimeStatus {
  */
 export class ServerSpecDetail {
     "name": string;
+    "specKey": string;
     "cmd": string[];
     "env": { [_: string]: string };
     "cwd": string;
@@ -636,6 +641,9 @@ export class ServerSpecDetail {
     constructor($$source: Partial<ServerSpecDetail> = {}) {
         if (!("name" in $$source)) {
             this["name"] = "";
+        }
+        if (!("specKey" in $$source)) {
+            this["specKey"] = "";
         }
         if (!("cmd" in $$source)) {
             this["cmd"] = [];
@@ -678,18 +686,18 @@ export class ServerSpecDetail {
      * Creates a new ServerSpecDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): ServerSpecDetail {
-        const $$createField1_0 = $$createType13;
-        const $$createField2_0 = $$createType14;
-        const $$createField11_0 = $$createType13;
+        const $$createField2_0 = $$createType13;
+        const $$createField3_0 = $$createType14;
+        const $$createField12_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cmd" in $$parsedSource) {
-            $$parsedSource["cmd"] = $$createField1_0($$parsedSource["cmd"]);
+            $$parsedSource["cmd"] = $$createField2_0($$parsedSource["cmd"]);
         }
         if ("env" in $$parsedSource) {
-            $$parsedSource["env"] = $$createField2_0($$parsedSource["env"]);
+            $$parsedSource["env"] = $$createField3_0($$parsedSource["env"]);
         }
         if ("exposeTools" in $$parsedSource) {
-            $$parsedSource["exposeTools"] = $$createField11_0($$parsedSource["exposeTools"]);
+            $$parsedSource["exposeTools"] = $$createField12_0($$parsedSource["exposeTools"]);
         }
         return new ServerSpecDetail($$parsedSource as Partial<ServerSpecDetail>);
     }

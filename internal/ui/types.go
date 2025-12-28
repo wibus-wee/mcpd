@@ -99,6 +99,7 @@ type RPCTLSConfigDetail struct {
 // ServerSpecDetail contains server specification for frontend
 type ServerSpecDetail struct {
 	Name                string            `json:"name"`
+	SpecKey             string            `json:"specKey"`
 	Cmd                 []string          `json:"cmd"`
 	Env                 map[string]string `json:"env"`
 	Cwd                 string            `json:"cwd"`
@@ -118,6 +119,7 @@ type ServerSpecDetail struct {
 
 // ServerRuntimeStatus contains the runtime status of a server and its instances
 type ServerRuntimeStatus struct {
+	SpecKey    string           `json:"specKey"`
 	ServerName string           `json:"serverName"`
 	Instances  []InstanceStatus `json:"instances"`
 	Stats      PoolStats        `json:"stats"`

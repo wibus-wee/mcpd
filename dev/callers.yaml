@@ -1,2 +1,5 @@
 callers:
   inspector: default
+  vscode: default
+  cursor: default
+  cherryStudio: chat

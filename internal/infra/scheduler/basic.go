@@ -60,6 +60,7 @@ type trackedInstance struct {
 type poolState struct {
 	mu        sync.Mutex
 	spec      domain.ServerSpec
+	specKey   string
 	minReady  int
 	starting  int
 	startCh   chan struct{}
@@ -159,6 +160,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			}
 			return nil, fmt.Errorf("start instance: %w", err)
 		}
+		newInst.SpecKey = specKey
 		tracked := &trackedInstance{instance: newInst}
 		state.instances = append(state.instances, tracked)
 		if state.spec.Sticky && routingKey != "" {
@@ -181,7 +183,11 @@ func (s *BasicScheduler) Release(ctx context.Context, instance *domain.Instance)
 		return errors.New("instance is nil")
 	}
 
-	state := s.getPool(instance.Spec.Name, instance.Spec)
+	specKey := instance.SpecKey
+	if specKey == "" {
+		return errors.New("instance spec key is empty")
+	}
+	state := s.getPool(specKey, instance.Spec)
 	state.mu.Lock()
 
 	if instance.BusyCount > 0 {
@@ -235,6 +241,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 		state.mu.Lock()
 		state.starting--
 		if err == nil {
+			inst.SpecKey = specKey
 			if state.minReady == 0 {
 				state.mu.Unlock()
 				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "min ready dropped")
@@ -314,7 +321,10 @@ func (s *BasicScheduler) getPool(specKey string, spec domain.ServerSpec) *poolSt
 	state = s.pools[specKey]
 	if state == nil {
 		// Use the spec as-is, preserving the original Name for display
-		state = &poolState{spec: spec}
+		state = &poolState{
+			spec:    spec,
+			specKey: specKey,
+		}
 		s.pools[specKey] = state
 	}
 	return state

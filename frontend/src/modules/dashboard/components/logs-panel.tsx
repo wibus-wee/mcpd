@@ -62,7 +62,7 @@ function LogItem({ log }: { log: LogEntry }) {
   const Icon = config.icon
 
   return (
-    <div className="flex items-start gap-3 py-2 px-3 hover:bg-muted/50 rounded-md transition-colors">
+    <div className="flex items-start gap-3 py-2 px-3 hover:bg-muted/50 transition-colors">
       <Icon className={cn('size-4 mt-0.5 shrink-0', config.color)} />
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ function LogItem({ log }: { log: LogEntry }) {
           </Badge>
           {log.source && (
             <span className="text-muted-foreground text-xs font-mono">
-              {log.source}
+              @{log.source}
             </span>
           )}
           <span className="text-muted-foreground text-xs ml-auto">
@@ -79,9 +79,6 @@ function LogItem({ log }: { log: LogEntry }) {
           </span>
         </div>
         <p className="text-sm break-words">{log.message}</p>
-        <div className="text-xs font-mono text-muted-foreground">
-          {log.source}
-        </div>
       </div>
     </div>
   )

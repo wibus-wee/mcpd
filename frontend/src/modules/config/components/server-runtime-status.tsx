@@ -37,17 +37,18 @@ function StateDot({ state }: { state: string }) {
 }
 
 interface ServerRuntimeIndicatorProps {
-  serverName: string
+  specKey: string
   className?: string
 }
 
 export function ServerRuntimeIndicator({
-  serverName,
+  specKey,
   className,
 }: ServerRuntimeIndicatorProps) {
   const { data: runtimeStatus } = useRuntimeStatus()
-  console.log('Runtime status data:', runtimeStatus)
-  const serverStatus = runtimeStatus?.find((s) => s.serverName === serverName)
+  const serverStatus = (runtimeStatus as ServerRuntimeStatus[] | undefined)?.find(
+    (status) => status.specKey === specKey,
+  )
 
   if (!serverStatus || serverStatus.instances.length === 0) {
     return null

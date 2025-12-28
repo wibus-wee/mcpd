@@ -583,6 +583,7 @@ func (s *WailsService) GetRuntimeStatus(ctx context.Context) ([]ServerRuntimeSta
 		}
 
 		result = append(result, ServerRuntimeStatus{
+			SpecKey:    pool.SpecKey,
 			ServerName: pool.ServerName,
 			Instances:  instances,
 			Stats:      stats,
@@ -628,7 +629,11 @@ func (s *WailsService) GetProfile(ctx context.Context, name string) (*ProfileDet
 	// Convert to frontend types
 	servers := make([]ServerSpecDetail, 0, len(profile.Catalog.Specs))
 	for _, spec := range profile.Catalog.Specs {
-		servers = append(servers, convertServerSpec(spec))
+		specKey, err := domain.SpecFingerprint(spec)
+		if err != nil {
+			return nil, NewUIError(ErrCodeInternal, fmt.Sprintf("spec fingerprint for %q: %v", spec.Name, err))
+		}
+		servers = append(servers, convertServerSpec(spec, specKey))
 	}
 
 	return &ProfileDetail{
@@ -657,7 +662,7 @@ func (s *WailsService) GetCallers(ctx context.Context) (map[string]string, error
 
 // Helper functions for type conversion
 
-func convertServerSpec(spec domain.ServerSpec) ServerSpecDetail {
+func convertServerSpec(spec domain.ServerSpec, specKey string) ServerSpecDetail {
 	env := spec.Env
 	if env == nil {
 		env = make(map[string]string)
@@ -669,6 +674,7 @@ func convertServerSpec(spec domain.ServerSpec) ServerSpecDetail {
 
 	return ServerSpecDetail{
 		Name:                spec.Name,
+		SpecKey:             specKey,
 		Cmd:                 spec.Cmd,
 		Env:                 env,
 		Cwd:                 spec.Cwd,

@@ -39,6 +39,8 @@ interface ProfileDetailPanelProps {
   profileName: string | null
 }
 
+type ServerSpecWithKey = ServerSpecDetail & { specKey?: string }
+
 function DetailRow({
   label,
   value,
@@ -113,14 +115,16 @@ function RuntimeSection({ profile }: { profile: ProfileDetail }) {
   )
 }
 
-function ServerItem({ server }: { server: ServerSpecDetail }) {
+function ServerItem({ server }: { server: ServerSpecWithKey }) {
+  const specKey = server.specKey ?? server.name
+
   return (
     <AccordionItem value={`server-${server.name}`} className="border-none">
       <AccordionTrigger className="py-2 hover:no-underline">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="font-mono text-sm truncate">{server.name}</span>
           <div className="flex items-center gap-1.5 ml-auto mr-2">
-            <ServerRuntimeIndicator serverName={server.name} />
+            <ServerRuntimeIndicator specKey={specKey} />
             {server.persistent && (
               <Badge variant="secondary" size="sm">Persistent</Badge>
             )}
