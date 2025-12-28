@@ -1,16 +1,15 @@
-// Input: Sidebar components, Badge from ui, icons, theme provider, core status atoms
+// Input: Sidebar components, Badge from ui, icons, theme provider, core status hook
 // Output: AppTopbar component with status indicator and controls
 // Position: Top bar for app layout showing status and window controls
 
-import { useAtomValue } from 'jotai'
 import { Loader2Icon, MoonIcon, SunIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useTheme } from 'next-themes'
 
-import { coreStatusAtom } from '@/atoms/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { useCoreState } from '@/hooks/use-core-state'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +43,7 @@ const statusConfig = {
 
 export function AppTopbar() {
   const { theme, setTheme } = useTheme()
-  const coreStatus = useAtomValue(coreStatusAtom)
+  const { coreStatus } = useCoreState()
   const config = statusConfig[coreStatus]
   const StatusIcon = config.icon
 

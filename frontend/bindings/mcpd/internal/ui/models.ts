@@ -10,6 +10,49 @@ import { Create as $Create } from "@wailsio/runtime";
 import * as json$0 from "../../../encoding/json/models.js";
 
 /**
+ * ConfigModeResponse indicates the configuration mode and path
+ */
+export class ConfigModeResponse {
+    /**
+     * "single" (file) or "directory"
+     */
+    "mode": string;
+
+    /**
+     * Configuration path
+     */
+    "path": string;
+
+    /**
+     * Whether the config is writable
+     */
+    "isWritable": boolean;
+
+    /** Creates a new ConfigModeResponse instance. */
+    constructor($$source: Partial<ConfigModeResponse> = {}) {
+        if (!("mode" in $$source)) {
+            this["mode"] = "";
+        }
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("isWritable" in $$source)) {
+            this["isWritable"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ConfigModeResponse instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ConfigModeResponse {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ConfigModeResponse($$parsedSource as Partial<ConfigModeResponse>);
+    }
+}
+
+/**
  * CoreStateResponse 前端获取 Core 状态的响应
  */
 export class CoreStateResponse {
@@ -91,6 +134,102 @@ export class Manager {
 }
 
 /**
+ * ObservabilityConfigDetail for frontend
+ */
+export class ObservabilityConfigDetail {
+    "listenAddress": string;
+
+    /** Creates a new ObservabilityConfigDetail instance. */
+    constructor($$source: Partial<ObservabilityConfigDetail> = {}) {
+        if (!("listenAddress" in $$source)) {
+            this["listenAddress"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObservabilityConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObservabilityConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ObservabilityConfigDetail($$parsedSource as Partial<ObservabilityConfigDetail>);
+    }
+}
+
+/**
+ * ProfileDetail contains full profile configuration
+ */
+export class ProfileDetail {
+    "name": string;
+    "runtime": RuntimeConfigDetail;
+    "servers": ServerSpecDetail[];
+
+    /** Creates a new ProfileDetail instance. */
+    constructor($$source: Partial<ProfileDetail> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("runtime" in $$source)) {
+            this["runtime"] = (new RuntimeConfigDetail());
+        }
+        if (!("servers" in $$source)) {
+            this["servers"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProfileDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ProfileDetail {
+        const $$createField1_0 = $$createType0;
+        const $$createField2_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("runtime" in $$parsedSource) {
+            $$parsedSource["runtime"] = $$createField1_0($$parsedSource["runtime"]);
+        }
+        if ("servers" in $$parsedSource) {
+            $$parsedSource["servers"] = $$createField2_0($$parsedSource["servers"]);
+        }
+        return new ProfileDetail($$parsedSource as Partial<ProfileDetail>);
+    }
+}
+
+/**
+ * ProfileSummary provides a brief overview of a profile
+ */
+export class ProfileSummary {
+    "name": string;
+    "serverCount": number;
+    "isDefault": boolean;
+
+    /** Creates a new ProfileSummary instance. */
+    constructor($$source: Partial<ProfileSummary> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("serverCount" in $$source)) {
+            this["serverCount"] = 0;
+        }
+        if (!("isDefault" in $$source)) {
+            this["isDefault"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProfileSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ProfileSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ProfileSummary($$parsedSource as Partial<ProfileSummary>);
+    }
+}
+
+/**
  * PromptEntry represents a single prompt for the frontend
  */
 export class PromptEntry {
@@ -138,12 +277,104 @@ export class PromptPage {
      * Creates a new PromptPage instance from a string or object.
      */
     static createFrom($$source: any = {}): PromptPage {
-        const $$createField0_0 = $$createType1;
+        const $$createField0_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("prompts" in $$parsedSource) {
             $$parsedSource["prompts"] = $$createField0_0($$parsedSource["prompts"]);
         }
         return new PromptPage($$parsedSource as Partial<PromptPage>);
+    }
+}
+
+/**
+ * RPCConfigDetail for frontend
+ */
+export class RPCConfigDetail {
+    "listenAddress": string;
+    "maxRecvMsgSize": number;
+    "maxSendMsgSize": number;
+    "keepaliveTimeSeconds": number;
+    "keepaliveTimeoutSeconds": number;
+    "socketMode": string;
+    "tls": RPCTLSConfigDetail;
+
+    /** Creates a new RPCConfigDetail instance. */
+    constructor($$source: Partial<RPCConfigDetail> = {}) {
+        if (!("listenAddress" in $$source)) {
+            this["listenAddress"] = "";
+        }
+        if (!("maxRecvMsgSize" in $$source)) {
+            this["maxRecvMsgSize"] = 0;
+        }
+        if (!("maxSendMsgSize" in $$source)) {
+            this["maxSendMsgSize"] = 0;
+        }
+        if (!("keepaliveTimeSeconds" in $$source)) {
+            this["keepaliveTimeSeconds"] = 0;
+        }
+        if (!("keepaliveTimeoutSeconds" in $$source)) {
+            this["keepaliveTimeoutSeconds"] = 0;
+        }
+        if (!("socketMode" in $$source)) {
+            this["socketMode"] = "";
+        }
+        if (!("tls" in $$source)) {
+            this["tls"] = (new RPCTLSConfigDetail());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RPCConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RPCConfigDetail {
+        const $$createField6_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("tls" in $$parsedSource) {
+            $$parsedSource["tls"] = $$createField6_0($$parsedSource["tls"]);
+        }
+        return new RPCConfigDetail($$parsedSource as Partial<RPCConfigDetail>);
+    }
+}
+
+/**
+ * RPCTLSConfigDetail for frontend
+ */
+export class RPCTLSConfigDetail {
+    "enabled": boolean;
+    "certFile": string;
+    "keyFile": string;
+    "caFile": string;
+    "clientAuth": boolean;
+
+    /** Creates a new RPCTLSConfigDetail instance. */
+    constructor($$source: Partial<RPCTLSConfigDetail> = {}) {
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("certFile" in $$source)) {
+            this["certFile"] = "";
+        }
+        if (!("keyFile" in $$source)) {
+            this["keyFile"] = "";
+        }
+        if (!("caFile" in $$source)) {
+            this["caFile"] = "";
+        }
+        if (!("clientAuth" in $$source)) {
+            this["clientAuth"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RPCTLSConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RPCTLSConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RPCTLSConfigDetail($$parsedSource as Partial<RPCTLSConfigDetail>);
     }
 }
 
@@ -195,12 +426,152 @@ export class ResourcePage {
      * Creates a new ResourcePage instance from a string or object.
      */
     static createFrom($$source: any = {}): ResourcePage {
-        const $$createField0_0 = $$createType3;
+        const $$createField0_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("resources" in $$parsedSource) {
             $$parsedSource["resources"] = $$createField0_0($$parsedSource["resources"]);
         }
         return new ResourcePage($$parsedSource as Partial<ResourcePage>);
+    }
+}
+
+/**
+ * RuntimeConfigDetail contains runtime configuration for frontend
+ */
+export class RuntimeConfigDetail {
+    "routeTimeoutSeconds": number;
+    "pingIntervalSeconds": number;
+    "toolRefreshSeconds": number;
+    "callerCheckSeconds": number;
+    "exposeTools": boolean;
+    "toolNamespaceStrategy": string;
+    "observability": ObservabilityConfigDetail;
+    "rpc": RPCConfigDetail;
+
+    /** Creates a new RuntimeConfigDetail instance. */
+    constructor($$source: Partial<RuntimeConfigDetail> = {}) {
+        if (!("routeTimeoutSeconds" in $$source)) {
+            this["routeTimeoutSeconds"] = 0;
+        }
+        if (!("pingIntervalSeconds" in $$source)) {
+            this["pingIntervalSeconds"] = 0;
+        }
+        if (!("toolRefreshSeconds" in $$source)) {
+            this["toolRefreshSeconds"] = 0;
+        }
+        if (!("callerCheckSeconds" in $$source)) {
+            this["callerCheckSeconds"] = 0;
+        }
+        if (!("exposeTools" in $$source)) {
+            this["exposeTools"] = false;
+        }
+        if (!("toolNamespaceStrategy" in $$source)) {
+            this["toolNamespaceStrategy"] = "";
+        }
+        if (!("observability" in $$source)) {
+            this["observability"] = (new ObservabilityConfigDetail());
+        }
+        if (!("rpc" in $$source)) {
+            this["rpc"] = (new RPCConfigDetail());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuntimeConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuntimeConfigDetail {
+        const $$createField6_0 = $$createType8;
+        const $$createField7_0 = $$createType9;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("observability" in $$parsedSource) {
+            $$parsedSource["observability"] = $$createField6_0($$parsedSource["observability"]);
+        }
+        if ("rpc" in $$parsedSource) {
+            $$parsedSource["rpc"] = $$createField7_0($$parsedSource["rpc"]);
+        }
+        return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
+    }
+}
+
+/**
+ * ServerSpecDetail contains server specification for frontend
+ */
+export class ServerSpecDetail {
+    "name": string;
+    "cmd": string[];
+    "env": { [_: string]: string };
+    "cwd": string;
+    "idleSeconds": number;
+    "maxConcurrent": number;
+    "sticky": boolean;
+    "persistent": boolean;
+    "minReady": number;
+    "drainTimeoutSeconds": number;
+    "protocolVersion": string;
+    "exposeTools": string[];
+
+    /** Creates a new ServerSpecDetail instance. */
+    constructor($$source: Partial<ServerSpecDetail> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("cmd" in $$source)) {
+            this["cmd"] = [];
+        }
+        if (!("env" in $$source)) {
+            this["env"] = {};
+        }
+        if (!("cwd" in $$source)) {
+            this["cwd"] = "";
+        }
+        if (!("idleSeconds" in $$source)) {
+            this["idleSeconds"] = 0;
+        }
+        if (!("maxConcurrent" in $$source)) {
+            this["maxConcurrent"] = 0;
+        }
+        if (!("sticky" in $$source)) {
+            this["sticky"] = false;
+        }
+        if (!("persistent" in $$source)) {
+            this["persistent"] = false;
+        }
+        if (!("minReady" in $$source)) {
+            this["minReady"] = 0;
+        }
+        if (!("drainTimeoutSeconds" in $$source)) {
+            this["drainTimeoutSeconds"] = 0;
+        }
+        if (!("protocolVersion" in $$source)) {
+            this["protocolVersion"] = "";
+        }
+        if (!("exposeTools" in $$source)) {
+            this["exposeTools"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ServerSpecDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ServerSpecDetail {
+        const $$createField1_0 = $$createType10;
+        const $$createField2_0 = $$createType11;
+        const $$createField11_0 = $$createType10;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("cmd" in $$parsedSource) {
+            $$parsedSource["cmd"] = $$createField1_0($$parsedSource["cmd"]);
+        }
+        if ("env" in $$parsedSource) {
+            $$parsedSource["env"] = $$createField2_0($$parsedSource["env"]);
+        }
+        if ("exposeTools" in $$parsedSource) {
+            $$parsedSource["exposeTools"] = $$createField11_0($$parsedSource["exposeTools"]);
+        }
+        return new ServerSpecDetail($$parsedSource as Partial<ServerSpecDetail>);
     }
 }
 
@@ -233,7 +604,15 @@ export class ToolEntry {
 }
 
 // Private type creation functions
-const $$createType0 = PromptEntry.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = ResourceEntry.createFrom;
-const $$createType3 = $Create.Array($$createType2);
+const $$createType0 = RuntimeConfigDetail.createFrom;
+const $$createType1 = ServerSpecDetail.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = PromptEntry.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = RPCTLSConfigDetail.createFrom;
+const $$createType6 = ResourceEntry.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = ObservabilityConfigDetail.createFrom;
+const $$createType9 = RPCConfigDetail.createFrom;
+const $$createType10 = $Create.Array($Create.Any);
+const $$createType11 = $Create.Map($Create.Any, $Create.Any);

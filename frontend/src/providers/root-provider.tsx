@@ -1,21 +1,27 @@
+// Input: Wails runtime events, SWR cache, theme/motion providers
+// Output: RootProvider component with Wails event bridge
+// Position: App-level providers and core/log event integration
+
 'use client'
 
 import { WailsService } from '@bindings/mcpd/internal/ui'
 import { Events } from '@wailsio/runtime'
-import { Provider, useAtomValue, useSetAtom } from 'jotai'
+import { Provider } from 'jotai'
 import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useSWRConfig } from 'swr'
 
-import { coreStatusAtom } from '@/atoms/core'
-import { logsAtom } from '@/atoms/dashboard'
+import type { CoreStateResponse } from '@bindings/mcpd/internal/ui'
+import type { LogEntry } from '@/hooks/use-logs'
+import { coreStateKey, useCoreState } from '@/hooks/use-core-state'
+import { logsKey, maxLogEntries } from '@/hooks/use-logs'
 import { jotaiStore } from '@/lib/jotai'
 import { Spring } from '@/lib/spring'
 
 function WailsEventsBridge() {
-  const setLogs = useSetAtom(logsAtom)
-  const setCoreStatus = useSetAtom(coreStatusAtom)
-  const coreStatus = useAtomValue(coreStatusAtom)
+  const { mutate } = useSWRConfig()
+  const { coreStatus } = useCoreState()
   const stopRef = useRef<(() => void) | null>(null)
 
   // Listen for core:state events from backend
@@ -30,13 +36,20 @@ function WailsEventsBridge() {
         | 'error'
         | undefined
       if (state) {
-        setCoreStatus(state)
+        mutate(
+          coreStateKey,
+          (current?: CoreStateResponse) => ({
+            ...(current ?? { state, uptime: 0 }),
+            state,
+          }),
+          { revalidate: false },
+        )
       }
     })
     return () => unbind()
-  }, [setCoreStatus])
+  }, [mutate])
 
-  const level = useMemo(() => (coreStatus === 'running' ? 'info' : null), [coreStatus])
+  const level = coreStatus === 'running' ? 'info' : null
 
   useEffect(() => {
     if (level === null) {
@@ -95,16 +108,23 @@ function WailsEventsBridge() {
                 ? JSON.stringify(logData)
                 : ''
 
-        setLogs(prev => [
-          {
-            id: crypto.randomUUID(),
-            timestamp,
-            level: parsedLevel,
-            message,
-            source: logEntry?.logger,
+        mutate(
+          logsKey,
+          (current?: LogEntry[]) => {
+            const next = [
+              {
+                id: crypto.randomUUID(),
+                timestamp,
+                level: parsedLevel,
+                message,
+                source: logEntry?.logger,
+              },
+              ...(current ?? []),
+            ]
+            return next.slice(0, maxLogEntries)
           },
-          ...prev,
-        ])
+          { revalidate: false },
+        )
       })
 
       stopRef.current = () => {
@@ -121,7 +141,7 @@ function WailsEventsBridge() {
       cancelled = true
       stopRef.current?.()
     }
-  }, [level, setLogs])
+  }, [level, mutate])
 
   return null
 }

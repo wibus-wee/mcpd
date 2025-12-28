@@ -7,12 +7,20 @@ export {
 };
 
 export {
+    ConfigModeResponse,
     CoreStateResponse,
     InfoResponse,
     Manager,
+    ObservabilityConfigDetail,
+    ProfileDetail,
+    ProfileSummary,
     PromptEntry,
     PromptPage,
+    RPCConfigDetail,
+    RPCTLSConfigDetail,
     ResourceEntry,
     ResourcePage,
+    RuntimeConfigDetail,
+    ServerSpecDetail,
     ToolEntry
 } from "./models.js";

@@ -1,8 +1,7 @@
-// Input: All dashboard components, Tabs, Alert, Button, hooks, atoms
+// Input: Dashboard components, tabs/alerts/buttons, core/app hooks
 // Output: DashboardPage component - main dashboard view
 // Position: Main dashboard page in dashboard module
 
-import { useAtomValue } from 'jotai'
 import {
   AlertCircleIcon,
   Loader2Icon,
@@ -13,12 +12,12 @@ import {
 } from 'lucide-react'
 import { m } from 'motion/react'
 
-import { coreStatusAtom } from '@/atoms/core'
 import { UniversalEmptyState } from '@/components/common/universal-empty-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useCoreActions, useCoreState } from '@/hooks/use-core-state'
 import { Spring } from '@/lib/spring'
 
 import {
@@ -28,21 +27,20 @@ import {
   StatusCards,
   ToolsTable,
 } from './components'
-import {
-  restartCore,
-  startCore,
-  stopCore,
-  useAppInfo,
-  useCoreState,
-  usePrompts,
-  useResources,
-  useTools,
-} from './hooks'
+import { useAppInfo } from './hooks'
 
 function DashboardHeader() {
-  const { data: appInfo } = useAppInfo()
-  const { mutate: refreshCoreState } = useCoreState()
-  const coreStatus = useAtomValue(coreStatusAtom)
+  const { appInfo } = useAppInfo()
+  const { coreStatus } = useCoreState()
+  const {
+    refreshCoreState,
+    restartCore,
+    startCore,
+    stopCore,
+  } = useCoreActions()
+  const appLabel = appInfo?.name
+    ? `${appInfo.name} · v${appInfo.version} (${appInfo.build})`
+    : 'mcpd'
 
   return (
     <m.div
@@ -53,9 +51,7 @@ function DashboardHeader() {
     >
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm">
-          mcpd · v0.1.0(2025)
-        </p>
+        <p className="text-muted-foreground text-sm">{appLabel}</p>
       </div>
       <div className="flex items-center gap-2">
         {coreStatus === 'stopped' ? (
@@ -118,10 +114,6 @@ function DashboardHeader() {
 }
 
 function DashboardContent() {
-  useTools()
-  useResources()
-  usePrompts()
-
   return (
     <div className="space-y-6">
       <StatusCards />
@@ -147,8 +139,8 @@ function DashboardContent() {
 }
 
 export function DashboardPage() {
-  const coreStatus = useAtomValue(coreStatusAtom)
-  const { data: coreState } = useCoreState()
+  const { coreStatus, data: coreState } = useCoreState()
+  const { startCore } = useCoreActions()
 
   if (coreStatus === 'stopped') {
     return (

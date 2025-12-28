@@ -1,8 +1,7 @@
-// Input: Table, Badge, Button, Input, Dialog, ScrollArea, Accordion components, tools atom
+// Input: Table, Badge, Button, Input, Dialog, ScrollArea, Accordion components, tools hook
 // Output: ToolsTable component displaying available MCP tools
 // Position: Dashboard tools section with search and detail view
 
-import { useAtomValue } from 'jotai'
 import {
   ChevronRightIcon,
   CopyIcon,
@@ -12,7 +11,7 @@ import {
 import { m } from 'motion/react'
 import { useMemo, useState } from 'react'
 
-import { toolsAtom } from '@/atoms/dashboard'
+import type { ToolEntry } from '@bindings/mcpd/internal/ui'
 import {
   Accordion,
   AccordionContent,
@@ -62,8 +61,7 @@ interface ToolSchema {
 }
 
 export function ToolsTable() {
-  const tools = useAtomValue(toolsAtom)
-  const { isLoading } = useTools()
+  const { tools, isLoading } = useTools()
   const [search, setSearch] = useState('')
 
   const filteredTools = useMemo(() => {
@@ -74,7 +72,7 @@ export function ToolsTable() {
     )
   }, [tools, search])
 
-  const parseToolJson = (tool: typeof tools[0]): ToolSchema => {
+  const parseToolJson = (tool: ToolEntry): ToolSchema => {
     try {
       const parsed = typeof tool.toolJson === 'string'
         ? JSON.parse(tool.toolJson)

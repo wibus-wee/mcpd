@@ -2,14 +2,15 @@
 
 # Dashboard Components
 
-Reusable components specific to the dashboard module.
-Each component handles a specific section of the dashboard UI.
+仪表盘模块内的可复用组件集合。
+每个组件负责仪表盘 UI 的一个独立区域。
+跨模块复用的组件请放在 components/common 或 components/ui。
 
 ## Files
 
-- **index.ts**: Barrel export for all dashboard components
-- **status-cards.tsx**: Status overview cards showing core status, uptime, tools/resources/prompts counts
-- **tools-table.tsx**: Searchable table of available MCP tools with detail dialog
-- **resources-list.tsx**: Collapsible list of available MCP resources
-- **logs-panel.tsx**: Real-time logs panel with filtering and auto-scroll
-- **settings-sheet.tsx**: Settings sheet with theme, refresh interval, notifications, log level options
+- **index.ts**: 组件统一导出
+- **status-cards.tsx**: 状态概览卡片，展示核心状态、运行时长与数量统计
+- **tools-table.tsx**: 工具表格，支持搜索与详情弹窗
+- **resources-list.tsx**: 资源列表与折叠详情
+- **logs-panel.tsx**: 实时日志面板，支持过滤与自动滚动开关
+- **settings-sheet.tsx**: 设置面板，包含主题/刷新间隔/通知/日志级别

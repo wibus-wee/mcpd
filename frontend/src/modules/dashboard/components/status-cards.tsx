@@ -1,8 +1,7 @@
-// Input: Card, Badge, Progress, Tooltip components, jotai atoms, lucide icons
+// Input: Card, Badge, Progress, Tooltip components, dashboard data hooks, lucide icons
 // Output: StatusCards component displaying core status metrics
 // Position: Dashboard status overview section
 
-import { useAtomValue } from 'jotai'
 import {
   ActivityIcon,
   ClockIcon,
@@ -12,16 +11,15 @@ import {
 } from 'lucide-react'
 import { m } from 'motion/react'
 
-import { coreStatusAtom } from '@/atoms/core'
-import { promptsCountAtom, resourcesCountAtom, toolsCountAtom } from '@/atoms/dashboard'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useCoreState } from '@/hooks/use-core-state'
 import { Spring } from '@/lib/spring'
 
-import { useCoreState } from '../hooks'
+import { usePrompts, useResources, useTools } from '../hooks'
 
 interface StatCardProps {
   title: string
@@ -66,17 +64,16 @@ function StatCard({ title, value, icon, description, delay = 0, loading }: StatC
 }
 
 export function StatusCards() {
-  const coreStatus = useAtomValue(coreStatusAtom)
-  const toolsCount = useAtomValue(toolsCountAtom)
-  const resourcesCount = useAtomValue(resourcesCountAtom)
-  const promptsCount = useAtomValue(promptsCountAtom)
-
-  const { data: coreState, isLoading } = useCoreState()
+  const { coreStatus, data: coreState, isLoading } = useCoreState()
+  const { tools, isLoading: toolsLoading } = useTools()
+  const { resources, isLoading: resourcesLoading } = useResources()
+  const { prompts, isLoading: promptsLoading } = usePrompts()
 
   const statusBadgeVariant = {
     running: 'success' as const,
     starting: 'warning' as const,
     stopped: 'secondary' as const,
+    stopping: 'warning' as const,
     error: 'error' as const,
   }
 
@@ -156,26 +153,29 @@ export function StatusCards() {
 
       <StatCard
         title="Tools"
-        value={toolsCount}
+        value={tools.length}
         icon={<WrenchIcon className="size-3.5" />}
         description="Available MCP tools"
         delay={0.06}
+        loading={toolsLoading}
       />
 
       <StatCard
         title="Resources"
-        value={resourcesCount}
+        value={resources.length}
         icon={<FileTextIcon className="size-3.5" />}
         description="Available resources"
         delay={0.09}
+        loading={resourcesLoading}
       />
 
       <StatCard
         title="Prompts"
-        value={promptsCount}
+        value={prompts.length}
         icon={<ActivityIcon className="size-3.5" />}
         description="Available prompt templates"
         delay={0.12}
+        loading={promptsLoading}
       />
     </div>
   )

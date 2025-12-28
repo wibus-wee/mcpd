@@ -30,11 +30,36 @@ export function CallTool(name: string, args: json$0.RawMessage, routingKey: stri
 }
 
 /**
+ * GetCallers 获取 caller 到 profile 的映射
+ */
+export function GetCallers(): $CancellablePromise<{ [_: string]: string }> {
+    return $Call.ByID(1738435433).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * GetConfigMode 获取配置模式（单文件或目录）
+ */
+export function GetConfigMode(): $CancellablePromise<$models.ConfigModeResponse> {
+    return $Call.ByID(2990028974).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
+ * GetConfigPath 获取配置文件路径
+ */
+export function GetConfigPath(): $CancellablePromise<string> {
+    return $Call.ByID(2220450282);
+}
+
+/**
  * GetCoreState 获取 Core 当前状态
  */
 export function GetCoreState(): $CancellablePromise<$models.CoreStateResponse> {
     return $Call.ByID(1503257149).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType2($result);
     });
 }
 
@@ -43,7 +68,16 @@ export function GetCoreState(): $CancellablePromise<$models.CoreStateResponse> {
  */
 export function GetInfo(): $CancellablePromise<$models.InfoResponse> {
     return $Call.ByID(659019143).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType3($result);
+    });
+}
+
+/**
+ * GetProfile 获取指定 profile 的详细信息
+ */
+export function GetProfile(name: string): $CancellablePromise<$models.ProfileDetail | null> {
+    return $Call.ByID(3878580060, name).then(($result: any) => {
+        return $$createType5($result);
     });
 }
 
@@ -71,11 +105,20 @@ export function HandleURLScheme(rawURL: string): $CancellablePromise<void> {
 }
 
 /**
+ * ListProfiles 列出所有 profiles
+ */
+export function ListProfiles(): $CancellablePromise<$models.ProfileSummary[]> {
+    return $Call.ByID(3827145375).then(($result: any) => {
+        return $$createType7($result);
+    });
+}
+
+/**
  * ListPrompts 列出提示模板
  */
 export function ListPrompts(cursor: string): $CancellablePromise<$models.PromptPage | null> {
     return $Call.ByID(2106692208, cursor).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType9($result);
     });
 }
 
@@ -84,7 +127,7 @@ export function ListPrompts(cursor: string): $CancellablePromise<$models.PromptP
  */
 export function ListResources(cursor: string): $CancellablePromise<$models.ResourcePage | null> {
     return $Call.ByID(3909930490, cursor).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType11($result);
     });
 }
 
@@ -93,7 +136,7 @@ export function ListResources(cursor: string): $CancellablePromise<$models.Resou
  */
 export function ListTools(): $CancellablePromise<$models.ToolEntry[]> {
     return $Call.ByID(1487086052).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType13($result);
     });
 }
 
@@ -161,11 +204,17 @@ export function StopLogStream(): $CancellablePromise<void> {
 }
 
 // Private type creation functions
-const $$createType0 = $models.CoreStateResponse.createFrom;
-const $$createType1 = $models.InfoResponse.createFrom;
-const $$createType2 = $models.PromptPage.createFrom;
-const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = $models.ResourcePage.createFrom;
+const $$createType0 = $Create.Map($Create.Any, $Create.Any);
+const $$createType1 = $models.ConfigModeResponse.createFrom;
+const $$createType2 = $models.CoreStateResponse.createFrom;
+const $$createType3 = $models.InfoResponse.createFrom;
+const $$createType4 = $models.ProfileDetail.createFrom;
 const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = $models.ToolEntry.createFrom;
+const $$createType6 = $models.ProfileSummary.createFrom;
 const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.PromptPage.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $models.ResourcePage.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = $models.ToolEntry.createFrom;
+const $$createType13 = $Create.Array($$createType12);

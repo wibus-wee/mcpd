@@ -1,9 +1,10 @@
-// Input: Sidebar components from ui/sidebar, icons from lucide-react, navigation atoms, router
+// Input: Sidebar components from ui/sidebar, icons from lucide-react, TanStack Router
 // Output: AppSidebar component with navigation menu
 // Position: App-specific sidebar for main layout
 
-import { useAtom } from 'jotai'
+import { Link, useMatchRoute } from '@tanstack/react-router'
 import {
+  FileSliders,
   LayoutDashboardIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -11,8 +12,6 @@ import {
 } from 'lucide-react'
 import { m } from 'motion/react'
 
-import type { PageId } from '@/atoms/navigation'
-import { activePageAtom } from '@/atoms/navigation'
 import {
   Sidebar,
   SidebarContent,
@@ -28,36 +27,41 @@ import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
-  id: PageId
+  path: string
   label: string
   icon: typeof LayoutDashboardIcon
 }
 
 const navItems: NavItem[] = [
   {
-    id: 'dashboard',
+    path: '/',
     label: 'Dashboard',
     icon: LayoutDashboardIcon,
   },
   {
-    id: 'tools',
+    path: '/tools',
     label: 'Tools',
     icon: WrenchIcon,
   },
   {
-    id: 'logs',
+    path: '/logs',
     label: 'Logs',
     icon: ScrollTextIcon,
   },
   {
-    id: 'settings',
+    path: '/config',
+    label: 'Configuration',
+    icon: FileSliders,
+  },
+  {
+    path: '/settings',
     label: 'Settings',
     icon: SettingsIcon,
   },
 ]
 
 export function AppSidebar() {
-  const [activePage, setActivePage] = useAtom(activePageAtom)
+  const matchRoute = useMatchRoute()
 
   return (
     <Sidebar collapsible="icon">
@@ -71,18 +75,23 @@ export function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item, index) => {
                 const Icon = item.icon
-                const isActive = activePage === item.id
+                const isActive = !!matchRoute({ to: item.path, fuzzy: false })
 
                 return (
-                  <SidebarMenuItem key={item.id}>
+                  <SidebarMenuItem key={item.path}>
                     <m.div
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={Spring.smooth(0.3, index * 0.05)}
                     >
                       <SidebarMenuButton
+                        render={props => (
+                          <Link
+                            to={item.path}
+                            {...props}
+                          />
+                        )}
                         isActive={isActive}
-                        onClick={() => setActivePage(item.id)}
                         tooltip={item.label}
                       >
                         <Icon className={cn(

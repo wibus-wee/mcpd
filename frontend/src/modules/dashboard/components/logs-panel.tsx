@@ -1,8 +1,7 @@
-// Input: Card, Badge, Button, ScrollArea, Switch, Select components, logs atom
+// Input: Card, Badge, Button, ScrollArea, Switch, Select components, logs hook
 // Output: LogsPanel component displaying real-time logs
 // Position: Dashboard logs section with filtering
 
-import { useAtomValue, useSetAtom } from 'jotai'
 import {
   AlertCircleIcon,
   AlertTriangleIcon,
@@ -14,8 +13,6 @@ import {
 import { m } from 'motion/react'
 import { useMemo, useState } from 'react'
 
-import type { LogEntry } from '@/atoms/dashboard'
-import { logsAtom } from '@/atoms/dashboard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +27,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import type { LogEntry } from '@/hooks/use-logs'
+import { useLogs } from '@/hooks/use-logs'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
@@ -84,8 +83,7 @@ function LogItem({ log }: { log: LogEntry }) {
 }
 
 export function LogsPanel() {
-  const logs = useAtomValue(logsAtom)
-  const setLogs = useSetAtom(logsAtom)
+  const { logs, mutate } = useLogs()
   const [levelFilter, setLevelFilter] = useState<string>('all')
   const [autoScroll, setAutoScroll] = useState(true)
 
@@ -95,7 +93,7 @@ export function LogsPanel() {
   }, [logs, levelFilter])
 
   const clearLogs = () => {
-    setLogs([])
+    mutate([], { revalidate: false })
   }
 
   return (

@@ -1,8 +1,7 @@
-// Input: Card, Collapsible, Badge, Button, Empty components, resources atom
+// Input: Card, Collapsible, Badge, Button, Empty components, resources hook
 // Output: ResourcesList component displaying available MCP resources
 // Position: Dashboard resources section with collapsible details
 
-import { useAtomValue } from 'jotai'
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
@@ -12,7 +11,7 @@ import {
 import { m } from 'motion/react'
 import { useState } from 'react'
 
-import { resourcesAtom } from '@/atoms/dashboard'
+import type { ResourceEntry } from '@bindings/mcpd/internal/ui'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,8 +43,7 @@ interface ResourceSchema {
 }
 
 export function ResourcesList() {
-  const resources = useAtomValue(resourcesAtom)
-  const { isLoading, mutate } = useResources()
+  const { resources, isLoading, mutate } = useResources()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
 
   const toggleExpanded = (uri: string) => {
@@ -61,7 +59,7 @@ export function ResourcesList() {
     })
   }
 
-  const parseResourceJson = (resource: typeof resources[0]): ResourceSchema => {
+  const parseResourceJson = (resource: ResourceEntry): ResourceSchema => {
     try {
       const parsed = typeof resource.resourceJson === 'string'
         ? JSON.parse(resource.resourceJson)

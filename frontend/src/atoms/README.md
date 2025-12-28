@@ -2,11 +2,10 @@
 
 # Atoms
 
-Global state atoms for Jotai state management.
-Each file contains related atoms for a specific domain.
-Follow the naming convention: `{domain}Atom` for atom names.
+用于 Jotai 的全局 UI 状态，只承载跨页面的轻量状态。
+这里不存放后端数据，后端数据由 SWR 统一管理。
+命名保持 `{domain}Atom` 约定，避免跨域耦合。
 
 ## Files
 
-- **navigation.ts**: Navigation state atoms (activePageAtom, sidebarOpenAtom) for app routing
-- **core.ts**: Core runtime status atoms (coreStatusAtom, coreErrorAtom) for mcpd core state
+- **navigation.ts**: 侧边栏与导航相关的 UI 状态 atoms
