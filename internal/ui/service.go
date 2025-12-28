@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -381,4 +383,183 @@ func (s *WailsService) StopLogStream() {
 		s.logCancel = nil
 	}
 	s.logStreaming = false
+}
+
+// =============================================================================
+// Configuration Management Methods
+// =============================================================================
+
+// GetConfigPath 获取配置文件路径
+func (s *WailsService) GetConfigPath() string {
+	if s.manager == nil {
+		return ""
+	}
+	return s.manager.GetConfigPath()
+}
+
+// GetConfigMode 获取配置模式（单文件或目录）
+func (s *WailsService) GetConfigMode() ConfigModeResponse {
+	if s.manager == nil {
+		return ConfigModeResponse{Mode: "unknown", Path: ""}
+	}
+
+	path := s.manager.GetConfigPath()
+	if path == "" {
+		return ConfigModeResponse{Mode: "unknown", Path: ""}
+	}
+
+	// Check if path is a file or directory
+	info, err := os.Stat(path)
+	if err != nil {
+		return ConfigModeResponse{Mode: "unknown", Path: path}
+	}
+
+	mode := "directory"
+	if !info.IsDir() {
+		mode = "single"
+	}
+
+	// Check if writable
+	isWritable := false
+	if info.IsDir() {
+		// For directory, check if we can write to it
+		testFile := filepath.Join(path, ".write_test")
+		if f, err := os.Create(testFile); err == nil {
+			f.Close()
+			os.Remove(testFile)
+			isWritable = true
+		}
+	} else {
+		// For file, check if we can open it for writing
+		if f, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+			f.Close()
+			isWritable = true
+		}
+	}
+
+	return ConfigModeResponse{
+		Mode:       mode,
+		Path:       path,
+		IsWritable: isWritable,
+	}
+}
+
+// ListProfiles 列出所有 profiles
+func (s *WailsService) ListProfiles(ctx context.Context) ([]ProfileSummary, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	store := cp.GetProfileStore()
+	result := make([]ProfileSummary, 0, len(store.Profiles))
+	for name, profile := range store.Profiles {
+		result = append(result, ProfileSummary{
+			Name:        name,
+			ServerCount: len(profile.Catalog.Specs),
+			IsDefault:   name == domain.DefaultProfileName,
+		})
+	}
+
+	return result, nil
+}
+
+// GetProfile 获取指定 profile 的详细信息
+func (s *WailsService) GetProfile(ctx context.Context, name string) (*ProfileDetail, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	store := cp.GetProfileStore()
+	profile, ok := store.Profiles[name]
+	if !ok {
+		return nil, NewUIError(ErrCodeNotFound, fmt.Sprintf("Profile %q not found", name))
+	}
+
+	// Convert to frontend types
+	servers := make([]ServerSpecDetail, 0, len(profile.Catalog.Specs))
+	for _, spec := range profile.Catalog.Specs {
+		servers = append(servers, convertServerSpec(spec))
+	}
+
+	return &ProfileDetail{
+		Name:    profile.Name,
+		Runtime: convertRuntimeConfig(profile.Catalog.Runtime),
+		Servers: servers,
+	}, nil
+}
+
+// GetCallers 获取 caller 到 profile 的映射
+func (s *WailsService) GetCallers(ctx context.Context) (map[string]string, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	store := cp.GetProfileStore()
+	// Return a copy to prevent external modification
+	result := make(map[string]string, len(store.Callers))
+	for k, v := range store.Callers {
+		result[k] = v
+	}
+
+	return result, nil
+}
+
+// Helper functions for type conversion
+
+func convertServerSpec(spec domain.ServerSpec) ServerSpecDetail {
+	env := spec.Env
+	if env == nil {
+		env = make(map[string]string)
+	}
+	exposeTools := spec.ExposeTools
+	if exposeTools == nil {
+		exposeTools = []string{}
+	}
+
+	return ServerSpecDetail{
+		Name:                spec.Name,
+		Cmd:                 spec.Cmd,
+		Env:                 env,
+		Cwd:                 spec.Cwd,
+		IdleSeconds:         spec.IdleSeconds,
+		MaxConcurrent:       spec.MaxConcurrent,
+		Sticky:              spec.Sticky,
+		Persistent:          spec.Persistent,
+		MinReady:            spec.MinReady,
+		DrainTimeoutSeconds: spec.DrainTimeoutSeconds,
+		ProtocolVersion:     spec.ProtocolVersion,
+		ExposeTools:         exposeTools,
+	}
+}
+
+func convertRuntimeConfig(cfg domain.RuntimeConfig) RuntimeConfigDetail {
+	return RuntimeConfigDetail{
+		RouteTimeoutSeconds:   cfg.RouteTimeoutSeconds,
+		PingIntervalSeconds:   cfg.PingIntervalSeconds,
+		ToolRefreshSeconds:    cfg.ToolRefreshSeconds,
+		CallerCheckSeconds:    cfg.CallerCheckSeconds,
+		ExposeTools:           cfg.ExposeTools,
+		ToolNamespaceStrategy: cfg.ToolNamespaceStrategy,
+		Observability: ObservabilityConfigDetail{
+			ListenAddress: cfg.Observability.ListenAddress,
+		},
+		RPC: RPCConfigDetail{
+			ListenAddress:           cfg.RPC.ListenAddress,
+			MaxRecvMsgSize:          cfg.RPC.MaxRecvMsgSize,
+			MaxSendMsgSize:          cfg.RPC.MaxSendMsgSize,
+			KeepaliveTimeSeconds:    cfg.RPC.KeepaliveTimeSeconds,
+			KeepaliveTimeoutSeconds: cfg.RPC.KeepaliveTimeoutSeconds,
+			SocketMode:              cfg.RPC.SocketMode,
+			TLS: RPCTLSConfigDetail{
+				Enabled:    cfg.RPC.TLS.Enabled,
+				CertFile:   cfg.RPC.TLS.CertFile,
+				KeyFile:    cfg.RPC.TLS.KeyFile,
+				CAFile:     cfg.RPC.TLS.CAFile,
+				ClientAuth: cfg.RPC.TLS.ClientAuth,
+			},
+		},
+	}
 }

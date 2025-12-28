@@ -27,6 +27,7 @@ type ControlPlane struct {
 	logs         *telemetry.LogBroadcaster
 	logger       *zap.Logger
 	ctx          context.Context
+	profileStore domain.ProfileStore
 
 	mu             sync.Mutex
 	activeCallers  map[string]callerState
@@ -99,6 +100,7 @@ func NewControlPlane(
 	specRegistry map[string]domain.ServerSpec,
 	scheduler domain.Scheduler,
 	runtime domain.RuntimeConfig,
+	store domain.ProfileStore,
 	logs *telemetry.LogBroadcaster,
 	logger *zap.Logger,
 ) *ControlPlane {
@@ -118,6 +120,7 @@ func NewControlPlane(
 		specRegistry:  specRegistry,
 		scheduler:     scheduler,
 		runtime:       runtime,
+		profileStore:  store,
 		logs:          logs,
 		logger:        logger.Named("control_plane"),
 		ctx:           ctx,
@@ -705,4 +708,8 @@ func logLevelRank(level domain.LogLevel) int {
 	default:
 		return 0
 	}
+}
+
+func (c *ControlPlane) GetProfileStore() domain.ProfileStore {
+	return c.profileStore
 }

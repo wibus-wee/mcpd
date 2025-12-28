@@ -33,3 +33,81 @@ type PromptPage struct {
 	Prompts    []PromptEntry `json:"prompts"`
 	NextCursor string        `json:"nextCursor,omitempty"`
 }
+
+// =============================================================================
+// Configuration Management Types
+// =============================================================================
+
+// ConfigModeResponse indicates the configuration mode and path
+type ConfigModeResponse struct {
+	Mode       string `json:"mode"`       // "single" (file) or "directory"
+	Path       string `json:"path"`       // Configuration path
+	IsWritable bool   `json:"isWritable"` // Whether the config is writable
+}
+
+// ProfileSummary provides a brief overview of a profile
+type ProfileSummary struct {
+	Name        string `json:"name"`
+	ServerCount int    `json:"serverCount"`
+	IsDefault   bool   `json:"isDefault"`
+}
+
+// ProfileDetail contains full profile configuration
+type ProfileDetail struct {
+	Name    string              `json:"name"`
+	Runtime RuntimeConfigDetail `json:"runtime"`
+	Servers []ServerSpecDetail  `json:"servers"`
+}
+
+// RuntimeConfigDetail contains runtime configuration for frontend
+type RuntimeConfigDetail struct {
+	RouteTimeoutSeconds   int                       `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds   int                       `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds    int                       `json:"toolRefreshSeconds"`
+	CallerCheckSeconds    int                       `json:"callerCheckSeconds"`
+	ExposeTools           bool                      `json:"exposeTools"`
+	ToolNamespaceStrategy string                    `json:"toolNamespaceStrategy"`
+	Observability         ObservabilityConfigDetail `json:"observability"`
+	RPC                   RPCConfigDetail           `json:"rpc"`
+}
+
+// ObservabilityConfigDetail for frontend
+type ObservabilityConfigDetail struct {
+	ListenAddress string `json:"listenAddress"`
+}
+
+// RPCConfigDetail for frontend
+type RPCConfigDetail struct {
+	ListenAddress           string             `json:"listenAddress"`
+	MaxRecvMsgSize          int                `json:"maxRecvMsgSize"`
+	MaxSendMsgSize          int                `json:"maxSendMsgSize"`
+	KeepaliveTimeSeconds    int                `json:"keepaliveTimeSeconds"`
+	KeepaliveTimeoutSeconds int                `json:"keepaliveTimeoutSeconds"`
+	SocketMode              string             `json:"socketMode"`
+	TLS                     RPCTLSConfigDetail `json:"tls"`
+}
+
+// RPCTLSConfigDetail for frontend
+type RPCTLSConfigDetail struct {
+	Enabled    bool   `json:"enabled"`
+	CertFile   string `json:"certFile"`
+	KeyFile    string `json:"keyFile"`
+	CAFile     string `json:"caFile"`
+	ClientAuth bool   `json:"clientAuth"`
+}
+
+// ServerSpecDetail contains server specification for frontend
+type ServerSpecDetail struct {
+	Name                string            `json:"name"`
+	Cmd                 []string          `json:"cmd"`
+	Env                 map[string]string `json:"env"`
+	Cwd                 string            `json:"cwd"`
+	IdleSeconds         int               `json:"idleSeconds"`
+	MaxConcurrent       int               `json:"maxConcurrent"`
+	Sticky              bool              `json:"sticky"`
+	Persistent          bool              `json:"persistent"`
+	MinReady            int               `json:"minReady"`
+	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
+	ProtocolVersion     string            `json:"protocolVersion"`
+	ExposeTools         []string          `json:"exposeTools"`
+}

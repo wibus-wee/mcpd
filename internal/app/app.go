@@ -124,7 +124,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 		}
 	}
 
-	control := NewControlPlane(ctx, profiles, store.Callers, summary.specRegistry, sched, summary.defaultRuntime, logs, logger)
+	control := NewControlPlane(ctx, profiles, store.Callers, summary.specRegistry, sched, summary.defaultRuntime, store, logs, logger)
 	if cfg.OnReady != nil {
 		cfg.OnReady(control)
 	}

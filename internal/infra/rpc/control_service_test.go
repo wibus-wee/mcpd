@@ -226,3 +226,7 @@ func (f *fakeControlPlane) StreamLogs(ctx context.Context, caller string, minLev
 	close(ch)
 	return ch, nil
 }
+
+func (f *fakeControlPlane) GetProfileStore() domain.ProfileStore {
+	return domain.ProfileStore{}
+}

@@ -335,3 +335,10 @@ func (m *Manager) SetWailsApp(wails *application.App) {
 	defer m.mu.Unlock()
 	m.wails = wails
 }
+
+// GetConfigPath returns the configuration path
+func (m *Manager) GetConfigPath() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.configPath
+}

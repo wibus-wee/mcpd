@@ -20,6 +20,7 @@ func TestControlPlane_RequiresRegistration(t *testing.T) {
 		map[string]domain.ServerSpec{},
 		&fakeScheduler{},
 		domain.RuntimeConfig{},
+		domain.ProfileStore{},
 		nil,
 		nil,
 	)
@@ -49,6 +50,7 @@ func TestControlPlane_RegisterUnregister(t *testing.T) {
 		map[string]domain.ServerSpec{specKey: spec},
 		sched,
 		domain.RuntimeConfig{},
+		domain.ProfileStore{},
 		nil,
 		nil,
 	)
@@ -75,6 +77,7 @@ func TestControlPlane_ReapDeadCallers_Heartbeat(t *testing.T) {
 		map[string]domain.ServerSpec{},
 		&fakeScheduler{},
 		runtime,
+		domain.ProfileStore{},
 		nil,
 		nil,
 	)

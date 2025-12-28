@@ -104,4 +104,5 @@ type ControlPlane interface {
 	WatchPrompts(ctx context.Context, caller string) (<-chan PromptSnapshot, error)
 	GetPrompt(ctx context.Context, caller, name string, args json.RawMessage) (json.RawMessage, error)
 	StreamLogs(ctx context.Context, caller string, minLevel LogLevel) (<-chan LogEntry, error)
+	GetProfileStore() ProfileStore
 }
