@@ -365,8 +365,10 @@ func renameToolDefinition(def domain.ToolDefinition, newName string) (domain.Too
 		return def, err
 	}
 	return domain.ToolDefinition{
-		Name:     newName,
-		ToolJSON: raw,
+		Name:       newName,
+		ToolJSON:   raw,
+		SpecKey:    def.SpecKey,
+		ServerName: def.ServerName,
 	}, nil
 }
 
@@ -443,8 +445,10 @@ func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spe
 		}
 
 		result = append(result, domain.ToolDefinition{
-			Name:     name,
-			ToolJSON: raw,
+			Name:       name,
+			ToolJSON:   raw,
+			SpecKey:    specKey,
+			ServerName: spec.Name,
 		})
 		targets[name] = domain.ToolTarget{
 			ServerType: serverType,

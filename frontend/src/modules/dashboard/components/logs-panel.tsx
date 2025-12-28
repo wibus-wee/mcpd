@@ -33,6 +33,7 @@ import { useCoreState } from '@/hooks/use-core-state'
 import type { LogEntry, LogSource } from '@/hooks/use-logs'
 import { useLogs } from '@/hooks/use-logs'
 import { cn } from '@/lib/utils'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 const levelConfig = {
   debug: {
@@ -133,14 +134,21 @@ function LogItem({ log }: { log: LogEntry }) {
         </div>
         <p className="text-sm break-words whitespace-pre-wrap">{log.message}</p>
         {detailEntries.length > 0 && (
-          <div className="mt-2 grid grid-cols-1 gap-2 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground md:grid-cols-2">
-            {detailEntries.map(([key, value]) => (
-              <div key={key} className="flex gap-2">
-                <span className="min-w-[120px] text-foreground font-medium">{key}</span>
-                <span className="break-words font-mono">{formatFieldValue(value)}</span>
-              </div>
-            ))}
-          </div>
+          <Accordion>
+            <AccordionItem value={`log-details-${log.id}`}>
+              <AccordionTrigger className={"p-1 px-2 bg-muted/50"} >Show Details</AccordionTrigger>
+              <AccordionContent>
+                <div className="mt-2 grid grid-cols-1 gap-2 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground md:grid-cols-2">
+                  {detailEntries.map(([key, value]) => (
+                    <div key={key} className="flex gap-2">
+                      <span className="min-w-[120px] text-foreground font-medium">{key}</span>
+                      <span className="break-words font-mono">{formatFieldValue(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
       </div>
     </div>

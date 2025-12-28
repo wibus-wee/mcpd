@@ -42,6 +42,7 @@ export function useToolsByServer() {
     const map = new Map<string, ServerGroup>();
 
     tools.forEach((tool) => {
+      console.log("Processing tool:", tool);
       const specKey = tool.specKey || tool.serverName || tool.name;
       if (!specKey) return;
 
