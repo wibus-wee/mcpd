@@ -4,12 +4,18 @@
 
 import useSWR from 'swr'
 
+export type LogSource = 'core' | 'downstream' | 'ui' | 'unknown'
+
 export interface LogEntry {
   id: string
   timestamp: Date
   level: 'debug' | 'info' | 'warn' | 'error'
   message: string
-  source?: string
+  source: LogSource
+  logger?: string
+  serverType?: string
+  stream?: string
+  fields: Record<string, unknown>
 }
 
 export const logsKey = 'logs'

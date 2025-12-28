@@ -108,4 +108,5 @@ type ControlPlane interface {
 	StreamLogs(ctx context.Context, caller string, minLevel LogLevel) (<-chan LogEntry, error)
 	GetProfileStore() ProfileStore
 	GetPoolStatus(ctx context.Context) ([]PoolInfo, error)
+	GetServerInitStatus(ctx context.Context) ([]ServerInitStatus, error)
 }

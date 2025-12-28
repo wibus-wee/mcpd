@@ -143,7 +143,8 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 }
 
 func (m *Manager) initialize(ctx context.Context, conn domain.Conn) (domain.ServerCapabilities, error) {
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// Allow longer timeout for slow-starting servers (e.g., npx downloads)
+	pingCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	initParams := &mcp.InitializeParams{

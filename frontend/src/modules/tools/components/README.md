@@ -8,6 +8,6 @@
 ## Files
 
 - **server-card.tsx**: 服务器卡片，展示状态与工具数量。
-- **server-details-sheet.tsx**: 服务器详情抽屉，显示工具列表与运行状态。
+- **server-details-sheet.tsx**: 服务器详情抽屉，显示工具列表与运行状态，并联动工具详情。
 - **tool-details-sheet.tsx**: 单个工具的参数与描述弹层。
 - **tools-grid.tsx**: 工具网格入口，分发服务器卡片并调起详情。

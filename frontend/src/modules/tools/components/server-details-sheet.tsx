@@ -8,7 +8,7 @@ import { WrenchIcon } from 'lucide-react'
 import type { ToolEntry } from '@bindings/mcpd/internal/ui'
 
 import { Card } from '@/components/ui/card'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetPanel, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetPanel, SheetTitle } from '@/components/ui/sheet'
 import { ServerRuntimeDetails } from '@/modules/config/components/server-runtime-status'
 import { useRuntimeStatus } from '@/modules/config/hooks'
 import { cn } from '@/lib/utils'

@@ -4,25 +4,76 @@
 
 'use client'
 
+import type { CoreStateResponse } from '@bindings/mcpd/internal/ui'
 import { WailsService } from '@bindings/mcpd/internal/ui'
 import { Events } from '@wailsio/runtime'
-import { Provider } from 'jotai'
+import { Provider, useAtomValue } from 'jotai'
 import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
 import { useEffect, useRef } from 'react'
 import { useSWRConfig } from 'swr'
 
-import type { CoreStateResponse } from '@bindings/mcpd/internal/ui'
-import type { LogEntry } from '@/hooks/use-logs'
+import { logStreamTokenAtom } from '@/atoms/logs'
 import { coreStateKey, useCoreState } from '@/hooks/use-core-state'
+import type { LogEntry } from '@/hooks/use-logs'
 import { logsKey, maxLogEntries } from '@/hooks/use-logs'
 import { jotaiStore } from '@/lib/jotai'
 import { Spring } from '@/lib/spring'
+
+const logSourceValues = new Set<LogEntry['source']>(['core', 'downstream', 'ui'])
+
+const normalizeLogLevel = (value: unknown): LogEntry['level'] => {
+  const raw = String(value ?? 'info').toLowerCase()
+  if (raw === 'warning' || raw === 'warn') return 'warn'
+  if (raw === 'error' || raw === 'critical' || raw === 'alert' || raw === 'emergency') return 'error'
+  if (raw === 'debug') return 'debug'
+  return 'info'
+}
+
+const normalizeLogSource = (value: unknown): LogEntry['source'] => {
+  if (logSourceValues.has(value as LogEntry['source'])) {
+    return value as LogEntry['source']
+  }
+  return 'unknown'
+}
+
+const parseLogData = (input: unknown): { message: string, fields: Record<string, unknown> } => {
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        return parseLogData(JSON.parse(trimmed))
+      }
+      catch {
+        return { message: input, fields: {} }
+      }
+    }
+    return { message: input, fields: {} }
+  }
+
+  if (input && typeof input === 'object') {
+    const record = input as Record<string, unknown>
+    const message = typeof record.message === 'string'
+      ? record.message
+      : JSON.stringify(record)
+    const nestedFields = record.fields
+    const fieldMap = (nestedFields && typeof nestedFields === 'object')
+      ? (nestedFields as Record<string, unknown>)
+      : {}
+    const inlineFields = Object.fromEntries(
+      Object.entries(record).filter(([key]) => key !== 'message' && key !== 'fields'),
+    )
+    return { message, fields: { ...inlineFields, ...fieldMap } }
+  }
+
+  return { message: '', fields: {} }
+}
 
 function WailsEventsBridge() {
   const { mutate } = useSWRConfig()
   const { coreStatus } = useCoreState()
   const stopRef = useRef<(() => void) | null>(null)
+  const logStreamToken = useAtomValue(logStreamTokenAtom)
 
   // Listen for core:state events from backend
   useEffect(() => {
@@ -35,7 +86,6 @@ function WailsEventsBridge() {
         | 'stopping'
         | 'error'
         | undefined
-      console.log('[WailsEvents] core:state received:', { state, data })
       if (state) {
         mutate(
           coreStateKey,
@@ -53,11 +103,7 @@ function WailsEventsBridge() {
   const level = coreStatus === 'running' ? 'debug' : null
 
   useEffect(() => {
-    console.log('[WailsEvents] Log stream effect triggered:', { level, coreStatus })
-    
     if (level === null) {
-      // Stop existing stream when core is not running
-      console.log('[WailsEvents] Stopping log stream (core not running)')
       stopRef.current?.()
       stopRef.current = null
       return
@@ -67,10 +113,8 @@ function WailsEventsBridge() {
     let unbind: (() => void) | undefined
 
     const start = async () => {
-      console.log('[WailsEvents] Starting log stream with level:', level)
       try {
         await WailsService.StartLogStream(level)
-        console.log('[WailsEvents] Log stream started successfully')
       }
       catch (err) {
         console.error('[WailsEvents] Failed to start log stream', err)
@@ -86,35 +130,22 @@ function WailsEventsBridge() {
           logger?: string
           level?: string
           timestamp?: string
-          data?: { message?: string } | string
+          data?: Record<string, unknown> | string
         } | undefined
-
-        console.log('[WailsEvents] logs:entry received:', logEntry)
-
-        const rawLevel = String(logEntry?.level ?? 'info').toLowerCase()
-        const parsedLevel
-          = rawLevel === 'warning' || rawLevel === 'warn'
-            ? 'warn'
-            : rawLevel === 'error'
-              || rawLevel === 'critical'
-              || rawLevel === 'alert'
-              || rawLevel === 'emergency'
-              ? 'error'
-              : rawLevel === 'debug'
-                ? 'debug'
-                : 'info'
         const timestamp = logEntry?.timestamp
           ? new Date(logEntry.timestamp)
           : new Date()
-        const logData = logEntry?.data
-        const message
-          = typeof logData === 'string'
-            ? logData
-            : typeof logData?.message === 'string'
-              ? logData.message
-              : typeof logData === 'object'
-                ? JSON.stringify(logData)
-                : ''
+        const { message, fields } = parseLogData(logEntry?.data)
+        const source = normalizeLogSource(fields.log_source)
+        const serverType = typeof fields.serverType === 'string'
+          ? fields.serverType
+          : undefined
+        const stream = typeof fields.stream === 'string'
+          ? fields.stream
+          : undefined
+        const logger = typeof logEntry?.logger === 'string'
+          ? logEntry.logger
+          : undefined
 
         mutate(
           logsKey,
@@ -123,9 +154,13 @@ function WailsEventsBridge() {
               {
                 id: crypto.randomUUID(),
                 timestamp,
-                level: parsedLevel,
+                level: normalizeLogLevel(logEntry?.level),
                 message,
-                source: logEntry?.logger,
+                source,
+                fields,
+                logger,
+                serverType,
+                stream,
               },
               ...(current ?? []),
             ]
@@ -149,7 +184,7 @@ function WailsEventsBridge() {
       cancelled = true
       stopRef.current?.()
     }
-  }, [level, mutate])
+  }, [level, logStreamToken, mutate])
 
   return null
 }

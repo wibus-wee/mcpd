@@ -1,7 +1,8 @@
-// Input: Card, Badge, Button, ScrollArea, Switch, Select components, logs hook
+// Input: Card, Badge, Button, ScrollArea, Checkbox, Select components, logs hook
 // Output: LogsPanel component displaying real-time logs
 // Position: Dashboard logs section with filtering
 
+import { useSetAtom } from 'jotai'
 import {
   AlertCircleIcon,
   AlertTriangleIcon,
@@ -11,9 +12,9 @@ import {
   ScrollTextIcon,
   TrashIcon,
 } from 'lucide-react'
-import { m } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
+import { logStreamTokenAtom } from '@/atoms/logs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,9 +30,8 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { useCoreState } from '@/hooks/use-core-state'
-import type { LogEntry } from '@/hooks/use-logs'
+import type { LogEntry, LogSource } from '@/hooks/use-logs'
 import { useLogs } from '@/hooks/use-logs'
-import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
 const levelConfig = {
@@ -57,28 +57,91 @@ const levelConfig = {
   },
 }
 
+const sourceConfig: Record<LogSource, { label: string, badge: 'secondary' | 'info' | 'success' | 'outline' }> = {
+  core: {
+    label: 'Core',
+    badge: 'secondary',
+  },
+  downstream: {
+    label: 'Downstream',
+    badge: 'info',
+  },
+  ui: {
+    label: 'Wails UI',
+    badge: 'success',
+  },
+  unknown: {
+    label: 'Unknown',
+    badge: 'outline',
+  },
+}
+
+const hiddenFieldKeys = new Set(['log_source', 'logger', 'serverType', 'stream', 'timestamp'])
+
+const formatFieldValue = (value: unknown) => {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    }
+    catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
 function LogItem({ log }: { log: LogEntry }) {
   const config = levelConfig[log.level] ?? levelConfig.info
+  const sourceMeta = sourceConfig[log.source] ?? sourceConfig.unknown
   const Icon = config.icon
+  const detailEntries = Object.entries(log.fields ?? {}).filter(
+    ([key]) => !hiddenFieldKeys.has(key),
+  )
 
   return (
     <div className="flex items-start gap-3 py-2 px-3 hover:bg-muted/50 transition-colors">
       <Icon className={cn('size-4 mt-0.5 shrink-0', config.color)} />
       <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant={config.badge} size="sm">
             {log.level}
           </Badge>
-          {log.source && (
+          <Badge variant={sourceMeta.badge} size="sm">
+            {sourceMeta.label}
+          </Badge>
+          {log.serverType && (
+            <Badge variant="outline" size="sm">
+              {log.serverType}
+            </Badge>
+          )}
+          {log.stream && (
+            <Badge variant="outline" size="sm">
+              {log.stream}
+            </Badge>
+          )}
+          {log.logger && (
             <span className="text-muted-foreground text-xs font-mono">
-              @{log.source}
+              @{log.logger}
             </span>
           )}
           <span className="text-muted-foreground text-xs ml-auto">
             {log.timestamp.toLocaleTimeString()}
           </span>
         </div>
-        <p className="text-sm break-words">{log.message}</p>
+        <p className="text-sm break-words whitespace-pre-wrap">{log.message}</p>
+        {detailEntries.length > 0 && (
+          <div className="mt-2 grid grid-cols-1 gap-2 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground md:grid-cols-2">
+            {detailEntries.map(([key, value]) => (
+              <div key={key} className="flex gap-2">
+                <span className="min-w-[120px] text-foreground font-medium">{key}</span>
+                <span className="break-words font-mono">{formatFieldValue(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -88,29 +151,114 @@ export function LogsPanel() {
   const { logs, mutate } = useLogs()
   const { coreStatus } = useCoreState()
   const [levelFilter, setLevelFilter] = useState<string>('all')
+  const [sourceFilter, setSourceFilter] = useState<LogSource | 'all'>('all')
+  const [serverFilter, setServerFilter] = useState<string>('all')
   const [autoScroll, setAutoScroll] = useState(true)
+  const bumpLogStreamToken = useSetAtom(logStreamTokenAtom)
+  const topAnchorRef = useRef<HTMLDivElement | null>(null)
+  const levelLabels: Record<string, string> = {
+    all: 'All levels',
+    debug: 'Debug',
+    info: 'Info',
+    warn: 'Warning',
+    error: 'Error',
+  }
 
-  const filteredLogs = useMemo(() => {
-    if (levelFilter === 'all') return logs
-    return logs.filter(log => log.level === levelFilter)
-  }, [logs, levelFilter])
+  const sourceLabels: Record<string, string> = {
+    all: 'All sources',
+    core: 'Core',
+    downstream: 'Downstream',
+    ui: 'Wails UI',
+    unknown: 'Unknown',
+  }
+
+  const serverOptions = Array.from(
+    new Set(
+      logs
+        .map(log => log.serverType)
+        .filter((server): server is string => typeof server === 'string'),
+    ),
+  ).sort()
+
+  const filteredLogs = logs.filter((log) => {
+    if (levelFilter !== 'all' && log.level !== levelFilter) {
+      return false
+    }
+    if (sourceFilter !== 'all' && log.source !== sourceFilter) {
+      return false
+    }
+    if (serverFilter !== 'all' && log.serverType !== serverFilter) {
+      return false
+    }
+    return true
+  })
 
   const clearLogs = () => {
     mutate([], { revalidate: false })
   }
 
+  const handleLevelChange = (value: string | null) => {
+    setLevelFilter(value ?? 'all')
+  }
+
   const forceRefresh = () => {
-    console.log('[LogsPanel] Force refresh triggered, current core status:', coreStatus)
-    // This will trigger the log stream to restart in root-provider
-    window.location.reload()
+    bumpLogStreamToken(value => value + 1)
   }
 
   const isConnected = coreStatus === 'running' && logs.length > 0
   const isDisconnected = coreStatus === 'stopped' || coreStatus === 'error'
   const isWaiting = coreStatus === 'running' && logs.length === 0
+  const showServerFilter = serverOptions.length > 0
+    && (sourceFilter === 'all' || sourceFilter === 'downstream')
+
+  useEffect(() => {
+    if (!autoScroll || filteredLogs.length === 0) {
+      return
+    }
+    topAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [autoScroll, filteredLogs.length])
+
+  useEffect(() => {
+    if (sourceFilter !== 'downstream' && sourceFilter !== 'all' && serverFilter !== 'all') {
+      setServerFilter('all')
+    }
+  }, [sourceFilter, serverFilter])
+
+  const renderEmptyState = () => {
+    if (isDisconnected) {
+      return (
+        <>
+          <p className="text-sm font-medium">Core is not running</p>
+          <p className="text-xs">Start the core to see logs</p>
+        </>
+      )
+    }
+    if (isWaiting) {
+      return (
+        <>
+          <p className="text-sm font-medium">Waiting for logs...</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={forceRefresh}
+            className="mt-2"
+          >
+            <RefreshCwIcon className="size-3 mr-1" />
+            Restart Log Stream
+          </Button>
+        </>
+      )
+    }
+    return (
+      <>
+        <p className="text-sm">No logs yet</p>
+        <p className="text-xs">Logs will appear here when the core is running</p>
+      </>
+    )
+  }
 
   return (
-    <div>
+    <div className="h-full">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -136,7 +284,7 @@ export function LogsPanel() {
                 </Badge>
               )}
             </CardTitle>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="auto-scroll"
@@ -147,9 +295,14 @@ export function LogsPanel() {
                   Auto-scroll
                 </Label>
               </div>
-              <Select value={levelFilter} onValueChange={setLevelFilter}>
+              <Select value={levelFilter} onValueChange={handleLevelChange}>
                 <SelectTrigger size="sm" className="w-32">
-                  <SelectValue placeholder="Filter level" />
+                  <SelectValue>
+                    {value =>
+                      value
+                        ? levelLabels[String(value)] ?? String(value)
+                        : 'Filter level'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All levels</SelectItem>
@@ -159,12 +312,49 @@ export function LogsPanel() {
                   <SelectItem value="error">Error</SelectItem>
                 </SelectContent>
               </Select>
+              <Select
+                value={sourceFilter}
+                onValueChange={value => setSourceFilter(value as LogSource | 'all')}
+              >
+                <SelectTrigger size="sm" className="w-36">
+                  <SelectValue>
+                    {value =>
+                      value
+                        ? sourceLabels[String(value)] ?? String(value)
+                        : 'Filter source'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  <SelectItem value="core">Core</SelectItem>
+                  <SelectItem value="downstream">Downstream</SelectItem>
+                  <SelectItem value="ui">Wails UI</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                </SelectContent>
+              </Select>
+              {showServerFilter && (
+                <Select value={serverFilter} onValueChange={setServerFilter}>
+                  <SelectTrigger size="sm" className="w-40">
+                    <SelectValue>
+                      {value => (value ? String(value) : 'Filter server')}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All servers</SelectItem>
+                    {serverOptions.map(server => (
+                      <SelectItem key={server} value={server}>
+                        {server}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {isWaiting && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   onClick={forceRefresh}
-                  title="Refresh page to reconnect"
+                  title="Restart log stream"
                 >
                   <RefreshCwIcon className="size-4" />
                 </Button>
@@ -185,37 +375,16 @@ export function LogsPanel() {
             {filteredLogs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
                 <ScrollTextIcon className="size-8 mb-2 opacity-50" />
-                {isDisconnected ? (
-                  <>
-                    <p className="text-sm font-medium">Core is not running</p>
-                    <p className="text-xs">Start the core to see logs</p>
-                  </>
-                ) : isWaiting ? (
-                  <>
-                    <p className="text-sm font-medium">Waiting for logs...</p>
-                    <p className="text-xs">Check browser console for debug info</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={forceRefresh}
-                      className="mt-2"
-                    >
-                      <RefreshCwIcon className="size-3 mr-1" />
-                      Refresh Page
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm">No logs yet</p>
-                    <p className="text-xs">Logs will appear here when the core is running</p>
-                  </>
-                )}
+                {renderEmptyState()}
               </div>
             ) : (
-              <div className="divide-y">
-                {filteredLogs.map(log => (
-                  <LogItem key={log.id} log={log} />
-                ))}
+              <div>
+                <div ref={topAnchorRef} className="h-0" />
+                <div className="divide-y">
+                  {filteredLogs.map(log => (
+                    <LogItem key={log.id} log={log} />
+                  ))}
+                </div>
               </div>
             )}
           </ScrollArea>

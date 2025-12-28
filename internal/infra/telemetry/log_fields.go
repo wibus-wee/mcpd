@@ -12,6 +12,8 @@ const (
 	FieldInstanceID = "instanceID"
 	FieldState      = "state"
 	FieldDurationMs = "duration_ms"
+	FieldLogSource  = "log_source"
+	FieldLogStream  = "stream"
 )
 
 const (
@@ -24,6 +26,12 @@ const (
 	EventIdleReap          = "idle_reap"
 	EventStopSuccess       = "stop_success"
 	EventStopFailure       = "stop_failure"
+)
+
+const (
+	LogSourceCore       = "core"
+	LogSourceDownstream = "downstream"
+	LogSourceUI         = "ui"
 )
 
 func EventField(event string) zap.Field {

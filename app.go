@@ -24,7 +24,8 @@ func main() {
 	coreApp := app.NewWithBroadcaster(logger, logBroadcaster)
 	configPath := "." // 默认配置目录，后续可通过命令行或设置修改
 
-	wailsService := ui.NewWailsService(coreApp, logger)
+	uiLogger := logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceUI))
+	wailsService := ui.NewWailsService(coreApp, uiLogger)
 	manager := ui.NewManager(nil, coreApp, configPath)
 	wailsService.SetManager(manager)
 
@@ -63,7 +64,7 @@ func main() {
 		},
 	})
 
-	logger.Info("starting MCPD Wails application")
+	uiLogger.Info("starting MCPD Wails application")
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}

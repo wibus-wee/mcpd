@@ -8,7 +8,6 @@ import {
   SearchIcon,
   WrenchIcon,
 } from 'lucide-react'
-import { m } from 'motion/react'
 import { useMemo, useState } from 'react'
 
 import type { ToolEntry } from '@bindings/mcpd/internal/ui'
@@ -46,7 +45,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Spring } from '@/lib/spring'
 
 import { useTools } from '../hooks'
 

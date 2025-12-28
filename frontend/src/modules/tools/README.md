@@ -8,5 +8,5 @@
 
 ## Files
 
-- **hooks.ts**: 工具列表与运行状态的 SWR 拉取与分组 hook。
-- **components/**: 工具网格、服务器卡片与详情抽屉的 React 组件集合。
+- **hooks.ts**: 工具列表与运行状态的 SWR 拉取，并用运行时 serverName 归组的 hook。
+- **components/**: 工具网格、服务器卡片与详情抽屉的 React 组件集合，含工具详情联动。

@@ -5,11 +5,8 @@
 import { useAtom } from 'jotai'
 import {
   ExternalLinkIcon,
-  FileIcon,
   FileSliders,
-  FolderIcon,
   LayersIcon,
-  PenIcon,
   Share2Icon,
   UsersIcon,
 } from 'lucide-react'
@@ -60,8 +57,6 @@ function ConfigHeader() {
       </div>
     )
   }
-
-  const ModeIcon = configMode?.mode === 'directory' ? FolderIcon : FileIcon
 
   return (
     <m.div

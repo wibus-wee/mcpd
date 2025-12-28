@@ -1,14 +1,15 @@
 <!-- Once this directory changes, update this README.md -->
 
-# Config Module Components
+# 配置模块组件
 
-Components specific to the configuration management feature.
-Master-detail layout: left panel shows profiles list, right panel shows inline details.
+配置管理功能的专用组件集合。
+保持主从布局：左侧列表，右侧详情与拓扑区域。
+跨模块通用组件请放在 `components/common` 或 `components/ui`。
 
 ## Files
 
-- **profiles-list.tsx**: Minimal list view of profiles with selection state and hover interactions
-- **profile-detail-panel.tsx**: Inline detail panel showing runtime config and servers (replaces Sheet overlay)
-- **callers-list.tsx**: Compact list view of caller-to-profile mappings using divide-y pattern
-- **server-runtime-status.tsx**: Runtime status pill for server pools with periodic refresh
-- **config-flow.tsx**: React Flow topology graph for profiles, callers, and servers
+- **profiles-list.tsx**: Profiles 列表与选中态交互
+- **profile-detail-panel.tsx**: Profile 详情面板，展示运行配置与 server 信息
+- **callers-list.tsx**: Caller 与 profile 的映射列表
+- **server-runtime-status.tsx**: Server pool 的运行状态指示器
+- **config-flow.tsx**: Profiles/callers/servers 的拓扑视图与自定义节点

@@ -5,10 +5,9 @@
 import type { ProfileDetail, ProfileSummary } from '@bindings/mcpd/internal/ui'
 import {
   Background,
-  Controls,
+  BackgroundVariant,
   Handle,
   MarkerType,
-  MiniMap,
   Position,
   ReactFlow,
   type Edge,
@@ -49,10 +48,13 @@ type ServerNodeData = {
   tags: string[]
 }
 
-type FlowNodeData = CallerNodeData | ProfileNodeData | ServerNodeData
+type CallerFlowNode = Node<CallerNodeData, 'caller'>
+type ProfileFlowNode = Node<ProfileNodeData, 'profile'>
+type ServerFlowNode = Node<ServerNodeData, 'server'>
+type FlowNode = CallerFlowNode | ProfileFlowNode | ServerFlowNode
 
 type LayoutResult = {
-  nodes: Node<FlowNodeData>[]
+  nodes: FlowNode[]
   edges: Edge[]
   profileCount: number
   serverCount: number
@@ -62,7 +64,7 @@ type LayoutResult = {
 const handleBaseClass =
   'size-2.5 border border-background bg-foreground/50 shadow-sm'
 
-const CallerNode = ({ data }: NodeProps<CallerNodeData>) => {
+const CallerNode = ({ data }: NodeProps<CallerFlowNode>) => {
   return (
     <div className="min-w-[180px] rounded-xl border border-info/30 bg-info/5 px-3 py-2 shadow-xs">
       <Handle
@@ -84,7 +86,7 @@ const CallerNode = ({ data }: NodeProps<CallerNodeData>) => {
   )
 }
 
-const ProfileNode = ({ data }: NodeProps<ProfileNodeData>) => {
+const ProfileNode = ({ data }: NodeProps<ProfileFlowNode>) => {
   const label = data.isMissing ? 'Missing Profile' : 'Profile'
   const handleTone = data.isMissing ? 'bg-warning' : 'bg-primary'
 
@@ -131,7 +133,7 @@ const ProfileNode = ({ data }: NodeProps<ProfileNodeData>) => {
   )
 }
 
-const ServerNode = ({ data }: NodeProps<ServerNodeData>) => {
+const ServerNode = ({ data }: NodeProps<ServerFlowNode>) => {
   const protocolLabel =
     data.protocolVersion === 'default'
       ? 'Protocol default'
@@ -269,7 +271,7 @@ const buildTopology = (
     })),
   ]
 
-  const nodes: Node<FlowNodeData>[] = []
+  const nodes: FlowNode[] = []
   const edges: Edge[] = []
   const profilePositions = new Map<string, number>()
 
@@ -570,7 +572,7 @@ export const ConfigFlow = () => {
             maxZoom={1.2}
           >
             <Background
-              variant="dots"
+              variant={BackgroundVariant.Dots}
               gap={20}
               size={1.5}
               color="var(--border)"

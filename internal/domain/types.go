@@ -125,6 +125,27 @@ type PoolInfo struct {
 	Instances  []InstanceInfo
 }
 
+type ServerInitState string
+
+const (
+	ServerInitPending  ServerInitState = "pending"
+	ServerInitStarting ServerInitState = "starting"
+	ServerInitReady    ServerInitState = "ready"
+	ServerInitDegraded ServerInitState = "degraded"
+	ServerInitFailed   ServerInitState = "failed"
+)
+
+type ServerInitStatus struct {
+	SpecKey    string
+	ServerName string
+	MinReady   int
+	Ready      int
+	Failed     int
+	State      ServerInitState
+	LastError  string
+	UpdatedAt  time.Time
+}
+
 type Conn interface {
 	Send(ctx context.Context, msg json.RawMessage) error
 	Recv(ctx context.Context) (json.RawMessage, error)

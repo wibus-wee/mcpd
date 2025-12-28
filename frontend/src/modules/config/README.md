@@ -8,7 +8,7 @@
 
 ## Files
 
-- **config-page.tsx**: 配置主页面，渲染头部与标签页内容
+- **config-page.tsx**: 配置主页面，组织头部与标签页布局
 - **atoms.ts**: 配置相关的 Jotai 状态容器
 - **hooks.ts**: 配置数据获取 hooks，负责 profiles/callers/details/runtime
 - **components/**: 配置模块的 UI 子组件集合
@@ -19,4 +19,4 @@
 - **components/profile-detail-panel.tsx**: profile 详情面板，含 runtime 与 servers
 - **components/callers-list.tsx**: caller 到 profile 的映射列表
 - **components/server-runtime-status.tsx**: server pool 运行状态指示器
-- **components/config-flow.tsx**: profiles/callers/servers 拓扑关系图
+- **components/config-flow.tsx**: profiles/callers/servers 拓扑关系图与节点渲染

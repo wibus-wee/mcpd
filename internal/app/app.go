@@ -56,8 +56,9 @@ func New(logger *zap.Logger) *App {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	logger = logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceCore)).Named("app")
 	return &App{
-		logger: logger.Named("app"),
+		logger: logger,
 	}
 }
 
@@ -65,8 +66,9 @@ func NewWithBroadcaster(logger *zap.Logger, broadcaster *telemetry.LogBroadcaste
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	logger = logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceCore)).Named("app")
 	return &App{
-		logger:         logger.Named("app"),
+		logger:         logger,
 		logBroadcaster: broadcaster,
 	}
 }
@@ -109,7 +111,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	registry.MustRegister(prometheus.NewGoCollector())
 
-	stdioTransport := transport.NewStdioTransport()
+	stdioTransport := transport.NewStdioTransport(transport.StdioTransportOptions{Logger: logger})
 	lc := lifecycle.NewManager(stdioTransport, logger)
 	pingProbe := &probe.PingProbe{Timeout: 2 * time.Second}
 	metrics := telemetry.NewPrometheusMetrics(registry)

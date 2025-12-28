@@ -8,7 +8,6 @@ import {
   FileTextIcon,
   RefreshCwIcon,
 } from 'lucide-react'
-import { m } from 'motion/react'
 import { useState } from 'react'
 
 import type { ResourceEntry } from '@bindings/mcpd/internal/ui'
@@ -30,7 +29,6 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
 import { useResources } from '../hooks'

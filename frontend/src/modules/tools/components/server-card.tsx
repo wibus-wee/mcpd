@@ -28,7 +28,7 @@ export function ServerCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'relative overflow-hidden rounded-xl border border-border/50',
+        'w-full h-full relative overflow-hidden rounded-xl border border-border/50',
         'bg-background/80 backdrop-blur-sm',
         'transition-all duration-300',
         'hover:border-primary/50 hover:shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]',

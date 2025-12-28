@@ -12,5 +12,5 @@
 - **status-cards.tsx**: 状态概览卡片，展示核心状态、运行时长与数量统计
 - **tools-table.tsx**: 工具表格，支持搜索与详情弹窗
 - **resources-list.tsx**: 资源列表与折叠详情
-- **logs-panel.tsx**: 实时日志面板，支持过滤与自动滚动开关
+- **logs-panel.tsx**: 实时日志面板，支持等级/来源/Server 过滤与自动滚动开关
 - **settings-sheet.tsx**: 设置面板，包含主题/刷新间隔/通知/日志级别

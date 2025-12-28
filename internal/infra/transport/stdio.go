@@ -1,23 +1,38 @@
 package transport
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/telemetry"
 )
 
-type StdioTransport struct{}
+type StdioTransport struct {
+	logger *zap.Logger
+}
 
-func NewStdioTransport() *StdioTransport {
-	return &StdioTransport{}
+type StdioTransportOptions struct {
+	Logger *zap.Logger
+}
+
+func NewStdioTransport(opts StdioTransportOptions) *StdioTransport {
+	logger := opts.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &StdioTransport{logger: logger}
 }
 
 type processCleanup func()
@@ -34,12 +49,24 @@ func (t *StdioTransport) Start(ctx context.Context, spec domain.ServerSpec) (dom
 	cmd.Env = append(os.Environ(), formatEnv(spec.Env)...)
 	groupCleanup := setupProcessHandling(cmd)
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("stderr pipe: %w", err)
+	}
+	downstreamLogger := t.logger.With(
+		zap.String(telemetry.FieldLogSource, telemetry.LogSourceDownstream),
+		telemetry.ServerTypeField(spec.Name),
+		zap.String(telemetry.FieldLogStream, "stderr"),
+	)
+	go mirrorStderr(stderr, downstreamLogger)
+
 	transport := &mcp.CommandTransport{
 		Command: cmd,
 	}
 
 	mcpConn, err := transport.Connect(ctx)
 	if err != nil {
+		_ = stderr.Close()
 		return nil, nil, fmt.Errorf("connect stdio: %w", err)
 	}
 
@@ -84,6 +111,22 @@ func (a *mcpConnAdapter) Recv(ctx context.Context) (json.RawMessage, error) {
 
 func (a *mcpConnAdapter) Close() error {
 	return a.conn.Close()
+}
+
+func mirrorStderr(reader io.Reader, logger *zap.Logger) {
+	buf := bufio.NewReader(reader)
+	for {
+		line, err := buf.ReadString('\n')
+		if len(line) > 0 {
+			line = strings.TrimRight(line, "\r\n")
+			if line != "" {
+				logger.Info(line)
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 func formatEnv(env map[string]string) []string {
