@@ -116,6 +116,21 @@ type ServerSpecDetail struct {
 }
 
 // =============================================================================
+// Initialization Status Types
+// =============================================================================
+
+type ServerInitStatus struct {
+	SpecKey    string `json:"specKey"`
+	ServerName string `json:"serverName"`
+	MinReady   int    `json:"minReady"`
+	Ready      int    `json:"ready"`
+	Failed     int    `json:"failed"`
+	State      string `json:"state"`
+	LastError  string `json:"lastError,omitempty"`
+	UpdatedAt  string `json:"updatedAt"`
+}
+
+// =============================================================================
 // Runtime Status Types
 // =============================================================================
 

@@ -23,6 +23,7 @@ export {
     ResourceEntry,
     ResourcePage,
     RuntimeConfigDetail,
+    ServerInitStatus,
     ServerRuntimeStatus,
     ServerSpecDetail,
     ToolEntry

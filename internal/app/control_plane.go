@@ -23,6 +23,7 @@ type ControlPlane struct {
 	callers      map[string]string
 	specRegistry map[string]domain.ServerSpec
 	scheduler    domain.Scheduler
+	initManager  *ServerInitializationManager
 	runtime      domain.RuntimeConfig
 	logs         *telemetry.LogBroadcaster
 	logger       *zap.Logger
@@ -99,6 +100,7 @@ func NewControlPlane(
 	callers map[string]string,
 	specRegistry map[string]domain.ServerSpec,
 	scheduler domain.Scheduler,
+	initManager *ServerInitializationManager,
 	runtime domain.RuntimeConfig,
 	store domain.ProfileStore,
 	logs *telemetry.LogBroadcaster,
@@ -119,6 +121,7 @@ func NewControlPlane(
 		callers:       callers,
 		specRegistry:  specRegistry,
 		scheduler:     scheduler,
+		initManager:   initManager,
 		runtime:       runtime,
 		profileStore:  store,
 		logs:          logs,
@@ -569,6 +572,16 @@ func (c *ControlPlane) activateSpecs(ctx context.Context, specKeys []string) err
 		if minReady < 1 {
 			minReady = 1
 		}
+		if c.initManager != nil {
+			err := c.initManager.SetMinReady(specKey, minReady)
+			if err == nil {
+				continue
+			}
+			c.logger.Warn("server init manager failed to set min ready", zap.String("specKey", specKey), zap.Error(err))
+		}
+		if c.scheduler == nil {
+			return errors.New("scheduler not configured")
+		}
 		if err := c.scheduler.SetDesiredMinReady(ctx, specKey, minReady); err != nil {
 			return err
 		}
@@ -584,6 +597,15 @@ func (c *ControlPlane) deactivateSpecs(ctx context.Context, specKeys []string) e
 	sort.Strings(order)
 	var firstErr error
 	for _, specKey := range order {
+		if c.initManager != nil {
+			_ = c.initManager.SetMinReady(specKey, 0)
+		}
+		if c.scheduler == nil {
+			if firstErr == nil {
+				firstErr = errors.New("scheduler not configured")
+			}
+			continue
+		}
 		if err := c.scheduler.StopSpec(ctx, specKey, "caller inactive"); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -720,4 +742,11 @@ func (c *ControlPlane) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, er
 		return nil, nil
 	}
 	return c.scheduler.GetPoolStatus(ctx)
+}
+
+func (c *ControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.ServerInitStatus, error) {
+	if c.initManager == nil {
+		return nil, nil
+	}
+	return c.initManager.Statuses(), nil
 }

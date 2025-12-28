@@ -10,7 +10,7 @@ import type { ToolEntry } from '@bindings/mcpd/internal/ui'
 import { Card } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetPanel, SheetTitle } from '@/components/ui/sheet'
 import { ServerRuntimeDetails } from '@/modules/config/components/server-runtime-status'
-import { useRuntimeStatus } from '@/modules/config/hooks'
+import { useRuntimeStatus, useServerInitStatus } from '@/modules/config/hooks'
 import { cn } from '@/lib/utils'
 
 import { ToolDetailsSheet } from './tool-details-sheet'
@@ -33,8 +33,10 @@ export function ServerDetailsSheet({
   const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
   const [toolSheetOpen, setToolSheetOpen] = useState(false)
   const { data: runtimeStatus } = useRuntimeStatus()
+  const { data: initStatuses } = useServerInitStatus()
 
   const serverStatus = runtimeStatus?.find(s => s.specKey === specKey)
+  const init = initStatuses?.find(s => s.specKey === specKey)
 
   const handleToolClick = (tool: ToolEntry) => {
     setSelectedTool(tool)
@@ -94,7 +96,7 @@ export function ServerDetailsSheet({
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Runtime Status</h4>
                   <Card className="p-4">
-                    <ServerRuntimeDetails status={serverStatus} />
+                    <ServerRuntimeDetails status={serverStatus} initStatus={init} />
                   </Card>
                 </div>
               )}

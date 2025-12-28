@@ -125,6 +125,8 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	if err != nil {
 		return err
 	}
+	initManager := NewServerInitializationManager(sched, summary.specRegistry, logger)
+	initManager.Start(ctx)
 
 	profiles := make(map[string]*profileRuntime, len(summary.configs))
 	for name, cfg := range summary.configs {
@@ -147,7 +149,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 		}
 	}
 
-	control := NewControlPlane(ctx, profiles, store.Callers, summary.specRegistry, sched, summary.defaultRuntime, store, logs, logger)
+	control := NewControlPlane(ctx, profiles, store.Callers, summary.specRegistry, sched, initManager, summary.defaultRuntime, store, logs, logger)
 	if cfg.OnReady != nil {
 		cfg.OnReady(control)
 	}
@@ -180,6 +182,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 		for _, runtime := range profiles {
 			runtime.Deactivate()
 		}
+		initManager.Stop()
 		sched.StopPingManager()
 		sched.StopIdleManager()
 		sched.StopAll(context.Background())

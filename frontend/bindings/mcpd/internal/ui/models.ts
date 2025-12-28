@@ -575,6 +575,52 @@ export class RuntimeConfigDetail {
     }
 }
 
+export class ServerInitStatus {
+    "specKey": string;
+    "serverName": string;
+    "minReady": number;
+    "ready": number;
+    "failed": number;
+    "state": string;
+    "lastError"?: string;
+    "updatedAt": string;
+
+    /** Creates a new ServerInitStatus instance. */
+    constructor($$source: Partial<ServerInitStatus> = {}) {
+        if (!("specKey" in $$source)) {
+            this["specKey"] = "";
+        }
+        if (!("serverName" in $$source)) {
+            this["serverName"] = "";
+        }
+        if (!("minReady" in $$source)) {
+            this["minReady"] = 0;
+        }
+        if (!("ready" in $$source)) {
+            this["ready"] = 0;
+        }
+        if (!("failed" in $$source)) {
+            this["failed"] = 0;
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ServerInitStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ServerInitStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ServerInitStatus($$parsedSource as Partial<ServerInitStatus>);
+    }
+}
+
 /**
  * ServerRuntimeStatus contains the runtime status of a server and its instances
  */

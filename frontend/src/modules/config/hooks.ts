@@ -6,6 +6,7 @@ import type {
   ConfigModeResponse,
   ProfileDetail,
   ProfileSummary,
+  ServerInitStatus,
   ServerRuntimeStatus,
 } from '@bindings/mcpd/internal/ui'
 import { WailsService } from '@bindings/mcpd/internal/ui'
@@ -130,6 +131,14 @@ export function useRuntimeStatus() {
   return useSWR<ServerRuntimeStatus[]>(
     'runtime-status',
     () => WailsService.GetRuntimeStatus(),
+    { refreshInterval: 2000 },
+  )
+}
+
+export function useServerInitStatus() {
+  return useSWR<ServerInitStatus[]>(
+    'server-init-status',
+    () => WailsService.GetServerInitStatus(),
     { refreshInterval: 2000 },
   )
 }

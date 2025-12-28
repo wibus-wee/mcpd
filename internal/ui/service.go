@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"go.uber.org/zap"
@@ -592,6 +593,35 @@ func (s *WailsService) GetRuntimeStatus(ctx context.Context) ([]ServerRuntimeSta
 		})
 	}
 
+	return result, nil
+}
+
+// GetServerInitStatus returns per-server initialization status
+func (s *WailsService) GetServerInitStatus(ctx context.Context) ([]ServerInitStatus, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	statuses, err := cp.GetServerInitStatus(ctx)
+	if err != nil {
+		return nil, MapDomainError(err)
+	}
+
+	result := make([]ServerInitStatus, 0, len(statuses))
+	for _, status := range statuses {
+		updatedAt := status.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		result = append(result, ServerInitStatus{
+			SpecKey:    status.SpecKey,
+			ServerName: status.ServerName,
+			MinReady:   status.MinReady,
+			Ready:      status.Ready,
+			Failed:     status.Failed,
+			State:      string(status.State),
+			LastError:  status.LastError,
+			UpdatedAt:  updatedAt,
+		})
+	}
 	return result, nil
 }
 

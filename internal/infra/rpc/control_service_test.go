@@ -234,3 +234,7 @@ func (f *fakeControlPlane) GetProfileStore() domain.ProfileStore {
 func (f *fakeControlPlane) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, error) {
 	return nil, nil
 }
+
+func (f *fakeControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.ServerInitStatus, error) {
+	return nil, nil
+}
