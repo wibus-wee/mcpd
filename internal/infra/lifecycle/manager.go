@@ -42,14 +42,30 @@ func NewManager(transport domain.Transport, logger *zap.Logger) *Manager {
 }
 
 func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	started := time.Now()
 	m.logger.Info("instance start attempt",
 		telemetry.EventField(telemetry.EventStartAttempt),
 		telemetry.ServerTypeField(spec.Name),
 	)
 
-	conn, stop, err := m.transport.Start(ctx, spec)
+	startCtx, cancelStart := context.WithCancel(context.Background())
+	startDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancelStart()
+		case <-startDone:
+		}
+	}()
+
+	conn, stop, err := m.transport.Start(startCtx, spec)
+	close(startDone)
 	if err != nil {
+		cancelStart()
 		m.logger.Error("instance start failed",
 			telemetry.EventField(telemetry.EventStartFailure),
 			telemetry.ServerTypeField(spec.Name),
@@ -60,6 +76,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 	}
 	if conn == nil {
 		err := errors.New("transport returned nil connection")
+		cancelStart()
 		m.logger.Error("instance start failed",
 			telemetry.EventField(telemetry.EventStartFailure),
 			telemetry.ServerTypeField(spec.Name),
@@ -74,6 +91,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 
 	if spec.ProtocolVersion != domain.DefaultProtocolVersion {
 		err := fmt.Errorf("unsupported protocol version: %s", spec.ProtocolVersion)
+		cancelStart()
 		m.logger.Error("instance start failed",
 			telemetry.EventField(telemetry.EventStartFailure),
 			telemetry.ServerTypeField(spec.Name),
@@ -87,6 +105,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 
 	caps, err := m.initialize(ctx, conn)
 	if err != nil {
+		cancelStart()
 		m.logger.Error("instance initialize failed",
 			telemetry.EventField(telemetry.EventInitializeFailure),
 			telemetry.ServerTypeField(spec.Name),

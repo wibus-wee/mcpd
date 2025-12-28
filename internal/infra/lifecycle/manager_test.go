@@ -43,6 +43,39 @@ func TestManager_StartInstance_Success(t *testing.T) {
 	require.NotNil(t, mgr.stops[inst.ID])
 }
 
+func TestManager_StartInstance_DetachesFromCallerContext(t *testing.T) {
+	ft := &fakeTransport{
+		conn: &fakeConn{
+			recvPayload: json.RawMessage(`{"jsonrpc":"2.0","id":"mcpd-init","result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"srv"},"capabilities":{}}}`),
+		},
+		stop: func(ctx context.Context) error { return nil },
+	}
+	mgr := NewManager(ft, zap.NewNop())
+
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		IdleSeconds:     0,
+		MinReady:        0,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	inst, err := mgr.StartInstance(ctx, spec)
+	require.NoError(t, err)
+	require.NotNil(t, inst)
+	require.NotNil(t, ft.startCtx)
+
+	cancel()
+
+	select {
+	case <-ft.startCtx.Done():
+		t.Fatal("start context should not be canceled when caller context is canceled after startup")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestManager_StartInstance_ProtocolMismatch(t *testing.T) {
 	ft := &fakeTransport{
 		conn: &fakeConn{
@@ -146,12 +179,14 @@ func TestManager_StopInstance_Unknown(t *testing.T) {
 }
 
 type fakeTransport struct {
-	conn domain.Conn
-	stop domain.StopFn
-	err  error
+	conn     domain.Conn
+	stop     domain.StopFn
+	err      error
+	startCtx context.Context
 }
 
 func (f *fakeTransport) Start(ctx context.Context, spec domain.ServerSpec) (domain.Conn, domain.StopFn, error) {
+	f.startCtx = ctx
 	return f.conn, f.stop, f.err
 }
 
