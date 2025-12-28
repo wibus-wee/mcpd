@@ -62,7 +62,7 @@ function SheetPopup({
   children,
   showCloseButton = true,
   side = 'right',
-  inset = false,
+  inset = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
   showCloseButton?: boolean
