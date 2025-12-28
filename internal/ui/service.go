@@ -235,6 +235,98 @@ func (s *WailsService) ListPrompts(ctx context.Context, cursor string) (*PromptP
 	return result, nil
 }
 
+// ListToolsForProfile lists tools for a specific profile (bypasses caller mapping).
+// This is used by the UI to view tools from different profiles without changing caller mapping.
+func (s *WailsService) ListToolsForProfile(ctx context.Context, profileName string) ([]ToolEntry, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get profile directly by name (bypass caller mapping)
+	pr, err := cp.GetProfileByName(profileName)
+	if err != nil {
+		return nil, NewUIError(ErrCodeProfileNotFound, err.Error())
+	}
+
+	// Get tool snapshot from profile
+	snapshot := pr.tools.Snapshot()
+
+	// Convert to frontend types (reuse existing logic from ListTools)
+	result := make([]ToolEntry, 0, len(snapshot.Tools))
+	for _, tool := range snapshot.Tools {
+		result = append(result, ToolEntry{
+			Name:       tool.Name,
+			ToolJSON:   tool.ToolJSON,
+			SpecKey:    tool.SpecKey,
+			ServerName: tool.ServerName,
+		})
+	}
+	return result, nil
+}
+
+// ListResourcesForProfile lists resources for a specific profile (bypasses caller mapping).
+// This is used by the UI to view resources from different profiles without changing caller mapping.
+func (s *WailsService) ListResourcesForProfile(ctx context.Context, profileName string, cursor string) (*ResourcePage, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get profile directly by name (bypass caller mapping)
+	pr, err := cp.GetProfileByName(profileName)
+	if err != nil {
+		return nil, NewUIError(ErrCodeProfileNotFound, err.Error())
+	}
+
+	// Get resource snapshot
+	snapshot, nextCursor := pr.resources.Snapshot(cursor)
+
+	// Convert to frontend types
+	result := &ResourcePage{
+		NextCursor: nextCursor,
+		Resources:  make([]ResourceEntry, 0, len(snapshot.Resources)),
+	}
+	for _, res := range snapshot.Resources {
+		result.Resources = append(result.Resources, ResourceEntry{
+			URI:          res.URI,
+			ResourceJSON: res.ResourceJSON,
+		})
+	}
+	return result, nil
+}
+
+// ListPromptsForProfile lists prompts for a specific profile (bypasses caller mapping).
+// This is used by the UI to view prompts from different profiles without changing caller mapping.
+func (s *WailsService) ListPromptsForProfile(ctx context.Context, profileName string, cursor string) (*PromptPage, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get profile directly by name (bypass caller mapping)
+	pr, err := cp.GetProfileByName(profileName)
+	if err != nil {
+		return nil, NewUIError(ErrCodeProfileNotFound, err.Error())
+	}
+
+	// Get prompt snapshot
+	snapshot, nextCursor := pr.prompts.Snapshot(cursor)
+
+	// Convert to frontend types
+	result := &PromptPage{
+		NextCursor: nextCursor,
+		Prompts:    make([]PromptEntry, 0, len(snapshot.Prompts)),
+	}
+	for _, p := range snapshot.Prompts {
+		result.Prompts = append(result.Prompts, PromptEntry{
+			Name:       p.Name,
+			PromptJSON: p.PromptJSON,
+		})
+	}
+	return result, nil
+}
+
 // CallTool 调用指定工具
 func (s *WailsService) CallTool(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
 	cp, err := s.getControlPlane()

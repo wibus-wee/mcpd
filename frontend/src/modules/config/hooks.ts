@@ -10,7 +10,7 @@ import type {
   ServerRuntimeStatus,
 } from '@bindings/mcpd/internal/ui'
 import { WailsService } from '@bindings/mcpd/internal/ui'
-import { useSetAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 import useSWR from 'swr'
 
@@ -19,6 +19,7 @@ import {
   configModeAtom,
   profilesAtom,
   selectedProfileAtom,
+  selectedProfileNameAtom,
 } from './atoms'
 
 export function useConfigMode() {
@@ -141,4 +142,23 @@ export function useServerInitStatus() {
     () => WailsService.GetServerInitStatus(),
     { refreshInterval: 2000 },
   )
+}
+
+/**
+ * Initialize selected profile on app load.
+ * Auto-selects default profile if none selected.
+ */
+export function useInitializeSelectedProfile() {
+  const { data: profiles } = useProfiles()
+  const [selectedProfile, setSelectedProfile] = useAtom(selectedProfileNameAtom)
+
+  useEffect(() => {
+    if (!profiles || selectedProfile !== null) return
+
+    // Auto-select default profile or first available
+    const defaultProfile = profiles.find(p => p.isDefault) || profiles[0]
+    if (defaultProfile) {
+      setSelectedProfile(defaultProfile.name)
+    }
+  }, [profiles, selectedProfile, setSelectedProfile])
 }

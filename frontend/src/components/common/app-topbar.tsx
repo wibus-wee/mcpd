@@ -9,6 +9,7 @@ import { useTheme } from 'next-themes'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { ProfileSelector } from '@/components/common/profile-selector'
 import { useCoreState } from '@/hooks/use-core-state'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
@@ -70,6 +71,9 @@ export function AppTopbar() {
             <span className="font-medium text-white text-xs">{config.label}</span>
           </Badge>
         </m.div>
+
+        {/* Profile selector */}
+        <ProfileSelector />
       </div>
 
       {/* Right section - Theme toggle */}

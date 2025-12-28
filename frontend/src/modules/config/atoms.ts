@@ -8,6 +8,7 @@ import type {
   ProfileSummary,
 } from '@bindings/mcpd/internal/ui'
 import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
 
 // Config mode and path
 export const configModeAtom = atom<ConfigModeResponse | null>(null)
@@ -15,8 +16,11 @@ export const configModeAtom = atom<ConfigModeResponse | null>(null)
 // Profile list
 export const profilesAtom = atom<ProfileSummary[]>([])
 
-// Selected profile name
-export const selectedProfileNameAtom = atom<string | null>(null)
+// Selected profile name (persisted in localStorage)
+export const selectedProfileNameAtom = atomWithStorage<string | null>(
+  'mcpd-selected-profile',
+  null,
+)
 
 // Selected profile detail
 export const selectedProfileAtom = atom<ProfileDetail | null>(null)

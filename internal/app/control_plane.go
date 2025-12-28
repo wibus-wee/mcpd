@@ -439,6 +439,24 @@ func (c *ControlPlane) resolveProfileName(caller string) (string, error) {
 	return profileName, nil
 }
 
+// GetProfileByName returns a profile runtime by name without caller resolution.
+// Returns error if profile doesn't exist or isn't active.
+func (c *ControlPlane) GetProfileByName(profileName string) (*profileRuntime, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	pr, exists := c.profiles[profileName]
+	if !exists {
+		return nil, fmt.Errorf("profile %q not found", profileName)
+	}
+
+	if !pr.active {
+		return nil, fmt.Errorf("profile %q is not active", profileName)
+	}
+
+	return pr, nil
+}
+
 func paginateResources(snapshot domain.ResourceSnapshot, cursor string) (domain.ResourcePage, error) {
 	resources := snapshot.Resources
 	start := 0
