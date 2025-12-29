@@ -3,7 +3,10 @@
 // Position: Right panel in config page master-detail layout with live runtime status
 
 import type { ActiveCaller, ProfileDetail, ServerSpecDetail } from '@bindings/mcpd/internal/ui'
+import { WailsService } from '@bindings/mcpd/internal/ui'
 import {
+  AlertCircleIcon,
+  CheckCircleIcon,
   ClockIcon,
   CpuIcon,
   LayersIcon,
@@ -11,8 +14,10 @@ import {
   ServerIcon,
   SettingsIcon,
   TerminalIcon,
+  TrashIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
+import { useEffect, useState } from 'react'
 
 import {
   Accordion,
@@ -20,7 +25,24 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { CallerChipGroup } from '@/components/common/caller-chip-group'
 import {
   Empty,
@@ -31,10 +53,12 @@ import {
 } from '@/components/ui/empty'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useActiveCallers } from '@/hooks/use-active-callers'
 import { Spring } from '@/lib/spring'
+import { cn } from '@/lib/utils'
 
-import { useProfile } from '../hooks'
+import { useConfigMode, useProfile, useProfiles } from '../hooks'
 import { ServerRuntimeIndicator } from './server-runtime-status'
 
 interface ProfileDetailPanelProps {
@@ -42,6 +66,14 @@ interface ProfileDetailPanelProps {
 }
 
 type ServerSpecWithKey = ServerSpecDetail & { specKey?: string }
+
+const defaultProfileName = 'default'
+
+type NoticeState = {
+  variant: 'success' | 'error'
+  title: string
+  description: string
+}
 
 function DetailRow({
   label,
@@ -117,16 +149,37 @@ function RuntimeSection({ profile }: { profile: ProfileDetail }) {
   )
 }
 
-function ServerItem({ server }: { server: ServerSpecWithKey }) {
+function ServerItem({
+  server,
+  canEdit,
+  isBusy,
+  disabledHint,
+  onToggleDisabled,
+  onDelete,
+}: {
+  server: ServerSpecWithKey
+  canEdit: boolean
+  isBusy: boolean
+  disabledHint?: string
+  onToggleDisabled: (server: ServerSpecWithKey, disabled: boolean) => void
+  onDelete: (server: ServerSpecWithKey) => void
+}) {
   const specKey = server.specKey ?? server.name
+  const isDisabled = Boolean(server.disabled)
 
   return (
-    <AccordionItem value={`server-${server.name}`} className="border-none">
+    <AccordionItem
+      value={`server-${server.name}`}
+      className={cn('border-none', isDisabled && 'opacity-70')}
+    >
       <AccordionTrigger className="py-2 hover:no-underline">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="font-mono text-sm truncate">{server.name}</span>
           <div className="flex items-center gap-1.5 ml-auto mr-2">
             <ServerRuntimeIndicator specKey={specKey} />
+            {isDisabled && (
+              <Badge variant="warning" size="sm">Disabled</Badge>
+            )}
             {server.persistent && (
               <Badge variant="secondary" size="sm">Persistent</Badge>
             )}
@@ -138,6 +191,58 @@ function ServerItem({ server }: { server: ServerSpecWithKey }) {
       </AccordionTrigger>
       <AccordionContent className="pb-3">
         <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!isDisabled}
+                onCheckedChange={checked => onToggleDisabled(server, !checked)}
+                disabled={!canEdit || isBusy}
+                title={disabledHint}
+              />
+              <span className="text-xs text-muted-foreground">
+                {isDisabled ? 'Disabled' : 'Enabled'}
+              </span>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger
+                disabled={!canEdit || isBusy}
+                render={(
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    title={disabledHint}
+                  >
+                    <TrashIcon className="size-3.5" />
+                    Delete
+                  </Button>
+                )}
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete server</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes the server from the profile configuration.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogClose
+                    render={<Button variant="ghost">Cancel</Button>}
+                  />
+                  <AlertDialogClose
+                    render={(
+                      <Button
+                        variant="destructive"
+                        onClick={() => onDelete(server)}
+                      >
+                        Delete server
+                      </Button>
+                    )}
+                  />
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
           {/* Command */}
           <div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
@@ -222,9 +327,29 @@ function ServerItem({ server }: { server: ServerSpecWithKey }) {
 function ProfileContent({
   profile,
   activeCallers,
+  canEditServers,
+  canDeleteProfile,
+  serverActionHint,
+  pendingServerName,
+  deletingProfile,
+  notice,
+  onDismissNotice,
+  onToggleDisabled,
+  onDeleteServer,
+  onDeleteProfile,
 }: {
   profile: ProfileDetail
   activeCallers: ActiveCaller[]
+  canEditServers: boolean
+  canDeleteProfile: boolean
+  serverActionHint?: string
+  pendingServerName: string | null
+  deletingProfile: boolean
+  notice: NoticeState | null
+  onDismissNotice: () => void
+  onToggleDisabled: (server: ServerSpecWithKey, disabled: boolean) => void
+  onDeleteServer: (server: ServerSpecWithKey) => void
+  onDeleteProfile: () => void
 }) {
   return (
     <m.div
@@ -233,12 +358,65 @@ function ProfileContent({
       animate={{ opacity: 1, x: 0 }}
       transition={Spring.smooth(0.25)}
     >
+      {notice && (
+        <Alert variant={notice.variant}>
+          {notice.variant === 'success' ? <CheckCircleIcon /> : <AlertCircleIcon />}
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>{notice.description}</AlertDescription>
+          <AlertAction>
+            <Button variant="ghost" size="xs" onClick={onDismissNotice}>
+              Dismiss
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">{profile.name}</h2>
-        <Badge variant="secondary" size="sm">
-          {profile.servers.length} server{profile.servers.length !== 1 ? 's' : ''}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" size="sm">
+            {profile.servers.length} server{profile.servers.length !== 1 ? 's' : ''}
+          </Badge>
+          <AlertDialog>
+            <AlertDialogTrigger
+              disabled={!canDeleteProfile || deletingProfile}
+              render={(
+                <Button
+                  variant="destructive-outline"
+                  size="xs"
+                  title={canDeleteProfile ? undefined : 'Profile deletion is not available'}
+                >
+                  <TrashIcon className="size-3.5" />
+                  Delete profile
+                </Button>
+              )}
+            />
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete profile</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the profile file and all servers inside it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogClose
+                  render={<Button variant="ghost">Cancel</Button>}
+                />
+                <AlertDialogClose
+                  render={(
+                    <Button
+                      variant="destructive"
+                      onClick={onDeleteProfile}
+                    >
+                      Delete profile
+                    </Button>
+                  )}
+                />
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-muted/30 px-3 py-2">
@@ -272,14 +450,22 @@ function ProfileContent({
               </EmptyMedia>
               <EmptyTitle className="text-sm">No servers</EmptyTitle>
               <EmptyDescription className="text-xs">
-                Add servers to this profile in your configuration file.
+                Import servers or update your configuration to get started.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <Accordion multiple>
             {profile.servers.map(server => (
-              <ServerItem key={server.name} server={server} />
+              <ServerItem
+                key={server.name}
+                server={server}
+                canEdit={canEditServers}
+                isBusy={pendingServerName === server.name}
+                disabledHint={serverActionHint}
+                onToggleDisabled={onToggleDisabled}
+                onDelete={onDeleteServer}
+              />
             ))}
           </Accordion>
         )}
@@ -319,11 +505,22 @@ function PanelEmpty() {
 }
 
 export function ProfileDetailPanel({ profileName }: ProfileDetailPanelProps) {
-  const { data: profile, isLoading } = useProfile(profileName)
+  const { data: profile, isLoading, mutate: mutateProfile } = useProfile(profileName)
+  const { mutate: mutateProfiles } = useProfiles()
+  const { data: configMode } = useConfigMode()
   const { data: activeCallers } = useActiveCallers()
+  const [notice, setNotice] = useState<NoticeState | null>(null)
+  const [pendingServerName, setPendingServerName] = useState<string | null>(null)
+  const [deletingProfile, setDeletingProfile] = useState(false)
   const profileCallers = (activeCallers ?? []).filter(
     caller => caller.profile === profileName,
   )
+
+  useEffect(() => {
+    setNotice(null)
+    setPendingServerName(null)
+    setDeletingProfile(false)
+  }, [profileName])
 
   if (!profileName) {
     return <PanelEmpty />
@@ -342,13 +539,136 @@ export function ProfileDetailPanel({ profileName }: ProfileDetailPanelProps) {
             The selected profile could not be loaded.
           </EmptyDescription>
         </EmptyHeader>
+        {notice && (
+          <div className="mt-4 w-full">
+            <Alert variant={notice.variant}>
+              {notice.variant === 'success' ? <CheckCircleIcon /> : <AlertCircleIcon />}
+              <AlertTitle>{notice.title}</AlertTitle>
+              <AlertDescription>{notice.description}</AlertDescription>
+              <AlertAction>
+                <Button variant="ghost" size="xs" onClick={() => setNotice(null)}>
+                  Dismiss
+                </Button>
+              </AlertAction>
+            </Alert>
+          </div>
+        )}
       </Empty>
     )
   }
 
+  const canEditServers = Boolean(configMode?.isWritable)
+  const canDeleteProfile = Boolean(
+    configMode?.isWritable
+    && configMode?.mode === 'directory'
+    && profile.name !== defaultProfileName,
+  )
+  const serverActionHint = canEditServers ? undefined : 'Configuration is not writable'
+
+  const handleToggleDisabled = async (
+    server: ServerSpecWithKey,
+    disabled: boolean,
+  ) => {
+    if (!canEditServers || pendingServerName) {
+      return
+    }
+    setPendingServerName(server.name)
+    setNotice(null)
+    try {
+      await WailsService.SetServerDisabled({
+        profile: profile.name,
+        server: server.name,
+        disabled,
+      })
+      await Promise.all([mutateProfile(), mutateProfiles()])
+      setNotice({
+        variant: 'success',
+        title: 'Saved',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Update failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Update failed',
+        description: message,
+      })
+    } finally {
+      setPendingServerName(null)
+    }
+  }
+
+  const handleDeleteServer = async (server: ServerSpecWithKey) => {
+    if (!canEditServers || pendingServerName) {
+      return
+    }
+    setPendingServerName(server.name)
+    setNotice(null)
+    try {
+      await WailsService.DeleteServer({
+        profile: profile.name,
+        server: server.name,
+      })
+      await Promise.all([mutateProfile(), mutateProfiles()])
+      setNotice({
+        variant: 'success',
+        title: 'Server deleted',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Delete failed',
+        description: message,
+      })
+    } finally {
+      setPendingServerName(null)
+    }
+  }
+
+  const handleDeleteProfile = async () => {
+    if (!canDeleteProfile || deletingProfile) {
+      return
+    }
+    setDeletingProfile(true)
+    setNotice(null)
+    try {
+      await WailsService.DeleteProfile({ name: profile.name })
+      await Promise.all([mutateProfiles(), mutateProfile()])
+      setNotice({
+        variant: 'success',
+        title: 'Profile deleted',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Delete failed',
+        description: message,
+      })
+    } finally {
+      setDeletingProfile(false)
+    }
+  }
+
   return (
     <div className="p-4">
-      <ProfileContent profile={profile} activeCallers={profileCallers} />
+      <ProfileContent
+        profile={profile}
+        activeCallers={profileCallers}
+        canEditServers={canEditServers}
+        canDeleteProfile={canDeleteProfile}
+        serverActionHint={serverActionHint}
+        pendingServerName={pendingServerName}
+        deletingProfile={deletingProfile}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        onToggleDisabled={handleToggleDisabled}
+        onDeleteServer={handleDeleteServer}
+        onDeleteProfile={handleDeleteProfile}
+      />
     </div>
   )
 }

@@ -68,6 +68,7 @@
         "maxConcurrent": {"type": "integer"},
         "sticky": {"type": "boolean"},
         "persistent": {"type": "boolean"},
+        "disabled": {"type": "boolean"},
         "minReady": {"type": "integer"},
         "drainTimeoutSeconds": {"type": "integer"},
         "protocolVersion": {"type": "string"},

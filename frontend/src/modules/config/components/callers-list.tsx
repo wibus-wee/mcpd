@@ -1,11 +1,26 @@
 // Input: Callers mapping (Record<string, string>)
-// Output: CallersList component - minimal list view of caller-to-profile mappings
+// Output: CallersList component - editable list view of caller-to-profile mappings
 // Position: Tab content in config page, uses divide-y pattern for visual separation
 
-import { ArrowRightIcon, UsersIcon } from 'lucide-react'
+import type { ProfileSummary } from '@bindings/mcpd/internal/ui'
+import { WailsService } from '@bindings/mcpd/internal/ui'
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  ArrowRightIcon,
+  TrashIcon,
+  UsersIcon,
+} from 'lucide-react'
 import { m } from 'motion/react'
+import { useMemo, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyDescription,
@@ -13,12 +28,29 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
+
+import { useConfigMode, useProfiles } from '../hooks'
 
 interface CallersListProps {
   callers: Record<string, string>
   isLoading: boolean
   onRefresh: () => void
+}
+
+type NoticeState = {
+  variant: 'success' | 'error'
+  title: string
+  description: string
 }
 
 function CallersListSkeleton() {
@@ -35,14 +67,14 @@ function CallersListSkeleton() {
 
 function CallersListEmpty() {
   return (
-    <Empty className="py-12">
+    <Empty className="py-8">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <UsersIcon className="size-4" />
         </EmptyMedia>
         <EmptyTitle className="text-sm">No caller mappings</EmptyTitle>
         <EmptyDescription className="text-xs">
-          Define caller mappings in your configuration to route clients to specific profiles.
+          Use the form above to create your first mapping.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -52,41 +84,240 @@ function CallersListEmpty() {
 export function CallersList({
   callers,
   isLoading,
+  onRefresh,
 }: CallersListProps) {
+  const { data: profiles } = useProfiles()
+  const { data: configMode } = useConfigMode()
+  const [draftCaller, setDraftCaller] = useState('')
+  const [draftProfile, setDraftProfile] = useState('')
+  const [pendingCaller, setPendingCaller] = useState<string | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
   const entries = Object.entries(callers)
+  const profileOptions = useMemo(
+    () => (profiles ?? []).map((profile: ProfileSummary) => profile.name),
+    [profiles],
+  )
+  const hasProfiles = profileOptions.length > 0
+  const canEdit = Boolean(
+    configMode?.isWritable && configMode?.mode === 'directory',
+  )
+  const editHint = !configMode?.isWritable
+    ? 'Configuration is not writable.'
+    : configMode?.mode === 'directory'
+      ? undefined
+      : 'Profile store is required.'
+  const createDisabled = !canEdit
+    || !draftCaller.trim()
+    || !draftProfile
+    || isCreating
+    || !hasProfiles
+
+  const handleAddMapping = async () => {
+    if (createDisabled) {
+      return
+    }
+    const caller = draftCaller.trim()
+    const profile = draftProfile
+    setIsCreating(true)
+    setNotice(null)
+    try {
+      await WailsService.SetCallerMapping({ caller, profile })
+      await onRefresh()
+      setDraftCaller('')
+      setDraftProfile('')
+      setNotice({
+        variant: 'success',
+        title: 'Mapping saved',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Save failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Save failed',
+        description: message,
+      })
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleUpdateMapping = async (caller: string, profile: string) => {
+    if (!canEdit || pendingCaller || profile === callers[caller]) {
+      return
+    }
+    setPendingCaller(caller)
+    setNotice(null)
+    try {
+      await WailsService.SetCallerMapping({ caller, profile })
+      await onRefresh()
+      setNotice({
+        variant: 'success',
+        title: 'Mapping updated',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Update failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Update failed',
+        description: message,
+      })
+    } finally {
+      setPendingCaller(null)
+    }
+  }
+
+  const handleRemoveMapping = async (caller: string) => {
+    if (!canEdit || pendingCaller) {
+      return
+    }
+    setPendingCaller(caller)
+    setNotice(null)
+    try {
+      await WailsService.RemoveCallerMapping(caller)
+      await onRefresh()
+      setNotice({
+        variant: 'success',
+        title: 'Mapping removed',
+        description: 'Restart Core to apply changes.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Remove failed.'
+      setNotice({
+        variant: 'error',
+        title: 'Remove failed',
+        description: message,
+      })
+    } finally {
+      setPendingCaller(null)
+    }
+  }
 
   if (isLoading) {
     return <CallersListSkeleton />
   }
 
-  if (entries.length === 0) {
-    return <CallersListEmpty />
-  }
-
   return (
-    <m.div
-      className="divide-y divide-border/50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
-    >
-      {entries.map(([caller, profile], index) => (
+    <div className="space-y-4">
+      {notice && (
+        <Alert variant={notice.variant}>
+          {notice.variant === 'success' ? <CheckCircleIcon /> : <AlertCircleIcon />}
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>{notice.description}</AlertDescription>
+          <AlertAction>
+            <Button variant="ghost" size="xs" onClick={() => setNotice(null)}>
+              Dismiss
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
+
+      <div className="rounded-lg border bg-muted/20 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={draftCaller}
+            onChange={event => setDraftCaller(event.target.value)}
+            placeholder="Caller"
+            className="h-8 min-w-[160px] font-mono text-xs"
+            disabled={!canEdit || isCreating}
+          />
+          <Select
+            value={draftProfile || undefined}
+            onValueChange={setDraftProfile}
+            disabled={!canEdit || !hasProfiles || isCreating}
+          >
+            <SelectTrigger size="sm" className="w-40">
+              <SelectValue placeholder={hasProfiles ? 'Select profile' : 'No profiles'} />
+            </SelectTrigger>
+            <SelectContent>
+              {profileOptions.map(profile => (
+                <SelectItem key={profile} value={profile}>
+                  {profile}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleAddMapping}
+            disabled={createDisabled}
+            title={editHint}
+          >
+            {isCreating ? 'Saving...' : 'Add mapping'}
+          </Button>
+        </div>
+        {!canEdit && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Caller mappings require a writable profile store.
+          </p>
+        )}
+      </div>
+
+      {entries.length === 0 ? (
+        <CallersListEmpty />
+      ) : (
         <m.div
-          key={caller}
-          initial={{ opacity: 0, x: -8 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.15, delay: index * 0.02 }}
-          className="flex items-center gap-3 py-2.5 group"
+          className="divide-y divide-border/50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
         >
-          <span className="font-mono text-sm truncate flex-1 min-w-0">
-            {caller}
-          </span>
-          <ArrowRightIcon className="size-3 text-muted-foreground/60 shrink-0" />
-          <Badge variant="secondary" size="sm" className="shrink-0 font-mono">
-            {profile}
-          </Badge>
+          {entries.map(([caller, profile], index) => {
+            const hasProfileOption = profileOptions.includes(profile)
+            const rowOptions = hasProfileOption
+              ? profileOptions
+              : [profile, ...profileOptions]
+
+            return (
+              <m.div
+                key={caller}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.15, delay: index * 0.02 }}
+                className={cn(
+                  'flex items-center gap-3 py-2.5',
+                  pendingCaller === caller && 'opacity-60',
+                )}
+              >
+                <span className="font-mono text-sm truncate flex-1 min-w-0">
+                  {caller}
+                </span>
+                <ArrowRightIcon className="size-3 text-muted-foreground/60 shrink-0" />
+                <Select
+                  value={profile}
+                  onValueChange={next => handleUpdateMapping(caller, next)}
+                  disabled={!canEdit || pendingCaller === caller}
+                >
+                  <SelectTrigger size="sm" className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rowOptions.map(option => (
+                      <SelectItem key={option} value={option}>
+                        {option === profile && !hasProfileOption
+                          ? `${option} (missing)`
+                          : option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => handleRemoveMapping(caller)}
+                  disabled={!canEdit || pendingCaller === caller}
+                  title={editHint}
+                >
+                  <TrashIcon className="size-3.5" />
+                </Button>
+              </m.div>
+            )
+          })}
         </m.div>
-      ))}
-    </m.div>
+      )}
+    </div>
   )
 }

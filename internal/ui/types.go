@@ -110,6 +110,7 @@ type ServerSpecDetail struct {
 	MaxConcurrent       int               `json:"maxConcurrent"`
 	Sticky              bool              `json:"sticky"`
 	Persistent          bool              `json:"persistent"`
+	Disabled            bool              `json:"disabled"`
 	MinReady            int               `json:"minReady"`
 	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `json:"protocolVersion"`
@@ -128,6 +129,35 @@ type ImportServerSpec struct {
 type ImportMcpServersRequest struct {
 	Profiles []string           `json:"profiles"`
 	Servers  []ImportServerSpec `json:"servers"`
+}
+
+// UpdateServerStateRequest updates the disabled state for a server in a profile.
+type UpdateServerStateRequest struct {
+	Profile  string `json:"profile"`
+	Server   string `json:"server"`
+	Disabled bool   `json:"disabled"`
+}
+
+// DeleteServerRequest removes a server from a profile.
+type DeleteServerRequest struct {
+	Profile string `json:"profile"`
+	Server  string `json:"server"`
+}
+
+// CreateProfileRequest creates a new profile file.
+type CreateProfileRequest struct {
+	Name string `json:"name"`
+}
+
+// DeleteProfileRequest removes a profile file.
+type DeleteProfileRequest struct {
+	Name string `json:"name"`
+}
+
+// UpdateCallerMappingRequest updates a caller to profile mapping.
+type UpdateCallerMappingRequest struct {
+	Caller  string `json:"caller"`
+	Profile string `json:"profile"`
 }
 
 // =============================================================================

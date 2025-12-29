@@ -10,6 +10,9 @@ export {
     ActiveCaller,
     ConfigModeResponse,
     CoreStateResponse,
+    CreateProfileRequest,
+    DeleteProfileRequest,
+    DeleteServerRequest,
     ImportMcpServersRequest,
     ImportServerSpec,
     InfoResponse,
@@ -29,5 +32,7 @@ export {
     ServerInitStatus,
     ServerRuntimeStatus,
     ServerSpecDetail,
-    ToolEntry
+    ToolEntry,
+    UpdateCallerMappingRequest,
+    UpdateServerStateRequest
 } from "./models.js";

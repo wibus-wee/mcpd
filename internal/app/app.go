@@ -239,22 +239,26 @@ func buildProfileSummary(store domain.ProfileStore) (profileSummary, error) {
 			return profileSummary{}, fmt.Errorf("profile %q: %w", name, err)
 		}
 
-		specKeys, err := buildSpecKeys(profile.Catalog.Specs)
+		enabledSpecs, enabledCount := filterEnabledSpecs(profile.Catalog.Specs)
+		runtimeProfile := profile
+		runtimeProfile.Catalog.Specs = enabledSpecs
+
+		specKeys, err := buildSpecKeys(runtimeProfile.Catalog.Specs)
 		if err != nil {
 			return profileSummary{}, fmt.Errorf("profile %q: %w", name, err)
 		}
 		summary.configs[name] = profileConfig{
-			profile:  profile,
+			profile:  runtimeProfile,
 			specKeys: specKeys,
 		}
-		summary.totalServers += len(profile.Catalog.Specs)
+		summary.totalServers += enabledCount
 		if profile.Catalog.Runtime.PingIntervalSeconds > 0 {
 			if summary.minPingInterval == 0 || profile.Catalog.Runtime.PingIntervalSeconds < summary.minPingInterval {
 				summary.minPingInterval = profile.Catalog.Runtime.PingIntervalSeconds
 			}
 		}
 
-		for serverType, spec := range profile.Catalog.Specs {
+		for serverType, spec := range runtimeProfile.Catalog.Specs {
 			specKey := specKeys[serverType]
 			if specKey == "" {
 				return profileSummary{}, fmt.Errorf("profile %q: missing spec key for %q", name, serverType)
@@ -268,6 +272,23 @@ func buildProfileSummary(store domain.ProfileStore) (profileSummary, error) {
 	}
 
 	return summary, nil
+}
+
+func filterEnabledSpecs(specs map[string]domain.ServerSpec) (map[string]domain.ServerSpec, int) {
+	if len(specs) == 0 {
+		return map[string]domain.ServerSpec{}, 0
+	}
+
+	enabled := make(map[string]domain.ServerSpec, len(specs))
+	count := 0
+	for name, spec := range specs {
+		if spec.Disabled {
+			continue
+		}
+		enabled[name] = spec
+		count++
+	}
+	return enabled, count
 }
 
 func buildSpecKeys(specs map[string]domain.ServerSpec) (map[string]string, error) {

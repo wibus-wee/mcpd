@@ -635,6 +635,236 @@ func (s *WailsService) ImportMcpServers(ctx context.Context, req ImportMcpServer
 	return nil
 }
 
+// SetServerDisabled updates the disabled state for a server in a profile.
+func (s *WailsService) SetServerDisabled(ctx context.Context, req UpdateServerStateRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	profileName := strings.TrimSpace(req.Profile)
+	serverName := strings.TrimSpace(req.Server)
+	if profileName == "" || serverName == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile and server are required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	var update catalog.ProfileUpdate
+	var err error
+	if mode.Mode == "single" {
+		if profileName != domain.DefaultProfileName {
+			return NewUIErrorWithDetails(ErrCodeInvalidRequest, "Single-file config only supports default profile", profileName)
+		}
+		update, err = catalog.SetServerDisabled(mode.Path, serverName, req.Disabled)
+	} else {
+		path, resolveErr := catalog.ResolveProfilePath(mode.Path, profileName)
+		if resolveErr != nil {
+			return NewUIErrorWithDetails(ErrCodeProfileNotFound, "Profile not found", resolveErr.Error())
+		}
+		update, err = catalog.SetServerDisabled(path, serverName, req.Disabled)
+	}
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to update server", err.Error())
+	}
+	if err := os.WriteFile(update.Path, update.Data, 0o644); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to write profile file", err.Error())
+	}
+	return nil
+}
+
+// DeleteServer removes a server from a profile.
+func (s *WailsService) DeleteServer(ctx context.Context, req DeleteServerRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	profileName := strings.TrimSpace(req.Profile)
+	serverName := strings.TrimSpace(req.Server)
+	if profileName == "" || serverName == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile and server are required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	var update catalog.ProfileUpdate
+	var err error
+	if mode.Mode == "single" {
+		if profileName != domain.DefaultProfileName {
+			return NewUIErrorWithDetails(ErrCodeInvalidRequest, "Single-file config only supports default profile", profileName)
+		}
+		update, err = catalog.DeleteServer(mode.Path, serverName)
+	} else {
+		path, resolveErr := catalog.ResolveProfilePath(mode.Path, profileName)
+		if resolveErr != nil {
+			return NewUIErrorWithDetails(ErrCodeProfileNotFound, "Profile not found", resolveErr.Error())
+		}
+		update, err = catalog.DeleteServer(path, serverName)
+	}
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to delete server", err.Error())
+	}
+	if err := os.WriteFile(update.Path, update.Data, 0o644); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to write profile file", err.Error())
+	}
+	return nil
+}
+
+// CreateProfile creates a new profile file in the profile store.
+func (s *WailsService) CreateProfile(ctx context.Context, req CreateProfileRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile name is required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if mode.Mode != "directory" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile store is required to create profiles")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	if _, err := catalog.CreateProfile(mode.Path, name); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to create profile", err.Error())
+	}
+	return nil
+}
+
+// DeleteProfile deletes a profile file from the profile store.
+func (s *WailsService) DeleteProfile(ctx context.Context, req DeleteProfileRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile name is required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if mode.Mode != "directory" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile store is required to delete profiles")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	storeLoader := catalog.NewProfileStoreLoader(s.logger)
+	store, err := storeLoader.Load(ctx, mode.Path, catalog.ProfileStoreOptions{AllowCreate: false})
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to load profile store", err.Error())
+	}
+	for caller, profile := range store.Callers {
+		if profile == name {
+			return NewUIErrorWithDetails(ErrCodeInvalidRequest, "Profile is referenced by callers", caller)
+		}
+	}
+
+	if err := catalog.DeleteProfile(mode.Path, name); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to delete profile", err.Error())
+	}
+	return nil
+}
+
+// SetCallerMapping updates a caller to profile mapping.
+func (s *WailsService) SetCallerMapping(ctx context.Context, req UpdateCallerMappingRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	caller := strings.TrimSpace(req.Caller)
+	profile := strings.TrimSpace(req.Profile)
+	if caller == "" || profile == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Caller and profile are required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if mode.Mode != "directory" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile store is required to edit callers")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	storeLoader := catalog.NewProfileStoreLoader(s.logger)
+	store, err := storeLoader.Load(ctx, mode.Path, catalog.ProfileStoreOptions{AllowCreate: false})
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to load profile store", err.Error())
+	}
+
+	update, err := catalog.SetCallerMapping(mode.Path, caller, profile, store.Profiles)
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to update caller mapping", err.Error())
+	}
+	if err := os.WriteFile(update.Path, update.Data, 0o644); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to write callers file", err.Error())
+	}
+	return nil
+}
+
+// RemoveCallerMapping removes a caller to profile mapping.
+func (s *WailsService) RemoveCallerMapping(ctx context.Context, caller string) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	caller = strings.TrimSpace(caller)
+	if caller == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Caller is required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if mode.Mode != "directory" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile store is required to edit callers")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	storeLoader := catalog.NewProfileStoreLoader(s.logger)
+	store, err := storeLoader.Load(ctx, mode.Path, catalog.ProfileStoreOptions{AllowCreate: false})
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to load profile store", err.Error())
+	}
+
+	update, err := catalog.RemoveCallerMapping(mode.Path, caller, store.Profiles)
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to remove caller mapping", err.Error())
+	}
+	if err := os.WriteFile(update.Path, update.Data, 0o644); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to write callers file", err.Error())
+	}
+	return nil
+}
+
 // GetRuntimeStatus returns the runtime status of all server pools
 func (s *WailsService) GetRuntimeStatus(ctx context.Context) ([]ServerRuntimeStatus, error) {
 	cp, err := s.getControlPlane()
@@ -850,6 +1080,7 @@ func convertServerSpec(spec domain.ServerSpec, specKey string) ServerSpecDetail 
 		MaxConcurrent:       spec.MaxConcurrent,
 		Sticky:              spec.Sticky,
 		Persistent:          spec.Persistent,
+		Disabled:            spec.Disabled,
 		MinReady:            spec.MinReady,
 		DrainTimeoutSeconds: spec.DrainTimeoutSeconds,
 		ProtocolVersion:     spec.ProtocolVersion,

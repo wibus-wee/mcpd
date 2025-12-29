@@ -16,6 +16,7 @@ type ServerSpec struct {
 	MaxConcurrent       int               `json:"maxConcurrent"`
 	Sticky              bool              `json:"sticky"`
 	Persistent          bool              `json:"persistent"`
+	Disabled            bool              `json:"disabled,omitempty"`
 	MinReady            int               `json:"minReady"`
 	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `json:"protocolVersion"`

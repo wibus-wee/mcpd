@@ -26,6 +26,7 @@ type serverSpecYAML struct {
 	MaxConcurrent       int               `yaml:"maxConcurrent"`
 	Sticky              bool              `yaml:"sticky"`
 	Persistent          bool              `yaml:"persistent"`
+	Disabled            bool              `yaml:"disabled,omitempty"`
 	MinReady            int               `yaml:"minReady"`
 	DrainTimeoutSeconds int               `yaml:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `yaml:"protocolVersion"`
@@ -71,16 +72,9 @@ func BuildProfileUpdate(path string, servers []domain.ServerSpec) (ProfileUpdate
 		return ProfileUpdate{}, errors.New("profile path is required")
 	}
 
-	data, err := os.ReadFile(path)
+	doc, err := loadProfileDocument(path)
 	if err != nil {
-		return ProfileUpdate{}, fmt.Errorf("read profile file: %w", err)
-	}
-
-	doc := make(map[string]any)
-	if len(data) > 0 {
-		if err := yaml.Unmarshal(data, &doc); err != nil {
-			return ProfileUpdate{}, fmt.Errorf("parse profile file: %w", err)
-		}
+		return ProfileUpdate{}, err
 	}
 
 	existing, err := parseServersFromDocument(doc)
@@ -95,15 +89,96 @@ func BuildProfileUpdate(path string, servers []domain.ServerSpec) (ProfileUpdate
 
 	doc["servers"] = updated
 
-	merged, err := yaml.Marshal(doc)
+	merged, err := marshalProfileDocument(doc)
 	if err != nil {
-		return ProfileUpdate{}, fmt.Errorf("render profile file: %w", err)
+		return ProfileUpdate{}, err
 	}
 
 	return ProfileUpdate{
 		Path: path,
 		Data: merged,
 	}, nil
+}
+
+func SetServerDisabled(path string, serverName string, disabled bool) (ProfileUpdate, error) {
+	if path == "" {
+		return ProfileUpdate{}, errors.New("profile path is required")
+	}
+	serverName = strings.TrimSpace(serverName)
+	if serverName == "" {
+		return ProfileUpdate{}, errors.New("server name is required")
+	}
+
+	doc, err := loadProfileDocument(path)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	servers, err := parseServersFromDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	found := false
+	for i := range servers {
+		if strings.TrimSpace(servers[i].Name) == serverName {
+			servers[i].Disabled = disabled
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ProfileUpdate{}, fmt.Errorf("server %q not found in profile", serverName)
+	}
+
+	doc["servers"] = servers
+	merged, err := marshalProfileDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	return ProfileUpdate{Path: path, Data: merged}, nil
+}
+
+func DeleteServer(path string, serverName string) (ProfileUpdate, error) {
+	if path == "" {
+		return ProfileUpdate{}, errors.New("profile path is required")
+	}
+	serverName = strings.TrimSpace(serverName)
+	if serverName == "" {
+		return ProfileUpdate{}, errors.New("server name is required")
+	}
+
+	doc, err := loadProfileDocument(path)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	servers, err := parseServersFromDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	updated := make([]serverSpecYAML, 0, len(servers))
+	found := false
+	for _, server := range servers {
+		if strings.TrimSpace(server.Name) == serverName {
+			found = true
+			continue
+		}
+		updated = append(updated, server)
+	}
+	if !found {
+		return ProfileUpdate{}, fmt.Errorf("server %q not found in profile", serverName)
+	}
+
+	doc["servers"] = updated
+	merged, err := marshalProfileDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	return ProfileUpdate{Path: path, Data: merged}, nil
 }
 
 func parseServersFromDocument(doc map[string]any) ([]serverSpecYAML, error) {
@@ -173,6 +248,7 @@ func toServerSpecYAML(spec domain.ServerSpec) serverSpecYAML {
 		MaxConcurrent:       spec.MaxConcurrent,
 		Sticky:              spec.Sticky,
 		Persistent:          spec.Persistent,
+		Disabled:            spec.Disabled,
 		MinReady:            spec.MinReady,
 		DrainTimeoutSeconds: spec.DrainTimeoutSeconds,
 		ProtocolVersion:     spec.ProtocolVersion,
@@ -189,4 +265,28 @@ func fileExists(path string) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("stat %s: %w", path, err)
+}
+
+func loadProfileDocument(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read profile file: %w", err)
+	}
+
+	doc := make(map[string]any)
+	if len(data) == 0 {
+		return doc, nil
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse profile file: %w", err)
+	}
+	return doc, nil
+}
+
+func marshalProfileDocument(doc map[string]any) ([]byte, error) {
+	merged, err := yaml.Marshal(doc)
+	if err != nil {
+		return nil, fmt.Errorf("render profile file: %w", err)
+	}
+	return merged, nil
 }

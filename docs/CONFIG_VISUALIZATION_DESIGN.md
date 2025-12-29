@@ -33,7 +33,7 @@
 
 ### 核心原则
 
-1. **只读优先**: P0 阶段专注于配置的可视化展示，不提供编辑功能
+1. **轻量编辑**: P0 支持 profiles/callers/servers 的基础编辑，改动落盘后需手动重启 Core 生效
 2. **信息清晰**: 用极简的设计语言展示配置信息，避免信息过载
 3. **遵循现有设计**: 完全遵循 `components/ui` 的设计语言和组件规范
 4. **快速定位**: 提供配置文件路径显示和"在编辑器中打开"功能
@@ -50,10 +50,15 @@
 - ✅ 查看 profile 详情（servers 列表、runtime config）
 - ✅ 识别 default profile（带 star 图标）
 - ✅ 显示每个 profile 的 server 数量
+- ✅ 新建 profile（仅目录结构 profile store）
+- ✅ 删除 profile（默认 profile 保护，caller 引用校验）
 
 #### 2. Server 配置展示
 - ✅ 以卡片形式展示 servers
 - ✅ 显示基础信息：name, cmd, 运行状态
+- ✅ 开关 server（disabled 字段）
+- ✅ 删除 server
+- ✅ 从 MCP 客户端 JSON 导入 servers（写入 profiles，需重启 Core 生效）
 - ✅ 可展开查看详细配置：
   - Command 和参数
   - 工作目录 (cwd)
@@ -69,6 +74,7 @@
 - ✅ 查看 caller → profile 映射关系
 - ✅ 在 profile 详情页显示使用该 profile 的 callers
 - ✅ 表格式展示所有 callers
+- ✅ 新增/修改/删除 caller → profile 映射（仅目录结构 profile store）
 
 #### 4. 配置文件管理
 - ✅ 显示当前加载的配置文件路径
@@ -76,6 +82,7 @@
 - ✅ 显示是否可写（writable badge）
 - ✅ 手动重新加载按钮
 - ⚠️ "在编辑器中打开"按钮（需实现系统调用）
+- ✅ 所有写操作提示“需要重启 Core 生效”
 
 ### P1 功能（后续版本）
 
@@ -84,12 +91,11 @@
 - 配置验证和实时错误提示
 - 配置模板下载
 - 导出当前配置为 YAML
-- 从 MCP 客户端 JSON 导入 servers（写入 profiles，需重启 Core 生效）
+- 热更新/热重载（无需重启 Core）
 
 ### 非目标（初期）
 
 - ❌ 在线创建新 server 配置
-- ❌ 删除 server 或 profile
 - ❌ 实时监听配置文件变化
 - ❌ 配置版本管理
 

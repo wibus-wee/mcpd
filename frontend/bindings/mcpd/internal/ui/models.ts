@@ -115,6 +115,82 @@ export class CoreStateResponse {
 }
 
 /**
+ * CreateProfileRequest creates a new profile file.
+ */
+export class CreateProfileRequest {
+    "name": string;
+
+    /** Creates a new CreateProfileRequest instance. */
+    constructor($$source: Partial<CreateProfileRequest> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CreateProfileRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CreateProfileRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CreateProfileRequest($$parsedSource as Partial<CreateProfileRequest>);
+    }
+}
+
+/**
+ * DeleteProfileRequest removes a profile file.
+ */
+export class DeleteProfileRequest {
+    "name": string;
+
+    /** Creates a new DeleteProfileRequest instance. */
+    constructor($$source: Partial<DeleteProfileRequest> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeleteProfileRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeleteProfileRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DeleteProfileRequest($$parsedSource as Partial<DeleteProfileRequest>);
+    }
+}
+
+/**
+ * DeleteServerRequest removes a server from a profile.
+ */
+export class DeleteServerRequest {
+    "profile": string;
+    "server": string;
+
+    /** Creates a new DeleteServerRequest instance. */
+    constructor($$source: Partial<DeleteServerRequest> = {}) {
+        if (!("profile" in $$source)) {
+            this["profile"] = "";
+        }
+        if (!("server" in $$source)) {
+            this["server"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeleteServerRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeleteServerRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DeleteServerRequest($$parsedSource as Partial<DeleteServerRequest>);
+    }
+}
+
+/**
  * ImportMcpServersRequest is the payload for importing MCP servers into profiles.
  */
 export class ImportMcpServersRequest {
@@ -789,6 +865,7 @@ export class ServerSpecDetail {
     "maxConcurrent": number;
     "sticky": boolean;
     "persistent": boolean;
+    "disabled": boolean;
     "minReady": number;
     "drainTimeoutSeconds": number;
     "protocolVersion": string;
@@ -823,6 +900,9 @@ export class ServerSpecDetail {
         if (!("persistent" in $$source)) {
             this["persistent"] = false;
         }
+        if (!("disabled" in $$source)) {
+            this["disabled"] = false;
+        }
         if (!("minReady" in $$source)) {
             this["minReady"] = 0;
         }
@@ -845,7 +925,7 @@ export class ServerSpecDetail {
     static createFrom($$source: any = {}): ServerSpecDetail {
         const $$createField2_0 = $$createType0;
         const $$createField3_0 = $$createType3;
-        const $$createField12_0 = $$createType0;
+        const $$createField13_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cmd" in $$parsedSource) {
             $$parsedSource["cmd"] = $$createField2_0($$parsedSource["cmd"]);
@@ -854,7 +934,7 @@ export class ServerSpecDetail {
             $$parsedSource["env"] = $$createField3_0($$parsedSource["env"]);
         }
         if ("exposeTools" in $$parsedSource) {
-            $$parsedSource["exposeTools"] = $$createField12_0($$parsedSource["exposeTools"]);
+            $$parsedSource["exposeTools"] = $$createField13_0($$parsedSource["exposeTools"]);
         }
         return new ServerSpecDetail($$parsedSource as Partial<ServerSpecDetail>);
     }
@@ -893,6 +973,66 @@ export class ToolEntry {
     static createFrom($$source: any = {}): ToolEntry {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ToolEntry($$parsedSource as Partial<ToolEntry>);
+    }
+}
+
+/**
+ * UpdateCallerMappingRequest updates a caller to profile mapping.
+ */
+export class UpdateCallerMappingRequest {
+    "caller": string;
+    "profile": string;
+
+    /** Creates a new UpdateCallerMappingRequest instance. */
+    constructor($$source: Partial<UpdateCallerMappingRequest> = {}) {
+        if (!("caller" in $$source)) {
+            this["caller"] = "";
+        }
+        if (!("profile" in $$source)) {
+            this["profile"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateCallerMappingRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateCallerMappingRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateCallerMappingRequest($$parsedSource as Partial<UpdateCallerMappingRequest>);
+    }
+}
+
+/**
+ * UpdateServerStateRequest updates the disabled state for a server in a profile.
+ */
+export class UpdateServerStateRequest {
+    "profile": string;
+    "server": string;
+    "disabled": boolean;
+
+    /** Creates a new UpdateServerStateRequest instance. */
+    constructor($$source: Partial<UpdateServerStateRequest> = {}) {
+        if (!("profile" in $$source)) {
+            this["profile"] = "";
+        }
+        if (!("server" in $$source)) {
+            this["server"] = "";
+        }
+        if (!("disabled" in $$source)) {
+            this["disabled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateServerStateRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateServerStateRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateServerStateRequest($$parsedSource as Partial<UpdateServerStateRequest>);
     }
 }
 

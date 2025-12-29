@@ -30,6 +30,27 @@ export function CallTool(name: string, args: json$0.RawMessage, routingKey: stri
 }
 
 /**
+ * CreateProfile creates a new profile file in the profile store.
+ */
+export function CreateProfile(req: $models.CreateProfileRequest): $CancellablePromise<void> {
+    return $Call.ByID(1320373634, req);
+}
+
+/**
+ * DeleteProfile deletes a profile file from the profile store.
+ */
+export function DeleteProfile(req: $models.DeleteProfileRequest): $CancellablePromise<void> {
+    return $Call.ByID(1630706107, req);
+}
+
+/**
+ * DeleteServer removes a server from a profile.
+ */
+export function DeleteServer(req: $models.DeleteServerRequest): $CancellablePromise<void> {
+    return $Call.ByID(1377537969, req);
+}
+
+/**
  * GetActiveCallers returns active caller registrations.
  */
 export function GetActiveCallers(): $CancellablePromise<$models.ActiveCaller[]> {
@@ -196,6 +217,13 @@ export function ReadResource(uri: string): $CancellablePromise<json$0.RawMessage
 }
 
 /**
+ * RemoveCallerMapping removes a caller to profile mapping.
+ */
+export function RemoveCallerMapping(caller: string): $CancellablePromise<void> {
+    return $Call.ByID(766588184, caller);
+}
+
+/**
  * ResolveMcpdmcpPath 返回可执行的 mcpdmcp 路径，优先 PATH，其次同目录打包副本，失败时退回命令名
  */
 export function ResolveMcpdmcpPath(): $CancellablePromise<string> {
@@ -210,10 +238,24 @@ export function RestartCore(): $CancellablePromise<void> {
 }
 
 /**
+ * SetCallerMapping updates a caller to profile mapping.
+ */
+export function SetCallerMapping(req: $models.UpdateCallerMappingRequest): $CancellablePromise<void> {
+    return $Call.ByID(3497067018, req);
+}
+
+/**
  * SetManager 注入 Manager 实例
  */
 export function SetManager(manager: $models.Manager | null): $CancellablePromise<void> {
     return $Call.ByID(2434023854, manager);
+}
+
+/**
+ * SetServerDisabled updates the disabled state for a server in a profile.
+ */
+export function SetServerDisabled(req: $models.UpdateServerStateRequest): $CancellablePromise<void> {
+    return $Call.ByID(138235460, req);
 }
 
 /**

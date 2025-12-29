@@ -120,3 +120,75 @@ servers:
 	})
 	require.Error(t, err)
 }
+
+func TestSetServerDisabled(t *testing.T) {
+	profilePath := filepath.Join(t.TempDir(), "default.yaml")
+	content := `
+servers:
+  - name: existing
+    cmd: ["./a"]
+    idleSeconds: 60
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+`
+	require.NoError(t, os.WriteFile(profilePath, []byte(content), 0o644))
+
+	update, err := SetServerDisabled(profilePath, "existing", true)
+	require.NoError(t, err)
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal(update.Data, &doc))
+
+	rawServers, ok := doc["servers"]
+	require.True(t, ok)
+	encoded, err := yaml.Marshal(rawServers)
+	require.NoError(t, err)
+
+	var servers []serverSpecYAML
+	require.NoError(t, yaml.Unmarshal(encoded, &servers))
+	require.Len(t, servers, 1)
+	require.True(t, servers[0].Disabled)
+}
+
+func TestDeleteServer(t *testing.T) {
+	profilePath := filepath.Join(t.TempDir(), "default.yaml")
+	content := `
+servers:
+  - name: first
+    cmd: ["./a"]
+    idleSeconds: 60
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+  - name: second
+    cmd: ["./b"]
+    idleSeconds: 60
+    maxConcurrent: 1
+    sticky: false
+    persistent: false
+    minReady: 0
+    protocolVersion: "2025-11-25"
+`
+	require.NoError(t, os.WriteFile(profilePath, []byte(content), 0o644))
+
+	update, err := DeleteServer(profilePath, "first")
+	require.NoError(t, err)
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal(update.Data, &doc))
+
+	rawServers, ok := doc["servers"]
+	require.True(t, ok)
+	encoded, err := yaml.Marshal(rawServers)
+	require.NoError(t, err)
+
+	var servers []serverSpecYAML
+	require.NoError(t, yaml.Unmarshal(encoded, &servers))
+	require.Len(t, servers, 1)
+	require.Equal(t, "second", servers[0].Name)
+}

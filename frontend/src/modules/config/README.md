@@ -2,9 +2,9 @@
 
 # Modules/Config
 
-配置管理模块，负责展示 profiles/callers/servers 与配置入口。
-页面通过 Wails UI bindings 拉取配置与运行状态。
-提供列表、详情与拓扑视图的组合。
+配置管理模块，负责展示并编辑 profiles/callers/servers 与配置入口。
+页面通过 Wails UI bindings 拉取配置与运行状态，编辑操作写回 profile store 文件。
+提供列表、详情与拓扑视图的组合，并在保存后提示重启 Core 生效。
 
 ## Files
 
@@ -16,8 +16,8 @@
 ## Components
 
 - **components/profiles-list.tsx**: 左侧 profiles 列表与选择状态
-- **components/profile-detail-panel.tsx**: profile 详情面板，含 runtime 与 servers
-- **components/callers-list.tsx**: caller 到 profile 的映射列表
+- **components/profile-detail-panel.tsx**: profile 详情面板，含 runtime 与 servers 编辑
+- **components/callers-list.tsx**: caller 到 profile 的映射列表与编辑入口
 - **components/import-mcp-servers-sheet.tsx**: MCP JSON 导入入口与流程
 - **components/server-runtime-status.tsx**: server pool 运行状态指示器
 - **components/config-flow.tsx**: profiles/callers/servers 拓扑关系图与节点渲染
