@@ -2,11 +2,14 @@ GO ?= go
 PROTOC ?= protoc
 CONFIG ?= docs/catalog.example.yaml
 WAILS ?= wails3
+VERSION ?= dev
+BUILD ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -X mcpd/internal/app.Version=$(VERSION) -X mcpd/internal/app.Build=$(BUILD)
 
 .PHONY: dev proto
 
 build:
-	$(GO) build ./...
+	$(GO) build -ldflags "$(LDFLAGS)" ./...
 
 test:
 	$(GO) test ./...
