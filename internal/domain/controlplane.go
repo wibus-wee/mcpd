@@ -92,6 +92,20 @@ type LogEntry struct {
 	DataJSON  json.RawMessage
 }
 
+// ActiveCaller represents a registered caller in the control plane.
+type ActiveCaller struct {
+	Caller        string
+	PID           int
+	Profile       string
+	LastHeartbeat time.Time
+}
+
+// ActiveCallerSnapshot contains a snapshot of active callers.
+type ActiveCallerSnapshot struct {
+	Callers     []ActiveCaller
+	GeneratedAt time.Time
+}
+
 // RuntimeStatusSnapshot contains a snapshot of all server runtime statuses
 type RuntimeStatusSnapshot struct {
 	ETag        string
@@ -135,21 +149,23 @@ type ControlPlane interface {
 	Info(ctx context.Context) (ControlPlaneInfo, error)
 	RegisterCaller(ctx context.Context, caller string, pid int) (string, error)
 	UnregisterCaller(ctx context.Context, caller string) error
+	ListActiveCallers(ctx context.Context) ([]ActiveCaller, error)
+	WatchActiveCallers(ctx context.Context) (<-chan ActiveCallerSnapshot, error)
 	ListTools(ctx context.Context, caller string) (ToolSnapshot, error)
 	ListToolsAllProfiles(ctx context.Context) (ToolSnapshot, error)
 	WatchTools(ctx context.Context, caller string) (<-chan ToolSnapshot, error)
 	CallTool(ctx context.Context, caller, name string, args json.RawMessage, routingKey string) (json.RawMessage, error)
-	CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error)
+	CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error)
 	ListResources(ctx context.Context, caller string, cursor string) (ResourcePage, error)
 	ListResourcesAllProfiles(ctx context.Context, cursor string) (ResourcePage, error)
 	WatchResources(ctx context.Context, caller string) (<-chan ResourceSnapshot, error)
 	ReadResource(ctx context.Context, caller, uri string) (json.RawMessage, error)
-	ReadResourceAllProfiles(ctx context.Context, uri string) (json.RawMessage, error)
+	ReadResourceAllProfiles(ctx context.Context, uri, specKey string) (json.RawMessage, error)
 	ListPrompts(ctx context.Context, caller string, cursor string) (PromptPage, error)
 	ListPromptsAllProfiles(ctx context.Context, cursor string) (PromptPage, error)
 	WatchPrompts(ctx context.Context, caller string) (<-chan PromptSnapshot, error)
 	GetPrompt(ctx context.Context, caller, name string, args json.RawMessage) (json.RawMessage, error)
-	GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error)
+	GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage, specKey string) (json.RawMessage, error)
 	StreamLogs(ctx context.Context, caller string, minLevel LogLevel) (<-chan LogEntry, error)
 	StreamLogsAllProfiles(ctx context.Context, minLevel LogLevel) (<-chan LogEntry, error)
 	GetProfileStore() ProfileStore

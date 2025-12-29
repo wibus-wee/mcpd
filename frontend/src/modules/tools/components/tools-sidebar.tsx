@@ -6,10 +6,12 @@ import { useState, useMemo } from 'react'
 import { m, AnimatePresence } from 'motion/react'
 import { ChevronRightIcon, SearchIcon, ServerIcon, WrenchIcon } from 'lucide-react'
 
-import type { ToolEntry } from '@bindings/mcpd/internal/ui'
+import type { ActiveCaller, ToolEntry } from '@bindings/mcpd/internal/ui'
 
+import { CallerChipGroup } from '@/components/common/caller-chip-group'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useActiveCallers } from '@/hooks/use-active-callers'
 import { ServerRuntimeIndicator } from '@/modules/config/components/server-runtime-status'
 import { cn } from '@/lib/utils'
 import { Spring } from '@/lib/spring'
@@ -49,6 +51,7 @@ export function ToolsSidebar({
   const [expandedServers, setExpandedServers] = useState<Set<string>>(() => {
     return new Set(servers.map(s => s.id))
   })
+  const { data: activeCallers } = useActiveCallers()
 
   const filteredServers = useMemo(() => {
     if (!searchQuery.trim()) return servers
@@ -78,6 +81,39 @@ export function ToolsSidebar({
       })
       .filter((s): s is ServerGroup => s !== null)
   }, [servers, searchQuery])
+
+  const activeCallersByServer = useMemo(() => {
+    const byServer = new Map<string, ActiveCaller[]>()
+    const byProfile = new Map<string, ActiveCaller[]>()
+
+    const activeCallerList = activeCallers ?? []
+    activeCallerList.forEach(caller => {
+      const list = byProfile.get(caller.profile) ?? []
+      list.push(caller)
+      byProfile.set(caller.profile, list)
+    })
+
+    servers.forEach(server => {
+      const collected: ActiveCaller[] = []
+      const seen = new Set<string>()
+
+      server.profileNames.forEach(profileName => {
+        const matches = byProfile.get(profileName) ?? []
+        matches.forEach(caller => {
+          const key = `${caller.caller}:${caller.pid}`
+          if (seen.has(key)) {
+            return
+          }
+          seen.add(key)
+          collected.push(caller)
+        })
+      })
+
+      byServer.set(server.id, collected)
+    })
+
+    return byServer
+  }, [activeCallers, servers])
 
   const toggleServer = (serverId: string) => {
     setExpandedServers(prev => {
@@ -117,6 +153,7 @@ export function ToolsSidebar({
             <div className="space-y-1">
               {filteredServers.map(server => {
                 const isExpanded = expandedServers.has(server.id)
+                const activeForServer = activeCallersByServer.get(server.id) ?? []
 
                 return (
                   <div key={server.id}>
@@ -143,6 +180,11 @@ export function ToolsSidebar({
                         {server.tools.length}
                       </span>
                     </button>
+                    {activeForServer.length > 0 && (
+                      <div className="ml-7 mb-1">
+                        <CallerChipGroup callers={activeForServer} maxVisible={2} />
+                      </div>
+                    )}
 
                     <AnimatePresence initial={false}>
                       {isExpanded && server.tools.length > 0 && (

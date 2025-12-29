@@ -241,7 +241,8 @@ func (s *WailsService) CallTool(ctx context.Context, name string, args json.RawM
 		return nil, err
 	}
 
-	result, err := cp.CallToolAllProfiles(ctx, name, args, routingKey)
+	specKey := s.extractSpecKeyFromCache(name)
+	result, err := cp.CallToolAllProfiles(ctx, name, args, routingKey, specKey)
 	if err != nil {
 		return nil, MapDomainError(err)
 	}
@@ -255,7 +256,7 @@ func (s *WailsService) ReadResource(ctx context.Context, uri string) (json.RawMe
 		return nil, err
 	}
 
-	result, err := cp.ReadResourceAllProfiles(ctx, uri)
+	result, err := cp.ReadResourceAllProfiles(ctx, uri, "")
 	if err != nil {
 		return nil, MapDomainError(err)
 	}
@@ -269,7 +270,7 @@ func (s *WailsService) GetPrompt(ctx context.Context, name string, args json.Raw
 		return nil, err
 	}
 
-	result, err := cp.GetPromptAllProfiles(ctx, name, args)
+	result, err := cp.GetPromptAllProfiles(ctx, name, args, "")
 	if err != nil {
 		return nil, MapDomainError(err)
 	}
@@ -307,6 +308,20 @@ func (s *WailsService) getControlPlane() (domain.ControlPlane, error) {
 		return nil, NewUIError(ErrCodeInternal, "Manager not initialized")
 	}
 	return s.manager.GetControlPlane()
+}
+
+// extractSpecKeyFromCache 从缓存的 tool snapshot 中提取 specKey
+func (s *WailsService) extractSpecKeyFromCache(toolName string) string {
+	if s.manager == nil {
+		return ""
+	}
+	snapshot := s.manager.GetSharedState().GetToolSnapshot()
+	for _, tool := range snapshot.Tools {
+		if tool.Name == toolName {
+			return tool.SpecKey
+		}
+	}
+	return ""
 }
 
 // StartLogStream 开始日志流（通过 Wails 事件推送）
@@ -686,6 +701,31 @@ func (s *WailsService) GetCallers(ctx context.Context) (map[string]string, error
 	result := make(map[string]string, len(store.Callers))
 	for k, v := range store.Callers {
 		result[k] = v
+	}
+
+	return result, nil
+}
+
+// GetActiveCallers returns active caller registrations.
+func (s *WailsService) GetActiveCallers(ctx context.Context) ([]ActiveCaller, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return nil, err
+	}
+
+	callers, err := cp.ListActiveCallers(ctx)
+	if err != nil {
+		return nil, MapDomainError(err)
+	}
+
+	result := make([]ActiveCaller, 0, len(callers))
+	for _, caller := range callers {
+		result = append(result, ActiveCaller{
+			Caller:        caller.Caller,
+			PID:           caller.PID,
+			Profile:       caller.Profile,
+			LastHeartbeat: caller.LastHeartbeat.Format("2006-01-02T15:04:05.000Z07:00"),
+		})
 	}
 
 	return result, nil

@@ -2,7 +2,7 @@
 // Output: ProfileDetailPanel component - inline detail view with minimal visual weight
 // Position: Right panel in config page master-detail layout with live runtime status
 
-import type { ProfileDetail, ServerSpecDetail } from '@bindings/mcpd/internal/ui'
+import type { ActiveCaller, ProfileDetail, ServerSpecDetail } from '@bindings/mcpd/internal/ui'
 import {
   ClockIcon,
   CpuIcon,
@@ -21,6 +21,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
+import { CallerChipGroup } from '@/components/common/caller-chip-group'
 import {
   Empty,
   EmptyDescription,
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/empty'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useActiveCallers } from '@/hooks/use-active-callers'
 import { Spring } from '@/lib/spring'
 
 import { useProfile } from '../hooks'
@@ -217,7 +219,13 @@ function ServerItem({ server }: { server: ServerSpecWithKey }) {
   )
 }
 
-function ProfileContent({ profile }: { profile: ProfileDetail }) {
+function ProfileContent({
+  profile,
+  activeCallers,
+}: {
+  profile: ProfileDetail
+  activeCallers: ActiveCaller[]
+}) {
   return (
     <m.div
       className="space-y-4"
@@ -231,6 +239,17 @@ function ProfileContent({ profile }: { profile: ProfileDetail }) {
         <Badge variant="secondary" size="sm">
           {profile.servers.length} server{profile.servers.length !== 1 ? 's' : ''}
         </Badge>
+      </div>
+
+      <div className="rounded-lg border bg-muted/30 px-3 py-2">
+        <div className="text-xs text-muted-foreground">Active Callers</div>
+        <CallerChipGroup
+          callers={activeCallers}
+          maxVisible={3}
+          showPid
+          emptyText="No active callers"
+          className="mt-1"
+        />
       </div>
 
       {/* Runtime Config */}
@@ -301,6 +320,10 @@ function PanelEmpty() {
 
 export function ProfileDetailPanel({ profileName }: ProfileDetailPanelProps) {
   const { data: profile, isLoading } = useProfile(profileName)
+  const { data: activeCallers } = useActiveCallers()
+  const profileCallers = (activeCallers ?? []).filter(
+    caller => caller.profile === profileName,
+  )
 
   if (!profileName) {
     return <PanelEmpty />
@@ -325,7 +348,7 @@ export function ProfileDetailPanel({ profileName }: ProfileDetailPanelProps) {
 
   return (
     <div className="p-4">
-      <ProfileContent profile={profile} />
+      <ProfileContent profile={profile} activeCallers={profileCallers} />
     </div>
   )
 }

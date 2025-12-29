@@ -117,6 +117,17 @@ type ServerSpecDetail struct {
 }
 
 // =============================================================================
+// Caller Status Types
+// =============================================================================
+
+type ActiveCaller struct {
+	Caller        string `json:"caller"`
+	PID           int    `json:"pid"`
+	Profile       string `json:"profile"`
+	LastHeartbeat string `json:"lastHeartbeat"`
+}
+
+// =============================================================================
 // Initialization Status Types
 // =============================================================================
 

@@ -6,6 +6,7 @@ import { Loader2Icon, MoonIcon, SunIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useTheme } from 'next-themes'
 
+import { ActiveCallersIndicator } from '@/components/common/active-callers-indicator'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
@@ -70,6 +71,8 @@ export function AppTopbar() {
             <span className="font-medium text-white text-xs">{config.label}</span>
           </Badge>
         </m.div>
+
+        <ActiveCallersIndicator />
       </div>
 
       {/* Right section - Theme toggle */}

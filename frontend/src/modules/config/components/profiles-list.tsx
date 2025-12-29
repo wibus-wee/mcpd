@@ -2,10 +2,12 @@
 // Output: ProfilesList component - minimal list view of profiles
 // Position: Left panel in config page master-detail layout
 
-import type { ProfileSummary } from '@bindings/mcpd/internal/ui'
+import type { ActiveCaller, ProfileSummary } from '@bindings/mcpd/internal/ui'
 import { LayersIcon, StarIcon } from 'lucide-react'
 import { m } from 'motion/react'
+import { useMemo } from 'react'
 
+import { CallerChipGroup } from '@/components/common/caller-chip-group'
 import { Badge } from '@/components/ui/badge'
 import {
   Empty,
@@ -23,6 +25,7 @@ interface ProfilesListProps {
   onSelect: (name: string) => void
   isLoading: boolean
   onRefresh: () => void
+  activeCallers: ActiveCaller[]
 }
 
 function ProfilesListSkeleton() {
@@ -56,7 +59,18 @@ export function ProfilesList({
   selectedProfile,
   onSelect,
   isLoading,
+  activeCallers,
 }: ProfilesListProps) {
+  const activeCallersByProfile = useMemo(() => {
+    const map = new Map<string, ActiveCaller[]>()
+    activeCallers.forEach(caller => {
+      const list = map.get(caller.profile) ?? []
+      list.push(caller)
+      map.set(caller.profile, list)
+    })
+    return map
+  }, [activeCallers])
+
   if (isLoading) {
     return <ProfilesListSkeleton />
   }
@@ -101,6 +115,11 @@ export function ProfilesList({
             <p className="text-muted-foreground text-xs">
               {profile.serverCount} server{profile.serverCount !== 1 ? 's' : ''}
             </p>
+            <CallerChipGroup
+              callers={activeCallersByProfile.get(profile.name) ?? []}
+              maxVisible={2}
+              className="mt-1"
+            />
           </div>
         </m.button>
       ))}

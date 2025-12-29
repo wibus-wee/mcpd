@@ -4,7 +4,12 @@
 
 'use client'
 
-import type { CoreStateResponse, ServerInitStatus, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
+import type {
+  ActiveCaller,
+  CoreStateResponse,
+  ServerInitStatus,
+  ServerRuntimeStatus,
+} from '@bindings/mcpd/internal/ui'
 import { WailsService } from '@bindings/mcpd/internal/ui'
 import { Events } from '@wailsio/runtime'
 import { Provider, useAtomValue } from 'jotai'
@@ -14,6 +19,7 @@ import { useEffect, useRef } from 'react'
 import { useSWRConfig } from 'swr'
 
 import { logStreamTokenAtom } from '@/atoms/logs'
+import { activeCallersKey } from '@/hooks/use-active-callers'
 import { coreStateKey, useCoreState } from '@/hooks/use-core-state'
 import type { LogEntry } from '@/hooks/use-logs'
 import { logsKey, maxLogEntries } from '@/hooks/use-logs'
@@ -117,6 +123,17 @@ function WailsEventsBridge() {
       const data = event?.data as { statuses?: ServerInitStatus[] } | undefined
       if (data?.statuses) {
         mutate('server-init-status', data.statuses, { revalidate: false })
+      }
+    })
+    return () => unbind()
+  }, [mutate])
+
+  // Listen for callers:active events from backend
+  useEffect(() => {
+    const unbind = Events.On('callers:active', (event) => {
+      const data = event?.data as { callers?: ActiveCaller[] } | undefined
+      if (data?.callers) {
+        mutate(activeCallersKey, data.callers, { revalidate: false })
       }
     })
     return () => unbind()

@@ -167,6 +167,16 @@ func (f *fakeControlPlane) UnregisterCaller(ctx context.Context, caller string) 
 	return f.unregisterErr
 }
 
+func (f *fakeControlPlane) ListActiveCallers(ctx context.Context) ([]domain.ActiveCaller, error) {
+	return nil, nil
+}
+
+func (f *fakeControlPlane) WatchActiveCallers(ctx context.Context) (<-chan domain.ActiveCallerSnapshot, error) {
+	ch := make(chan domain.ActiveCallerSnapshot)
+	close(ch)
+	return ch, nil
+}
+
 func (f *fakeControlPlane) ListTools(ctx context.Context, caller string) (domain.ToolSnapshot, error) {
 	if f.listToolsErr != nil {
 		return domain.ToolSnapshot{}, f.listToolsErr
@@ -194,7 +204,7 @@ func (f *fakeControlPlane) CallTool(ctx context.Context, caller, name string, ar
 	return json.RawMessage(`{"content":[{"type":"text","text":"ok"}]}`), nil
 }
 
-func (f *fakeControlPlane) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
+func (f *fakeControlPlane) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error) {
 	return f.CallTool(ctx, "", name, args, routingKey)
 }
 
@@ -219,7 +229,7 @@ func (f *fakeControlPlane) ReadResource(ctx context.Context, caller, uri string)
 	return json.RawMessage(`{"contents":[{"uri":"file:///a","text":"ok"}]}`), nil
 }
 
-func (f *fakeControlPlane) ReadResourceAllProfiles(ctx context.Context, uri string) (json.RawMessage, error) {
+func (f *fakeControlPlane) ReadResourceAllProfiles(ctx context.Context, uri, specKey string) (json.RawMessage, error) {
 	return f.ReadResource(ctx, "", uri)
 }
 
@@ -244,7 +254,7 @@ func (f *fakeControlPlane) GetPrompt(ctx context.Context, caller, name string, a
 	return json.RawMessage(`{"messages":[{"role":"user","content":{"type":"text","text":"ok"}}]}`), nil
 }
 
-func (f *fakeControlPlane) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+func (f *fakeControlPlane) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage, specKey string) (json.RawMessage, error) {
 	return f.GetPrompt(ctx, "", name, args)
 }
 

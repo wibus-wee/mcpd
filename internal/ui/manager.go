@@ -192,6 +192,18 @@ func (m *Manager) startWatchers() {
 		}
 	}()
 
+	// Watch active callers
+	go func() {
+		updates, err := m.controlPlane.WatchActiveCallers(ctx)
+		if err != nil {
+			emitError(m.wails, ErrCodeInternal, "Failed to start active callers watcher", err.Error())
+			return
+		}
+		for snapshot := range updates {
+			emitActiveCallersUpdated(m.wails, snapshot)
+		}
+	}()
+
 	// Placeholder for other watchers (tools, resources, prompts, logs) that will be added in Phase 3
 	// ctx := context.Background()
 

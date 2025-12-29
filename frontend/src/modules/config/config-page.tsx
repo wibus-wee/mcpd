@@ -27,6 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useActiveCallers } from '@/hooks/use-active-callers'
 import { Spring } from '@/lib/spring'
 
 import { selectedProfileNameAtom } from './atoms'
@@ -101,6 +102,7 @@ function ProfilesTabContent() {
     isLoading: profilesLoading,
     mutate: mutateProfiles,
   } = useProfiles()
+  const { data: activeCallers } = useActiveCallers()
 
   const handleProfileSelect = (name: string) => {
     setSelectedProfileName(name === selectedProfileName ? null : name)
@@ -117,6 +119,7 @@ function ProfilesTabContent() {
               isLoading={profilesLoading}
               selectedProfile={selectedProfileName}
               onSelect={handleProfileSelect}
+              activeCallers={activeCallers ?? []}
               onRefresh={() => mutateProfiles()}
             />
           </div>

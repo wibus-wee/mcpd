@@ -21,6 +21,7 @@ const (
 	// Status update events
 	EventRuntimeStatusUpdated = "runtime:status"
 	EventServerInitUpdated    = "server-init:status"
+	EventActiveCallersUpdated = "callers:active"
 
 	// Log streaming events
 	EventLogEntry = "logs:entry"
@@ -78,6 +79,11 @@ type RuntimeStatusUpdatedEvent struct {
 // ServerInitUpdatedEvent represents server init status updates
 type ServerInitUpdatedEvent struct {
 	Statuses []ServerInitStatus `json:"statuses"`
+}
+
+// ActiveCallersUpdatedEvent represents active caller updates
+type ActiveCallersUpdatedEvent struct {
+	Callers []ActiveCaller `json:"callers"`
 }
 
 // Helper functions for event emission
@@ -232,4 +238,23 @@ func emitServerInitUpdated(app *application.App, snapshot domain.ServerInitStatu
 		Statuses: statuses,
 	}
 	app.Event.Emit(EventServerInitUpdated, event)
+}
+
+func emitActiveCallersUpdated(app *application.App, snapshot domain.ActiveCallerSnapshot) {
+	if app == nil {
+		return
+	}
+	callers := make([]ActiveCaller, 0, len(snapshot.Callers))
+	for _, caller := range snapshot.Callers {
+		callers = append(callers, ActiveCaller{
+			Caller:        caller.Caller,
+			PID:           caller.PID,
+			Profile:       caller.Profile,
+			LastHeartbeat: caller.LastHeartbeat.Format("2006-01-02T15:04:05.000Z07:00"),
+		})
+	}
+	event := ActiveCallersUpdatedEvent{
+		Callers: callers,
+	}
+	app.Event.Emit(EventActiveCallersUpdated, event)
 }

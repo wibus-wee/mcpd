@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -34,11 +33,12 @@ type ControlPlane struct {
 	runtimeStatusIdx *aggregator.RuntimeStatusIndex
 	serverInitIdx    *aggregator.ServerInitIndex
 
-	mu             sync.Mutex
-	activeCallers  map[string]callerState
-	profileCounts  map[string]int
-	specCounts     map[string]int
-	monitorStarted bool
+	mu               sync.Mutex
+	activeCallers    map[string]callerState
+	activeCallerSubs map[chan domain.ActiveCallerSnapshot]struct{}
+	profileCounts    map[string]int
+	specCounts       map[string]int
+	monitorStarted   bool
 }
 
 type callerState struct {
@@ -120,20 +120,21 @@ func NewControlPlane(
 		callers = map[string]string{}
 	}
 	return &ControlPlane{
-		info:          defaultControlPlaneInfo(),
-		profiles:      profiles,
-		callers:       callers,
-		specRegistry:  specRegistry,
-		scheduler:     scheduler,
-		initManager:   initManager,
-		runtime:       runtime,
-		profileStore:  store,
-		logs:          logs,
-		logger:        logger.Named("control_plane"),
-		ctx:           ctx,
-		activeCallers: make(map[string]callerState),
-		profileCounts: make(map[string]int),
-		specCounts:    make(map[string]int),
+		info:             defaultControlPlaneInfo(),
+		profiles:         profiles,
+		callers:          callers,
+		specRegistry:     specRegistry,
+		scheduler:        scheduler,
+		initManager:      initManager,
+		runtime:          runtime,
+		profileStore:     store,
+		logs:             logs,
+		logger:           logger.Named("control_plane"),
+		ctx:              ctx,
+		activeCallers:    make(map[string]callerState),
+		activeCallerSubs: make(map[chan domain.ActiveCallerSnapshot]struct{}),
+		profileCounts:    make(map[string]int),
+		specCounts:       make(map[string]int),
 	}
 }
 
@@ -194,6 +195,8 @@ func (c *ControlPlane) RegisterCaller(ctx context.Context, caller string, pid in
 	var toActivateSpecs []string
 	var toDeactivateSpecs []string
 	now := time.Now()
+	var snapshot domain.ActiveCallerSnapshot
+	var shouldBroadcast bool
 
 	c.mu.Lock()
 	if existing, ok := c.activeCallers[caller]; ok {
@@ -207,13 +210,18 @@ func (c *ControlPlane) RegisterCaller(ctx context.Context, caller string, pid in
 			existing.pid = pid
 			existing.lastHeartbeat = now
 			c.activeCallers[caller] = existing
+			snapshot = c.snapshotActiveCallersLocked(now)
+			shouldBroadcast = true
 			c.mu.Unlock()
+			c.broadcastActiveCallers(snapshot)
 			return profileName, nil
 		}
 		c.removeProfileLocked(existing.profile, &toStopProfiles, &toDeactivateSpecs)
 	}
 	c.activeCallers[caller] = callerState{pid: pid, profile: profileName, lastHeartbeat: now}
 	c.addProfileLocked(profileName, &toStartProfiles, &toActivateSpecs)
+	snapshot = c.snapshotActiveCallersLocked(now)
+	shouldBroadcast = true
 	c.mu.Unlock()
 
 	toActivateSpecs, toDeactivateSpecs = filterOverlap(toActivateSpecs, toDeactivateSpecs)
@@ -227,6 +235,9 @@ func (c *ControlPlane) RegisterCaller(ctx context.Context, caller string, pid in
 	_ = c.deactivateSpecs(ctx, toDeactivateSpecs)
 
 	c.logger.Info("caller registered", zap.String("caller", caller), zap.String("profile", profileName), zap.Int("pid", pid))
+	if shouldBroadcast {
+		c.broadcastActiveCallers(snapshot)
+	}
 	return profileName, nil
 }
 
@@ -237,6 +248,7 @@ func (c *ControlPlane) UnregisterCaller(ctx context.Context, caller string) erro
 
 	var toStopProfiles []string
 	var toDeactivateSpecs []string
+	var snapshot domain.ActiveCallerSnapshot
 
 	c.mu.Lock()
 	state, ok := c.activeCallers[caller]
@@ -246,12 +258,53 @@ func (c *ControlPlane) UnregisterCaller(ctx context.Context, caller string) erro
 	}
 	delete(c.activeCallers, caller)
 	c.removeProfileLocked(state.profile, &toStopProfiles, &toDeactivateSpecs)
+	snapshot = c.snapshotActiveCallersLocked(time.Now())
 	c.mu.Unlock()
 
+	c.broadcastActiveCallers(snapshot)
 	c.deactivateProfiles(toStopProfiles)
 	deactivateErr := c.deactivateSpecs(ctx, toDeactivateSpecs)
 	c.logger.Info("caller unregistered", zap.String("caller", caller), zap.String("profile", state.profile))
 	return deactivateErr
+}
+
+func (c *ControlPlane) ListActiveCallers(ctx context.Context) ([]domain.ActiveCaller, error) {
+	c.mu.Lock()
+	callers := make([]domain.ActiveCaller, 0, len(c.activeCallers))
+	for caller, state := range c.activeCallers {
+		callers = append(callers, domain.ActiveCaller{
+			Caller:        caller,
+			PID:           state.pid,
+			Profile:       state.profile,
+			LastHeartbeat: state.lastHeartbeat,
+		})
+	}
+	c.mu.Unlock()
+
+	sort.Slice(callers, func(i, j int) bool {
+		return callers[i].Caller < callers[j].Caller
+	})
+
+	return callers, nil
+}
+
+func (c *ControlPlane) WatchActiveCallers(ctx context.Context) (<-chan domain.ActiveCallerSnapshot, error) {
+	ch := make(chan domain.ActiveCallerSnapshot, 1)
+	c.mu.Lock()
+	c.activeCallerSubs[ch] = struct{}{}
+	snapshot := c.snapshotActiveCallersLocked(time.Now())
+	c.mu.Unlock()
+
+	sendActiveCallerSnapshot(ch, snapshot)
+
+	go func() {
+		<-ctx.Done()
+		c.mu.Lock()
+		delete(c.activeCallerSubs, ch)
+		c.mu.Unlock()
+	}()
+
+	return ch, nil
 }
 
 func (c *ControlPlane) ListTools(ctx context.Context, caller string) (domain.ToolSnapshot, error) {
@@ -343,11 +396,14 @@ func (c *ControlPlane) CallTool(ctx context.Context, caller, name string, args j
 	return profile.tools.CallTool(ctx, name, args, routingKey)
 }
 
-func (c *ControlPlane) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
+func (c *ControlPlane) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error) {
 	profileNames := c.activeProfileNames()
 	for _, profileName := range profileNames {
 		runtime := c.profiles[profileName]
 		if runtime == nil || runtime.tools == nil {
+			continue
+		}
+		if specKey != "" && !c.profileContainsSpecKey(runtime, specKey) {
 			continue
 		}
 		result, err := runtime.tools.CallTool(ctx, name, args, routingKey)
@@ -439,11 +495,14 @@ func (c *ControlPlane) ReadResource(ctx context.Context, caller, uri string) (js
 	return profile.resources.ReadResource(ctx, uri)
 }
 
-func (c *ControlPlane) ReadResourceAllProfiles(ctx context.Context, uri string) (json.RawMessage, error) {
+func (c *ControlPlane) ReadResourceAllProfiles(ctx context.Context, uri, specKey string) (json.RawMessage, error) {
 	profileNames := c.activeProfileNames()
 	for _, profileName := range profileNames {
 		runtime := c.profiles[profileName]
 		if runtime == nil || runtime.resources == nil {
+			continue
+		}
+		if specKey != "" && !c.profileContainsSpecKey(runtime, specKey) {
 			continue
 		}
 		result, err := runtime.resources.ReadResource(ctx, uri)
@@ -535,11 +594,14 @@ func (c *ControlPlane) GetPrompt(ctx context.Context, caller, name string, args 
 	return profile.prompts.GetPrompt(ctx, name, args)
 }
 
-func (c *ControlPlane) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+func (c *ControlPlane) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage, specKey string) (json.RawMessage, error) {
 	profileNames := c.activeProfileNames()
 	for _, profileName := range profileNames {
 		runtime := c.profiles[profileName]
 		if runtime == nil || runtime.prompts == nil {
+			continue
+		}
+		if specKey != "" && !c.profileContainsSpecKey(runtime, specKey) {
 			continue
 		}
 		result, err := runtime.prompts.GetPrompt(ctx, name, args)
@@ -650,6 +712,15 @@ func (c *ControlPlane) activeProfileNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+func (c *ControlPlane) profileContainsSpecKey(runtime *profileRuntime, specKey string) bool {
+	for _, key := range runtime.specKeys {
+		if key == specKey {
+			return true
+		}
+	}
+	return false
 }
 
 func paginateResources(snapshot domain.ResourceSnapshot, cursor string) (domain.ResourcePage, error) {
@@ -890,23 +961,11 @@ func filterOverlap(activate []string, deactivate []string) ([]string, []string) 
 }
 
 func defaultControlPlaneInfo() domain.ControlPlaneInfo {
-	info := domain.ControlPlaneInfo{
+	return domain.ControlPlaneInfo{
 		Name:    "mcpd",
-		Version: "dev",
-		Build:   "unknown",
+		Version: Version,
+		Build:   Build,
 	}
-	if bi, ok := debug.ReadBuildInfo(); ok {
-		if bi.Main.Version != "" {
-			info.Version = bi.Main.Version
-		}
-		for _, setting := range bi.Settings {
-			if setting.Key == "vcs.revision" && setting.Value != "" {
-				info.Build = setting.Value
-				break
-			}
-		}
-	}
-	return info
 }
 
 func compareLogLevel(a, b domain.LogLevel) int {
@@ -976,6 +1035,52 @@ func hashPrompts(prompts []domain.PromptDefinition) string {
 		_, _ = hasher.Write([]byte{0})
 	}
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func (c *ControlPlane) snapshotActiveCallersLocked(now time.Time) domain.ActiveCallerSnapshot {
+	callers := make([]domain.ActiveCaller, 0, len(c.activeCallers))
+	for caller, state := range c.activeCallers {
+		callers = append(callers, domain.ActiveCaller{
+			Caller:        caller,
+			PID:           state.pid,
+			Profile:       state.profile,
+			LastHeartbeat: state.lastHeartbeat,
+		})
+	}
+
+	sort.Slice(callers, func(i, j int) bool {
+		return callers[i].Caller < callers[j].Caller
+	})
+
+	return domain.ActiveCallerSnapshot{
+		Callers:     callers,
+		GeneratedAt: now,
+	}
+}
+
+func (c *ControlPlane) broadcastActiveCallers(snapshot domain.ActiveCallerSnapshot) {
+	subs := c.copyActiveCallerSubscribers()
+	for _, ch := range subs {
+		sendActiveCallerSnapshot(ch, snapshot)
+	}
+}
+
+func (c *ControlPlane) copyActiveCallerSubscribers() []chan domain.ActiveCallerSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	subs := make([]chan domain.ActiveCallerSnapshot, 0, len(c.activeCallerSubs))
+	for ch := range c.activeCallerSubs {
+		subs = append(subs, ch)
+	}
+	return subs
+}
+
+func sendActiveCallerSnapshot(ch chan domain.ActiveCallerSnapshot, snapshot domain.ActiveCallerSnapshot) {
+	select {
+	case ch <- snapshot:
+	default:
+	}
 }
 
 func (c *ControlPlane) GetProfileStore() domain.ProfileStore {

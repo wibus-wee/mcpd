@@ -7,6 +7,7 @@ export {
 };
 
 export {
+    ActiveCaller,
     ConfigModeResponse,
     CoreStateResponse,
     InfoResponse,

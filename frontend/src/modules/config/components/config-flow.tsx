@@ -2,7 +2,11 @@
 // Output: ConfigFlow component - topology graph of profiles, callers, and servers
 // Position: Visualization panel inside config module tabs
 
-import type { ProfileDetail, ProfileSummary } from '@bindings/mcpd/internal/ui'
+import type {
+  ActiveCaller,
+  ProfileDetail,
+  ProfileSummary,
+} from '@bindings/mcpd/internal/ui'
 import {
   Background,
   BackgroundVariant,
@@ -28,6 +32,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
+import { useActiveCallers } from '@/hooks/use-active-callers'
 import { useCallers, useProfileDetails, useProfiles } from '../hooks'
 
 type CallerNodeData = {
@@ -240,11 +245,13 @@ const buildTopology = (
   profiles: ProfileSummary[],
   profileDetails: ProfileDetail[],
   callers: Record<string, string>,
+  activeCallers: ActiveCaller[],
 ): LayoutResult => {
   const detailsByName = new Map(
     profileDetails.map(profile => [profile.name, profile]),
   )
   const profileNameSet = new Set(profiles.map(profile => profile.name))
+  const activeCallerSet = new Set(activeCallers.map(caller => caller.caller))
   const callersByProfile = new Map<string, string[]>()
   const serversByKey = new Map<string, AggregatedServer>()
 
@@ -355,6 +362,7 @@ const buildTopology = (
 
     callerList.forEach((caller, index) => {
       const nodeId = `caller:${caller}`
+      const isActive = activeCallerSet.has(caller)
 
       nodes.push({
         id: nodeId,
@@ -374,15 +382,16 @@ const buildTopology = (
         source: nodeId,
         target: `profile:${profile.name}`,
         type: 'smoothstep',
+        animated: isActive,
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: 'var(--info)',
+          color: isActive ? 'var(--chart-4)' : 'var(--info)',
         },
         style: {
-          stroke: 'var(--info)',
-          strokeWidth: 1.4,
-          strokeOpacity: 0.55,
-          strokeDasharray: '4 4',
+          stroke: isActive ? 'var(--chart-4)' : 'var(--info)',
+          strokeWidth: isActive ? 2 : 1.4,
+          strokeOpacity: isActive ? 0.9 : 0.55,
+          strokeDasharray: isActive ? '6 4' : '4 4',
         },
       })
     })
@@ -487,12 +496,20 @@ const FlowEmpty = () => {
 export const ConfigFlow = () => {
   const { data: profiles, isLoading: profilesLoading } = useProfiles()
   const { data: callers, isLoading: callersLoading } = useCallers()
+  const { data: activeCallers, isLoading: activeCallersLoading } =
+    useActiveCallers()
   const { data: profileDetails, isLoading: detailsLoading } =
     useProfileDetails(profiles)
 
-  const isLoading = profilesLoading || callersLoading || detailsLoading
+  const isLoading =
+    profilesLoading || callersLoading || detailsLoading || activeCallersLoading
   const { nodes, edges, profileCount, serverCount, callerCount } =
-    buildTopology(profiles ?? [], profileDetails ?? [], callers ?? {})
+    buildTopology(
+      profiles ?? [],
+      profileDetails ?? [],
+      callers ?? {},
+      activeCallers ?? [],
+    )
 
   if (isLoading) {
     return (

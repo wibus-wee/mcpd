@@ -9,6 +9,39 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as json$0 from "../../../encoding/json/models.js";
 
+export class ActiveCaller {
+    "caller": string;
+    "pid": number;
+    "profile": string;
+    "lastHeartbeat": string;
+
+    /** Creates a new ActiveCaller instance. */
+    constructor($$source: Partial<ActiveCaller> = {}) {
+        if (!("caller" in $$source)) {
+            this["caller"] = "";
+        }
+        if (!("pid" in $$source)) {
+            this["pid"] = 0;
+        }
+        if (!("profile" in $$source)) {
+            this["profile"] = "";
+        }
+        if (!("lastHeartbeat" in $$source)) {
+            this["lastHeartbeat"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ActiveCaller instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ActiveCaller {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ActiveCaller($$parsedSource as Partial<ActiveCaller>);
+    }
+}
+
 /**
  * ConfigModeResponse indicates the configuration mode and path
  */

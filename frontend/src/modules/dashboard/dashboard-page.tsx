@@ -38,7 +38,7 @@ function DashboardHeader() {
     stopCore,
   } = useCoreActions()
   const appLabel = appInfo?.name
-    ? `${appInfo.name} · v${appInfo.version} (${appInfo.build})`
+    ? `${appInfo.name} · ${appInfo.version === "dev" ? "dev" : `v${appInfo.version}`} (${appInfo.build})`
     : 'mcpd'
 
   return (
