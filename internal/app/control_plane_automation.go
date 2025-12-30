@@ -3,11 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
-
-	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mcpcodec"
@@ -109,17 +105,8 @@ func (a *automationService) fallbackAutomaticMCP(caller string, profile *profile
 }
 
 func (a *automationService) AutomaticEval(ctx context.Context, caller string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
-	tool, err := a.getToolDefinition(caller, params.ToolName)
-	if err != nil {
+	if _, err := a.getToolDefinition(caller, params.ToolName); err != nil {
 		return nil, err
-	}
-
-	if err := validateToolArguments(tool, params.Arguments); err != nil {
-		result, buildErr := buildAutomaticEvalSchemaError(tool, err)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		return result, nil
 	}
 
 	return a.discovery.CallTool(ctx, caller, params.ToolName, params.Arguments, params.RoutingKey)
@@ -141,67 +128,4 @@ func (a *automationService) getToolDefinition(caller, name string) (domain.ToolD
 		}
 	}
 	return domain.ToolDefinition{}, domain.ErrToolNotFound
-}
-
-func validateToolArguments(tool domain.ToolDefinition, args json.RawMessage) error {
-	if tool.InputSchema == nil {
-		return nil
-	}
-
-	var schema jsonschema.Schema
-	schemaJSON, err := json.Marshal(tool.InputSchema)
-	if err != nil {
-		return fmt.Errorf("encode tool input schema: %w", err)
-	}
-	if err := json.Unmarshal(schemaJSON, &schema); err != nil {
-		return fmt.Errorf("decode tool input schema: %w", err)
-	}
-
-	resolved, err := schema.Resolve(nil)
-	if err != nil {
-		return fmt.Errorf("resolve tool input schema: %w", err)
-	}
-
-	var payload any
-	if len(args) == 0 {
-		payload = map[string]any{}
-	} else if err := json.Unmarshal(args, &payload); err != nil {
-		return fmt.Errorf("decode tool arguments: %w", err)
-	}
-
-	if err := resolved.Validate(payload); err != nil {
-		return fmt.Errorf("invalid tool arguments: %w", err)
-	}
-	return nil
-}
-
-func buildAutomaticEvalSchemaError(tool domain.ToolDefinition, err error) (json.RawMessage, error) {
-	toolJSON, marshalErr := mcpcodec.MarshalToolDefinition(tool)
-	if marshalErr != nil {
-		return nil, marshalErr
-	}
-	payload := struct {
-		Error      string          `json:"error"`
-		ToolSchema json.RawMessage `json:"toolSchema"`
-	}{
-		Error:      err.Error(),
-		ToolSchema: toolJSON,
-	}
-
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	result := mcp.CallToolResult{
-		IsError: true,
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(payloadJSON)},
-		},
-	}
-	raw, err := json.Marshal(result)
-	if err != nil {
-		return nil, err
-	}
-	return raw, nil
 }
