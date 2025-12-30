@@ -143,7 +143,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 
 		started := time.Now()
 		newInst, err := s.lifecycle.StartInstance(startCtx, specKey, state.spec)
-		s.observeInstanceStart(specKey, started, err)
+		s.observeInstanceStart(state.spec.Name, started, err)
 
 		state.mu.Lock()
 		waitCh := state.startCh
@@ -172,7 +172,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 				close(waitCh)
 			}
 			stopErr := s.lifecycle.StopInstance(context.Background(), newInst, "start superseded")
-			s.observeInstanceStop(specKey, stopErr)
+			s.observeInstanceStop(state.spec.Name, stopErr)
 			return nil, ErrNoCapacity
 		}
 		state.instances = append(state.instances, tracked)
@@ -184,7 +184,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		if waitCh != nil {
 			close(waitCh)
 		}
-		s.observePoolStats(specKey, state)
+		s.observePoolStats(state)
 
 		return instance, nil
 	}
@@ -204,7 +204,7 @@ func (s *BasicScheduler) AcquireReady(ctx context.Context, specKey, routingKey s
 	inst, err := state.acquireReadyLocked(routingKey)
 	state.mu.Unlock()
 	if err == nil {
-		s.observePoolStats(specKey, state)
+		s.observePoolStats(state)
 	}
 	return inst, err
 }
@@ -235,7 +235,7 @@ func (s *BasicScheduler) Release(ctx context.Context, instance *domain.Instance)
 		}
 	}
 	state.mu.Unlock()
-	s.observePoolStats(specKey, state)
+	s.observePoolStats(state)
 
 	if triggerDrain != nil && triggerDrain.drainDone != nil {
 		select {
@@ -273,7 +273,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 
 		started := time.Now()
 		inst, err := s.lifecycle.StartInstance(ctx, specKey, state.spec)
-		s.observeInstanceStart(specKey, started, err)
+		s.observeInstanceStart(state.spec.Name, started, err)
 		state.mu.Lock()
 		state.starting--
 		if err == nil {
@@ -281,18 +281,18 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 			if state.generation != startGen {
 				state.mu.Unlock()
 				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "start superseded")
-				s.observeInstanceStop(specKey, stopErr)
+				s.observeInstanceStop(state.spec.Name, stopErr)
 				continue
 			}
 			if state.minReady == 0 {
 				state.mu.Unlock()
 				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "min ready dropped")
-				s.observeInstanceStop(specKey, stopErr)
+				s.observeInstanceStop(state.spec.Name, stopErr)
 				continue
 			}
 			state.instances = append(state.instances, &trackedInstance{instance: inst})
 			state.mu.Unlock()
-			s.observePoolStats(specKey, state)
+			s.observePoolStats(state)
 			continue
 		}
 		state.mu.Unlock()
@@ -339,7 +339,7 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 
 	for _, inst := range immediate {
 		err := s.lifecycle.StopInstance(ctx, inst.instance, reason)
-		s.observeInstanceStop(specKey, err)
+		s.observeInstanceStop(spec.Name, err)
 	}
 
 	drainTimeout := time.Duration(spec.DrainTimeoutSeconds) * time.Second
@@ -351,7 +351,7 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 		s.startDrain(specKey, inst, drainTimeout, reason)
 	}
 
-	s.observePoolStats(specKey, state)
+	s.observePoolStats(state)
 	return nil
 }
 
@@ -598,11 +598,11 @@ func (s *BasicScheduler) reapIdle() {
 
 	for _, candidate := range candidates {
 		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
-		s.observeInstanceStop(candidate.specKey, err)
+		s.observeInstanceStop(candidate.state.spec.Name, err)
 		candidate.state.mu.Lock()
 		candidate.state.removeInstanceLocked(candidate.inst)
 		candidate.state.mu.Unlock()
-		s.observePoolStats(candidate.specKey, candidate.state)
+		s.observePoolStats(candidate.state)
 	}
 }
 
@@ -649,11 +649,11 @@ func (s *BasicScheduler) probeInstances() {
 		candidate.state.mu.Unlock()
 
 		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
-		s.observeInstanceStop(candidate.specKey, err)
+		s.observeInstanceStop(candidate.state.spec.Name, err)
 		candidate.state.mu.Lock()
 		candidate.state.removeInstanceLocked(candidate.inst)
 		candidate.state.mu.Unlock()
-		s.observePoolStats(candidate.specKey, candidate.state)
+		s.observePoolStats(candidate.state)
 	}
 }
 
@@ -687,11 +687,11 @@ func (s *BasicScheduler) StopAll(ctx context.Context) {
 
 	for _, candidate := range candidates {
 		err := s.lifecycle.StopInstance(ctx, candidate.inst.instance, candidate.reason)
-		s.observeInstanceStop(candidate.specKey, err)
+		s.observeInstanceStop(candidate.state.spec.Name, err)
 	}
 
 	for _, entry := range entries {
-		s.observePoolStats(entry.specKey, entry.state)
+		s.observePoolStats(entry.state)
 	}
 	s.poolsMu.Lock()
 	s.pools = make(map[string]*poolState)
@@ -858,7 +858,7 @@ func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeo
 			}
 
 			err := s.lifecycle.StopInstance(context.Background(), inst.instance, finalReason)
-			s.observeInstanceStop(specKey, err)
+			s.observeInstanceStop(inst.instance.Spec.Name, err)
 		}()
 
 		state := s.getPool(specKey, inst.instance.Spec)
@@ -875,21 +875,21 @@ func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeo
 	})
 }
 
-func (s *BasicScheduler) observeInstanceStart(specKey string, start time.Time, err error) {
+func (s *BasicScheduler) observeInstanceStart(serverType string, start time.Time, err error) {
 	if s.metrics == nil {
 		return
 	}
-	s.metrics.ObserveInstanceStart(specKey, time.Since(start), err)
+	s.metrics.ObserveInstanceStart(serverType, time.Since(start), err)
 }
 
-func (s *BasicScheduler) observeInstanceStop(specKey string, err error) {
+func (s *BasicScheduler) observeInstanceStop(serverType string, err error) {
 	if s.metrics == nil {
 		return
 	}
-	s.metrics.ObserveInstanceStop(specKey, err)
+	s.metrics.ObserveInstanceStop(serverType, err)
 }
 
-func (s *BasicScheduler) observePoolStats(specKey string, state *poolState) {
+func (s *BasicScheduler) observePoolStats(state *poolState) {
 	if s.metrics == nil {
 		return
 	}
@@ -897,18 +897,19 @@ func (s *BasicScheduler) observePoolStats(specKey string, state *poolState) {
 	activeCount := len(state.instances)
 	busyCount := 0
 	maxConcurrent := state.spec.MaxConcurrent
+	serverType := state.spec.Name
 	for _, inst := range state.instances {
 		busyCount += inst.instance.BusyCount
 	}
 	state.mu.Unlock()
 
-	s.metrics.SetActiveInstances(specKey, activeCount)
+	s.metrics.SetActiveInstances(serverType, activeCount)
 	capacity := activeCount * maxConcurrent
 	ratio := 0.0
 	if capacity > 0 {
 		ratio = float64(busyCount) / float64(capacity)
 	}
-	s.metrics.SetPoolCapacityRatio(specKey, ratio)
+	s.metrics.SetPoolCapacityRatio(serverType, ratio)
 }
 
 func isRoutable(state domain.InstanceState) bool {

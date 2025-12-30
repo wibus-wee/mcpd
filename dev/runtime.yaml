@@ -31,7 +31,7 @@ subAgent:
   model: "gpt-4o"
   provider: "openai"
   # apiKey: ""  # Optional: inline API key (avoid committing secrets)
-  apiKeyEnvVar: "OPENAI_API_KEY"
-  baseURL: "https://108-aistudio.wibus.ren/api/v1"  # Optional: custom API endpoint
+  # apiKeyEnvVar: "OPENAI_API_KEY"
+  # baseURL: ""  # Optional: custom API endpoint
   maxToolsPerRequest: 20
   # filterPrompt: ""  # Optional custom prompt for tool filtering

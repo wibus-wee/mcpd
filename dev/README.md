@@ -6,7 +6,8 @@
 
 - **dev**：MCP Inspector + Go 环境（Inspector 会启动 mcpdmcp）
 - **core**：mcpd 控制面（gRPC + metrics）
-- **prometheus**：指标收集与可视化 (http://localhost:9500)
+- **prometheus**：指标收集（可观测 core 容器或 Wails 启动的 core）
+- **grafana**：仪表盘 (http://localhost:4000)
 
 ## 快速开始
 
@@ -14,6 +15,12 @@
 make dev
 docker compose logs -f dev
 make down
+```
+
+Wails 可观测（只启动 Prometheus + Grafana）：
+
+```bash
+make obs
 ```
 
 ## 服务说明
@@ -30,6 +37,10 @@ make down
 ### Prometheus
 - **UI**: http://localhost:9500
 - **用途**: 指标查询
+
+### Grafana
+- **UI**: http://localhost:4000
+- **用途**: 指标面板
 
 ## 使用 MCP Inspector
 
@@ -54,11 +65,28 @@ go run /app/cmd/mcpdmcp inspector --rpc core:9091
    - `mcpd_instance_stops_total`
    - `mcpd_active_instances`
 
+## Wails 可观测模式
+
+当 core 由 Wails 启动时，只需要启动 Prometheus + Grafana。
+
+```bash
+make obs
+```
+
+Prometheus 默认使用 `dev/prometheus.wails.yaml`，通过 `host.docker.internal:9090` 抓取指标。
+
+如果需要手动指定配置：
+
+```bash
+MCPD_PROM_CONFIG=./dev/prometheus.wails.yaml docker compose up -d prometheus grafana
+```
+
 ## 配置文件
 
 - `dev/profiles/default.yaml`: 默认 profile 配置
 - `dev/callers.yaml`: caller 映射（默认包含 `inspector -> default`）
 - `dev/prometheus.yaml`: Prometheus scrape 配置
+- `dev/prometheus.wails.yaml`: Wails 模式 Prometheus scrape 配置
 - `dev/Dockerfile.dev`: 开发容器镜像
 - `dev/runtime.yaml`: 全局 runtime 配置（路由超时、探活、RPC/observability 等）
 
@@ -68,6 +96,7 @@ go run /app/cmd/mcpdmcp inspector --rpc core:9091
 - `6277`: MCP Inspector WebSocket
 - `9090`: mcpd-core metrics
 - `9500`: Prometheus UI
+- `4000`: Grafana UI
 
 ## 排障
 
@@ -80,7 +109,8 @@ go run /app/cmd/mcpdmcp inspector --rpc core:9091
 - 查看 core 日志：`docker compose logs core`
 - 检查 metrics：`curl http://localhost:9090/metrics`
 - 查看 targets：http://localhost:9500/targets
+- Wails 模式下确认 Prometheus 配置为 `dev/prometheus.wails.yaml`
 
 **端口冲突：**
-- 停止占用 6274/6277/9090/9500 的进程
+- 停止占用 6274/6277/9090/9500/4000 的进程
 - 或调整 `docker-compose.yml` 端口映射

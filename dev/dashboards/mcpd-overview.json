@@ -381,7 +381,7 @@
             "uid": "mcpd-default-prometheus"
           },
           "expr": "mcpd_active_instances",
-          "legendFormat": "{{spec_key}}",
+          "legendFormat": "{{server_type}}",
           "refId": "A"
         }
       ],
@@ -1025,7 +1025,7 @@
             "uid": "mcpd-default-prometheus"
           },
           "expr": "mcpd_pool_capacity_ratio",
-          "legendFormat": "{{spec_key}}",
+          "legendFormat": "{{server_type}}",
           "refId": "A"
         }
       ],

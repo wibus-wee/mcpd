@@ -40,28 +40,28 @@ func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
 				Name: "mcpd_instance_starts_total",
 				Help: "Total number of instance start attempts",
 			},
-			[]string{"spec_key"},
+			[]string{"server_type"},
 		),
 		instanceStops: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "mcpd_instance_stops_total",
 				Help: "Total number of instance stops",
 			},
-			[]string{"spec_key"},
+			[]string{"server_type"},
 		),
 		activeInstances: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "mcpd_active_instances",
 				Help: "Current number of active instances",
 			},
-			[]string{"spec_key"},
+			[]string{"server_type"},
 		),
 		poolCapacityRatio: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "mcpd_pool_capacity_ratio",
 				Help: "Ratio of busy calls to total pool capacity",
 			},
-			[]string{"spec_key"},
+			[]string{"server_type"},
 		),
 		subAgentTokens: factory.NewCounterVec(
 			prometheus.CounterOpts{
@@ -99,20 +99,20 @@ func (p *PrometheusMetrics) ObserveRoute(metric domain.RouteMetric) {
 	).Observe(metric.Duration.Seconds())
 }
 
-func (p *PrometheusMetrics) ObserveInstanceStart(specKey string, duration time.Duration, err error) {
-	p.instanceStarts.WithLabelValues(specKey).Inc()
+func (p *PrometheusMetrics) ObserveInstanceStart(serverType string, duration time.Duration, err error) {
+	p.instanceStarts.WithLabelValues(serverType).Inc()
 }
 
-func (p *PrometheusMetrics) ObserveInstanceStop(specKey string, err error) {
-	p.instanceStops.WithLabelValues(specKey).Inc()
+func (p *PrometheusMetrics) ObserveInstanceStop(serverType string, err error) {
+	p.instanceStops.WithLabelValues(serverType).Inc()
 }
 
-func (p *PrometheusMetrics) SetActiveInstances(specKey string, count int) {
-	p.activeInstances.WithLabelValues(specKey).Set(float64(count))
+func (p *PrometheusMetrics) SetActiveInstances(serverType string, count int) {
+	p.activeInstances.WithLabelValues(serverType).Set(float64(count))
 }
 
-func (p *PrometheusMetrics) SetPoolCapacityRatio(specKey string, ratio float64) {
-	p.poolCapacityRatio.WithLabelValues(specKey).Set(ratio)
+func (p *PrometheusMetrics) SetPoolCapacityRatio(serverType string, ratio float64) {
+	p.poolCapacityRatio.WithLabelValues(serverType).Set(ratio)
 }
 
 func (p *PrometheusMetrics) ObserveSubAgentTokens(provider string, model string, tokens int) {

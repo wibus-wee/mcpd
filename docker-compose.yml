@@ -48,11 +48,11 @@ services:
       - "--storage.tsdb.retention.time=30d"
     ports:
       - "9500:9500"
-    depends_on:
-      - core
     volumes:
       - prometheus-data:/prometheus
-      - ./dev/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ${MCPD_PROM_CONFIG:-./dev/prometheus.yaml}:/etc/prometheus/prometheus.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   grafana:
     image: grafana/grafana-oss:latest

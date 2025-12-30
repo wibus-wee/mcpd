@@ -34,10 +34,10 @@ type RouteMetric struct {
 
 type Metrics interface {
 	ObserveRoute(metric RouteMetric)
-	ObserveInstanceStart(specKey string, duration time.Duration, err error)
-	ObserveInstanceStop(specKey string, err error)
-	SetActiveInstances(specKey string, count int)
-	SetPoolCapacityRatio(specKey string, ratio float64)
+	ObserveInstanceStart(serverType string, duration time.Duration, err error)
+	ObserveInstanceStop(serverType string, err error)
+	SetActiveInstances(serverType string, count int)
+	SetPoolCapacityRatio(serverType string, ratio float64)
 	ObserveSubAgentTokens(provider string, model string, tokens int)
 	ObserveSubAgentLatency(provider string, model string, duration time.Duration)
 	ObserveSubAgentFilterPrecision(provider string, model string, ratio float64)

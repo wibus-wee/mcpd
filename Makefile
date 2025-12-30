@@ -6,7 +6,7 @@ VERSION ?= dev
 BUILD ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X mcpd/internal/app.Version=$(VERSION) -X mcpd/internal/app.Build=$(BUILD)
 
-.PHONY: dev proto
+.PHONY: dev obs down reload proto
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" ./...
@@ -28,6 +28,9 @@ proto:
 # Docker Compose development environment
 dev:
 	docker compose up -d
+
+obs:
+	MCPD_PROM_CONFIG=./dev/prometheus.wails.yaml docker compose up -d prometheus grafana
 
 down:
 	docker compose down

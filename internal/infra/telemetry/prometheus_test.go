@@ -36,10 +36,10 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 		Reason:     domain.RouteReasonSuccess,
 		Duration:   10 * time.Millisecond,
 	})
-	m.ObserveInstanceStart("spec-1", 0, nil)
-	m.ObserveInstanceStop("spec-1", nil)
-	m.SetActiveInstances("spec-1", 1)
-	m.SetPoolCapacityRatio("spec-1", 0.2)
+	m.ObserveInstanceStart("test-server", 0, nil)
+	m.ObserveInstanceStop("test-server", nil)
+	m.SetActiveInstances("test-server", 1)
+	m.SetPoolCapacityRatio("test-server", 0.2)
 	m.ObserveSubAgentTokens("openai", "gpt-4o", 128)
 	m.ObserveSubAgentLatency("openai", "gpt-4o", 500*time.Millisecond)
 	m.ObserveSubAgentFilterPrecision("openai", "gpt-4o", 0.5)
@@ -77,9 +77,9 @@ func TestPrometheusMetrics_ObserveRoute(t *testing.T) {
 			},
 			[]string{"server_type", "caller", "profile", "status", "reason"},
 		),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts"}, []string{"spec_key"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops"}, []string{"spec_key"}),
-		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active"}, []string{"spec_key"}),
+		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts"}, []string{"server_type"}),
+		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops"}, []string{"server_type"}),
+		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active"}, []string{"server_type"}),
 	}
 	registry.MustRegister(m.routeDuration)
 
@@ -123,9 +123,9 @@ func TestPrometheusMetrics_ObserveRoute(t *testing.T) {
 func TestPrometheusMetrics_ObserveInstanceStart(t *testing.T) {
 	m := &PrometheusMetrics{
 		routeDuration:   prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route2"}, []string{"server_type", "caller", "profile", "status", "reason"}),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts2"}, []string{"spec_key"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops2"}, []string{"spec_key"}),
-		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active2"}, []string{"spec_key"}),
+		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts2"}, []string{"server_type"}),
+		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops2"}, []string{"server_type"}),
+		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active2"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {
 		m.ObserveInstanceStart("test-server", 1*time.Second, nil)
@@ -136,9 +136,9 @@ func TestPrometheusMetrics_ObserveInstanceStart(t *testing.T) {
 func TestPrometheusMetrics_ObserveInstanceStop(t *testing.T) {
 	m := &PrometheusMetrics{
 		routeDuration:   prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route3"}, []string{"server_type", "caller", "profile", "status", "reason"}),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts3"}, []string{"spec_key"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops3"}, []string{"spec_key"}),
-		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active3"}, []string{"spec_key"}),
+		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts3"}, []string{"server_type"}),
+		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops3"}, []string{"server_type"}),
+		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active3"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {
 		m.ObserveInstanceStop("test-server", nil)
@@ -149,9 +149,9 @@ func TestPrometheusMetrics_ObserveInstanceStop(t *testing.T) {
 func TestPrometheusMetrics_SetActiveInstances(t *testing.T) {
 	m := &PrometheusMetrics{
 		routeDuration:   prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route4"}, []string{"server_type", "caller", "profile", "status", "reason"}),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts4"}, []string{"spec_key"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops4"}, []string{"spec_key"}),
-		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active4"}, []string{"spec_key"}),
+		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts4"}, []string{"server_type"}),
+		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops4"}, []string{"server_type"}),
+		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active4"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {
 		m.SetActiveInstances("test-server", 0)
@@ -163,10 +163,10 @@ func TestPrometheusMetrics_SetActiveInstances(t *testing.T) {
 func TestPrometheusMetrics_SetPoolCapacityRatio(t *testing.T) {
 	m := &PrometheusMetrics{
 		routeDuration:     prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route5"}, []string{"server_type", "caller", "profile", "status", "reason"}),
-		instanceStarts:    prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts5"}, []string{"spec_key"}),
-		instanceStops:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops5"}, []string{"spec_key"}),
-		activeInstances:   prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active5"}, []string{"spec_key"}),
-		poolCapacityRatio: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_capacity"}, []string{"spec_key"}),
+		instanceStarts:    prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts5"}, []string{"server_type"}),
+		instanceStops:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops5"}, []string{"server_type"}),
+		activeInstances:   prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active5"}, []string{"server_type"}),
+		poolCapacityRatio: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_capacity"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {
 		m.SetPoolCapacityRatio("test-server", 0)
