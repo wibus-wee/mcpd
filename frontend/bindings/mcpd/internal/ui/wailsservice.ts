@@ -69,7 +69,7 @@ export function GetCallers(): $CancellablePromise<{ [_: string]: string }> {
 }
 
 /**
- * GetConfigMode 获取配置模式（单文件或目录）
+ * GetConfigMode returns configuration mode metadata.
  */
 export function GetConfigMode(): $CancellablePromise<$models.ConfigModeResponse> {
     return $Call.ByID(2990028974).then(($result: any) => {
@@ -260,6 +260,13 @@ export function ResolveMcpdmcpPath(): $CancellablePromise<string> {
  */
 export function RestartCore(): $CancellablePromise<void> {
     return $Call.ByID(2306439687);
+}
+
+/**
+ * RetryServerInit triggers a manual retry for a suspended server init.
+ */
+export function RetryServerInit(req: $models.RetryServerInitRequest): $CancellablePromise<void> {
+    return $Call.ByID(675952560, req);
 }
 
 /**

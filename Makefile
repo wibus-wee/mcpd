@@ -37,7 +37,7 @@ reload:
 
 # Wails application targets
 wails-bindings:
-	$(WAILS) generate bindings -ts ./cmd/mcpd-wails
+	$(WAILS) generate bindings -ts
 
 wails-dev:
 	$(WAILS) dev

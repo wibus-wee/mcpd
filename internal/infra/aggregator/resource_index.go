@@ -32,6 +32,7 @@ type ResourceIndex struct {
 type resourceCache struct {
 	resources []domain.ResourceDefinition
 	targets   map[string]domain.ResourceTarget
+	etag      string
 }
 
 func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *ResourceIndex {
@@ -63,6 +64,7 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 		CopySnapshot:      copyResourceSnapshot,
 		SnapshotETag:      func(snapshot domain.ResourceSnapshot) string { return snapshot.ETag },
 		BuildSnapshot:     resourceIndex.buildSnapshot,
+		CacheETag:         func(cache resourceCache) string { return cache.etag },
 		Fetch:             resourceIndex.fetchServerCache,
 		OnRefreshError:    resourceIndex.refreshErrorDecision,
 		ShouldStart:       func(domain.RuntimeConfig) bool { return true },
@@ -160,7 +162,7 @@ func (a *ResourceIndex) fetchServerCache(ctx context.Context, serverType string,
 	if err != nil {
 		return resourceCache{}, err
 	}
-	return resourceCache{resources: resources, targets: targets}, nil
+	return resourceCache{resources: resources, targets: targets, etag: hashResources(resources)}, nil
 }
 
 func (a *ResourceIndex) fetchServerResources(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ResourceDefinition, map[string]domain.ResourceTarget, error) {

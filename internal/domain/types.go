@@ -22,17 +22,20 @@ type ServerSpec struct {
 }
 
 type RuntimeConfig struct {
-	RouteTimeoutSeconds    int                 `json:"routeTimeoutSeconds"`
-	PingIntervalSeconds    int                 `json:"pingIntervalSeconds"`
-	ToolRefreshSeconds     int                 `json:"toolRefreshSeconds"`
-	ToolRefreshConcurrency int                 `json:"toolRefreshConcurrency"`
-	CallerCheckSeconds     int                 `json:"callerCheckSeconds"`
-	CallerInactiveSeconds  int                 `json:"callerInactiveSeconds"`
-	ExposeTools            bool                `json:"exposeTools"`
-	ToolNamespaceStrategy  string              `json:"toolNamespaceStrategy"`
-	Observability          ObservabilityConfig `json:"observability"`
-	RPC                    RPCConfig           `json:"rpc"`
-	SubAgent               SubAgentConfig      `json:"subAgent"`
+	RouteTimeoutSeconds        int                 `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds        int                 `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds         int                 `json:"toolRefreshSeconds"`
+	ToolRefreshConcurrency     int                 `json:"toolRefreshConcurrency"`
+	CallerCheckSeconds         int                 `json:"callerCheckSeconds"`
+	CallerInactiveSeconds      int                 `json:"callerInactiveSeconds"`
+	ServerInitRetryBaseSeconds int                 `json:"serverInitRetryBaseSeconds"`
+	ServerInitRetryMaxSeconds  int                 `json:"serverInitRetryMaxSeconds"`
+	ServerInitMaxRetries       int                 `json:"serverInitMaxRetries"`
+	ExposeTools                bool                `json:"exposeTools"`
+	ToolNamespaceStrategy      string              `json:"toolNamespaceStrategy"`
+	Observability              ObservabilityConfig `json:"observability"`
+	RPC                        RPCConfig           `json:"rpc"`
+	SubAgent                   SubAgentConfig      `json:"subAgent"`
 }
 
 type ObservabilityConfig struct {
@@ -131,22 +134,25 @@ type PoolInfo struct {
 type ServerInitState string
 
 const (
-	ServerInitPending  ServerInitState = "pending"
-	ServerInitStarting ServerInitState = "starting"
-	ServerInitReady    ServerInitState = "ready"
-	ServerInitDegraded ServerInitState = "degraded"
-	ServerInitFailed   ServerInitState = "failed"
+	ServerInitPending   ServerInitState = "pending"
+	ServerInitStarting  ServerInitState = "starting"
+	ServerInitReady     ServerInitState = "ready"
+	ServerInitDegraded  ServerInitState = "degraded"
+	ServerInitFailed    ServerInitState = "failed"
+	ServerInitSuspended ServerInitState = "suspended"
 )
 
 type ServerInitStatus struct {
-	SpecKey    string
-	ServerName string
-	MinReady   int
-	Ready      int
-	Failed     int
-	State      ServerInitState
-	LastError  string
-	UpdatedAt  time.Time
+	SpecKey     string
+	ServerName  string
+	MinReady    int
+	Ready       int
+	Failed      int
+	State       ServerInitState
+	LastError   string
+	RetryCount  int
+	NextRetryAt time.Time
+	UpdatedAt   time.Time
 }
 
 var ErrMethodNotAllowed = errors.New("method not allowed")
@@ -157,3 +163,8 @@ var ErrPromptNotFound = errors.New("prompt not found")
 var ErrInvalidCursor = errors.New("invalid cursor")
 var ErrCallerNotRegistered = errors.New("caller not registered")
 var ErrNoReadyInstance = errors.New("no ready instance")
+var ErrUnknownSpecKey = errors.New("unknown spec key")
+var ErrInvalidCommand = errors.New("invalid command")
+var ErrExecutableNotFound = errors.New("executable not found")
+var ErrPermissionDenied = errors.New("permission denied")
+var ErrUnsupportedProtocol = errors.New("unsupported protocol version")

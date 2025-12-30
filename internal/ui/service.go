@@ -654,6 +654,18 @@ func (s *WailsService) GetServerInitStatus(ctx context.Context) ([]ServerInitSta
 	return mapServerInitStatuses(statuses), nil
 }
 
+// RetryServerInit triggers a manual retry for a suspended server init.
+func (s *WailsService) RetryServerInit(ctx context.Context, req RetryServerInitRequest) error {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return err
+	}
+	if err := cp.RetryServerInit(ctx, req.SpecKey); err != nil {
+		return MapDomainError(err)
+	}
+	return nil
+}
+
 // ListProfiles 列出所有 profiles
 func (s *WailsService) ListProfiles(ctx context.Context) ([]ProfileSummary, error) {
 	cp, err := s.getControlPlane()

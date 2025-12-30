@@ -23,7 +23,7 @@ func TestServerInitializationManager_Ready(t *testing.T) {
 		},
 	})
 
-	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, zap.NewNop())
+	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, initRuntimeConfig(2), zap.NewNop())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -44,7 +44,7 @@ func TestServerInitializationManager_DegradedThenReady(t *testing.T) {
 		},
 	})
 
-	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, zap.NewNop())
+	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, initRuntimeConfig(2), zap.NewNop())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -64,7 +64,7 @@ func TestServerInitializationManager_Cancelled(t *testing.T) {
 		},
 	})
 
-	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, zap.NewNop())
+	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, initRuntimeConfig(2), zap.NewNop())
 	ctx, cancel := context.WithCancel(context.Background())
 
 	manager.Start(ctx)
@@ -72,6 +72,53 @@ func TestServerInitializationManager_Cancelled(t *testing.T) {
 
 	status := waitForStatus(t, manager, specKey, domain.ServerInitFailed, 0)
 	require.Contains(t, status.LastError, "context canceled")
+}
+
+func TestServerInitializationManager_SuspendsAfterRetries(t *testing.T) {
+	specKey := "delta"
+	spec := domain.ServerSpec{Name: "delta", MinReady: 1}
+	scheduler := newInitSchedulerStub(map[string][]setResult{
+		specKey: {
+			{ready: 0, failed: 0, err: errors.New("start failed")},
+			{ready: 0, failed: 0, err: errors.New("start failed")},
+		},
+	})
+
+	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, initRuntimeConfig(2), zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager.Start(ctx)
+
+	status := waitForStatus(t, manager, specKey, domain.ServerInitSuspended, 0)
+	require.Equal(t, 2, status.RetryCount)
+	require.Contains(t, status.LastError, "retry limit reached")
+}
+
+func TestServerInitializationManager_RetrySpecResets(t *testing.T) {
+	specKey := "epsilon"
+	spec := domain.ServerSpec{Name: "epsilon", MinReady: 1}
+	scheduler := newInitSchedulerStub(map[string][]setResult{
+		specKey: {
+			{ready: 0, failed: 0, err: errors.New("start failed")},
+			{ready: 0, failed: 0, err: errors.New("start failed")},
+			{ready: 1, failed: 0},
+		},
+	})
+
+	manager := NewServerInitializationManager(scheduler, map[string]domain.ServerSpec{specKey: spec}, initRuntimeConfig(2), zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager.Start(ctx)
+
+	status := waitForStatus(t, manager, specKey, domain.ServerInitSuspended, 0)
+	require.Equal(t, 2, status.RetryCount)
+
+	require.NoError(t, manager.RetrySpec(specKey))
+
+	status = waitForStatus(t, manager, specKey, domain.ServerInitReady, 1)
+	require.Equal(t, 0, status.RetryCount)
 }
 
 func waitForStatus(t *testing.T, manager *ServerInitializationManager, specKey string, state domain.ServerInitState, ready int) domain.ServerInitStatus {
@@ -91,6 +138,14 @@ func waitForStatus(t *testing.T, manager *ServerInitializationManager, specKey s
 	}
 	t.Fatalf("status not reached for %s: expected state=%s ready=%d", specKey, state, ready)
 	return domain.ServerInitStatus{}
+}
+
+func initRuntimeConfig(maxRetries int) domain.RuntimeConfig {
+	return domain.RuntimeConfig{
+		ServerInitRetryBaseSeconds: 1,
+		ServerInitRetryMaxSeconds:  1,
+		ServerInitMaxRetries:       maxRetries,
+	}
 }
 
 type setResult struct {

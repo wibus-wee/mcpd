@@ -3,8 +3,11 @@
 // Position: Runtime status display component for server instances
 
 import type { ServerInitStatus, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
+import { WailsService } from '@bindings/mcpd/internal/ui'
+import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 import { useRuntimeStatus, useServerInitStatus } from '../hooks'
@@ -172,9 +175,41 @@ export function RuntimeStatusLegend({ className }: { className?: string }) {
 }
 
 function InitStatusLine({ status }: { status: ServerInitStatus }) {
+	const [isRetrying, setIsRetrying] = useState(false)
+	const [retryError, setRetryError] = useState<string | null>(null)
+	const retryInfo = formatRetryInfo(status)
+
+	const handleRetry = async () => {
+		if (isRetrying) {
+			return
+		}
+		setIsRetrying(true)
+		setRetryError(null)
+		try {
+			await WailsService.RetryServerInit({ specKey: status.specKey })
+		} catch (err) {
+			setRetryError(err instanceof Error ? err.message : 'Retry failed')
+		} finally {
+			setIsRetrying(false)
+		}
+	}
+
 	return (
-		<div className="flex items-center gap-2 text-xs">
+		<div className="flex flex-wrap items-center gap-2 text-xs">
 			<InitBadge status={status} />
+			{retryInfo && (
+				<span className="text-muted-foreground">{retryInfo}</span>
+			)}
+			{status.state === 'suspended' && (
+				<Button
+					variant="outline"
+					size="xs"
+					onClick={handleRetry}
+					disabled={isRetrying}
+				>
+					{isRetrying ? 'Retrying...' : 'Retry'}
+				</Button>
+			)}
 			{status.lastError && (
 				<span
 					className="text-destructive truncate max-w-xs"
@@ -182,6 +217,9 @@ function InitStatusLine({ status }: { status: ServerInitStatus }) {
 				>
 					{status.lastError}
 				</span>
+			)}
+			{retryError && (
+				<span className="text-destructive">{retryError}</span>
 			)}
 		</div>
 	)
@@ -207,6 +245,7 @@ const initVariant: Record<string, 'secondary' | 'info' | 'success' | 'warning' |
 	ready: 'success',
 	degraded: 'warning',
 	failed: 'destructive',
+	suspended: 'warning',
 }
 
 function formatInitLabel(status: ServerInitStatus) {
@@ -220,7 +259,29 @@ function formatInitLabel(status: ServerInitStatus) {
 		return 'Failed'
 	case 'starting':
 		return `Starting (${counts})`
+	case 'suspended':
+		return 'Suspended'
 	default:
 		return `Pending (${counts})`
 	}
+}
+
+function formatRetryInfo(status: ServerInitStatus) {
+	const parts: string[] = []
+	if (status.retryCount > 0) {
+		parts.push(`Retries: ${status.retryCount}`)
+	}
+	if (status.nextRetryAt) {
+		const retryAt = Date.parse(status.nextRetryAt)
+		if (!Number.isNaN(retryAt)) {
+			const remainingSeconds = Math.max(0, Math.round((retryAt - Date.now()) / 1000))
+			parts.push(`Next in ${remainingSeconds}s`)
+		} else {
+			parts.push('Next retry scheduled')
+		}
+	}
+	if (parts.length === 0) {
+		return ''
+	}
+	return parts.join(' | ')
 }

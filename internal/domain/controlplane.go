@@ -171,6 +171,7 @@ type ControlPlane interface {
 	GetProfileStore() ProfileStore
 	GetPoolStatus(ctx context.Context) ([]PoolInfo, error)
 	GetServerInitStatus(ctx context.Context) ([]ServerInitStatus, error)
+	RetryServerInit(ctx context.Context, specKey string) error
 	WatchRuntimeStatus(ctx context.Context, caller string) (<-chan RuntimeStatusSnapshot, error)
 	WatchRuntimeStatusAllProfiles(ctx context.Context) (<-chan RuntimeStatusSnapshot, error)
 	WatchServerInitStatus(ctx context.Context, caller string) (<-chan ServerInitStatusSnapshot, error)

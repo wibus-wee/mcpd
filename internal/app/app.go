@@ -126,7 +126,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	if err != nil {
 		return err
 	}
-	initManager := NewServerInitializationManager(sched, summary.specRegistry, logger)
+	initManager := NewServerInitializationManager(sched, summary.specRegistry, summary.defaultRuntime, logger)
 	initManager.Start(ctx)
 
 	profiles := make(map[string]*profileRuntime, len(summary.configs))

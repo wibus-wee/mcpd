@@ -280,6 +280,10 @@ func (f *fakeControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.Se
 	return nil, nil
 }
 
+func (f *fakeControlPlane) RetryServerInit(ctx context.Context, specKey string) error {
+	return nil
+}
+
 func (f *fakeControlPlane) WatchRuntimeStatus(ctx context.Context, caller string) (<-chan domain.RuntimeStatusSnapshot, error) {
 	ch := make(chan domain.RuntimeStatusSnapshot)
 	close(ch)

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"go.uber.org/zap"
 
@@ -158,6 +159,13 @@ func (c *ControlPlane) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, er
 
 func (c *ControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.ServerInitStatus, error) {
 	return c.observability.GetServerInitStatus(ctx)
+}
+
+func (c *ControlPlane) RetryServerInit(ctx context.Context, specKey string) error {
+	if c.state.initManager == nil {
+		return errors.New("server init manager not configured")
+	}
+	return c.state.initManager.RetrySpec(specKey)
 }
 
 func (c *ControlPlane) WatchRuntimeStatus(ctx context.Context, caller string) (<-chan domain.RuntimeStatusSnapshot, error) {

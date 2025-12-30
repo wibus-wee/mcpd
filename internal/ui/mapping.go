@@ -82,15 +82,21 @@ func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 
 func mapServerInitStatuses(statuses []domain.ServerInitStatus) []ServerInitStatus {
 	return mapping.MapSlice(statuses, func(status domain.ServerInitStatus) ServerInitStatus {
+		nextRetryAt := ""
+		if !status.NextRetryAt.IsZero() {
+			nextRetryAt = status.NextRetryAt.UTC().Format(time.RFC3339Nano)
+		}
 		return ServerInitStatus{
-			SpecKey:    status.SpecKey,
-			ServerName: status.ServerName,
-			MinReady:   status.MinReady,
-			Ready:      status.Ready,
-			Failed:     status.Failed,
-			State:      string(status.State),
-			LastError:  status.LastError,
-			UpdatedAt:  status.UpdatedAt.UTC().Format(time.RFC3339Nano),
+			SpecKey:     status.SpecKey,
+			ServerName:  status.ServerName,
+			MinReady:    status.MinReady,
+			Ready:       status.Ready,
+			Failed:      status.Failed,
+			State:       string(status.State),
+			LastError:   status.LastError,
+			RetryCount:  status.RetryCount,
+			NextRetryAt: nextRetryAt,
+			UpdatedAt:   status.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		}
 	})
 }
@@ -136,14 +142,17 @@ func mapServerSpecDetail(spec domain.ServerSpec, specKey string) ServerSpecDetai
 
 func mapRuntimeConfigDetail(cfg domain.RuntimeConfig) RuntimeConfigDetail {
 	return RuntimeConfigDetail{
-		RouteTimeoutSeconds:    cfg.RouteTimeoutSeconds,
-		PingIntervalSeconds:    cfg.PingIntervalSeconds,
-		ToolRefreshSeconds:     cfg.ToolRefreshSeconds,
-		ToolRefreshConcurrency: cfg.ToolRefreshConcurrency,
-		CallerCheckSeconds:     cfg.CallerCheckSeconds,
-		CallerInactiveSeconds:  cfg.CallerInactiveSeconds,
-		ExposeTools:            cfg.ExposeTools,
-		ToolNamespaceStrategy:  cfg.ToolNamespaceStrategy,
+		RouteTimeoutSeconds:        cfg.RouteTimeoutSeconds,
+		PingIntervalSeconds:        cfg.PingIntervalSeconds,
+		ToolRefreshSeconds:         cfg.ToolRefreshSeconds,
+		ToolRefreshConcurrency:     cfg.ToolRefreshConcurrency,
+		CallerCheckSeconds:         cfg.CallerCheckSeconds,
+		CallerInactiveSeconds:      cfg.CallerInactiveSeconds,
+		ServerInitRetryBaseSeconds: cfg.ServerInitRetryBaseSeconds,
+		ServerInitRetryMaxSeconds:  cfg.ServerInitRetryMaxSeconds,
+		ServerInitMaxRetries:       cfg.ServerInitMaxRetries,
+		ExposeTools:                cfg.ExposeTools,
+		ToolNamespaceStrategy:      cfg.ToolNamespaceStrategy,
 		Observability: ObservabilityConfigDetail{
 			ListenAddress: cfg.Observability.ListenAddress,
 		},

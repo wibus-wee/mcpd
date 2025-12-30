@@ -104,7 +104,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 	}
 
 	if spec.ProtocolVersion != domain.DefaultProtocolVersion {
-		err := fmt.Errorf("unsupported protocol version: %s", spec.ProtocolVersion)
+		err := fmt.Errorf("%w: %s", domain.ErrUnsupportedProtocol, spec.ProtocolVersion)
 		cancelStart()
 		m.logger.Error("instance start failed",
 			telemetry.EventField(telemetry.EventStartFailure),

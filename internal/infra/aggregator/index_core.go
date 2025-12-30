@@ -34,6 +34,7 @@ type GenericIndexOptions[Snapshot any, Target any, Cache any] struct {
 	CopySnapshot      func(Snapshot) Snapshot
 	SnapshotETag      func(Snapshot) string
 	BuildSnapshot     func(cache map[string]Cache) (Snapshot, map[string]Target)
+	CacheETag         func(cache Cache) string
 	Fetch             func(ctx context.Context, serverType string, spec domain.ServerSpec) (Cache, error)
 	OnRefreshError    func(serverType string, err error) refreshErrorDecision
 	ShouldStart       func(cfg domain.RuntimeConfig) bool
@@ -58,6 +59,7 @@ type GenericIndex[Snapshot any, Target any, Cache any] struct {
 	copySnapshot      func(Snapshot) Snapshot
 	snapshotETag      func(Snapshot) string
 	buildSnapshot     func(cache map[string]Cache) (Snapshot, map[string]Target)
+	cacheETag         func(cache Cache) string
 	fetch             func(ctx context.Context, serverType string, spec domain.ServerSpec) (Cache, error)
 	onRefreshError    func(serverType string, err error) refreshErrorDecision
 	shouldStart       func(cfg domain.RuntimeConfig) bool
@@ -99,6 +101,7 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 		copySnapshot:      opts.CopySnapshot,
 		snapshotETag:      opts.SnapshotETag,
 		buildSnapshot:     opts.BuildSnapshot,
+		cacheETag:         opts.CacheETag,
 		fetch:             opts.Fetch,
 		onRefreshError:    opts.OnRefreshError,
 		shouldStart:       shouldStart,
@@ -283,6 +286,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 		close(results)
 	}()
 
+	changed := false
 	for res := range results {
 		if res.err != nil {
 			decision := refreshErrorLog
@@ -294,7 +298,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 				continue
 			case refreshErrorDropCache:
 				g.deleteCache(res.serverType)
-				g.rebuildSnapshot()
+				changed = true
 				continue
 			default:
 				g.logger.Warn(g.fetchErrorMessage, zap.String("serverType", res.serverType), zap.Error(res.err))
@@ -302,9 +306,23 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 			}
 		}
 
-		g.mu.Lock()
-		g.serverCache[res.serverType] = res.cache
-		g.mu.Unlock()
+		cacheChanged := true
+		if g.cacheETag != nil {
+			g.mu.Lock()
+			prev, ok := g.serverCache[res.serverType]
+			g.mu.Unlock()
+			if ok && g.cacheETag(prev) == g.cacheETag(res.cache) {
+				cacheChanged = false
+			}
+		}
+		if cacheChanged {
+			g.mu.Lock()
+			g.serverCache[res.serverType] = res.cache
+			g.mu.Unlock()
+			changed = true
+		}
+	}
+	if changed {
 		g.rebuildSnapshot()
 	}
 	return nil

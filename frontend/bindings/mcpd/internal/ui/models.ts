@@ -730,6 +730,27 @@ export class ResourcePage {
     }
 }
 
+export class RetryServerInitRequest {
+    "specKey": string;
+
+    /** Creates a new RetryServerInitRequest instance. */
+    constructor($$source: Partial<RetryServerInitRequest> = {}) {
+        if (!("specKey" in $$source)) {
+            this["specKey"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RetryServerInitRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RetryServerInitRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RetryServerInitRequest($$parsedSource as Partial<RetryServerInitRequest>);
+    }
+}
+
 /**
  * RuntimeConfigDetail contains runtime configuration for frontend
  */
@@ -739,6 +760,10 @@ export class RuntimeConfigDetail {
     "toolRefreshSeconds": number;
     "toolRefreshConcurrency": number;
     "callerCheckSeconds": number;
+    "callerInactiveSeconds": number;
+    "serverInitRetryBaseSeconds": number;
+    "serverInitRetryMaxSeconds": number;
+    "serverInitMaxRetries": number;
     "exposeTools": boolean;
     "toolNamespaceStrategy": string;
     "observability": ObservabilityConfigDetail;
@@ -761,6 +786,18 @@ export class RuntimeConfigDetail {
         if (!("callerCheckSeconds" in $$source)) {
             this["callerCheckSeconds"] = 0;
         }
+        if (!("callerInactiveSeconds" in $$source)) {
+            this["callerInactiveSeconds"] = 0;
+        }
+        if (!("serverInitRetryBaseSeconds" in $$source)) {
+            this["serverInitRetryBaseSeconds"] = 0;
+        }
+        if (!("serverInitRetryMaxSeconds" in $$source)) {
+            this["serverInitRetryMaxSeconds"] = 0;
+        }
+        if (!("serverInitMaxRetries" in $$source)) {
+            this["serverInitMaxRetries"] = 0;
+        }
         if (!("exposeTools" in $$source)) {
             this["exposeTools"] = false;
         }
@@ -781,14 +818,14 @@ export class RuntimeConfigDetail {
      * Creates a new RuntimeConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RuntimeConfigDetail {
-        const $$createField7_0 = $$createType13;
-        const $$createField8_0 = $$createType14;
+        const $$createField11_0 = $$createType13;
+        const $$createField12_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observability" in $$parsedSource) {
-            $$parsedSource["observability"] = $$createField7_0($$parsedSource["observability"]);
+            $$parsedSource["observability"] = $$createField11_0($$parsedSource["observability"]);
         }
         if ("rpc" in $$parsedSource) {
-            $$parsedSource["rpc"] = $$createField8_0($$parsedSource["rpc"]);
+            $$parsedSource["rpc"] = $$createField12_0($$parsedSource["rpc"]);
         }
         return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
     }
@@ -802,6 +839,8 @@ export class ServerInitStatus {
     "failed": number;
     "state": string;
     "lastError"?: string;
+    "retryCount": number;
+    "nextRetryAt"?: string;
     "updatedAt": string;
 
     /** Creates a new ServerInitStatus instance. */
@@ -823,6 +862,9 @@ export class ServerInitStatus {
         }
         if (!("state" in $$source)) {
             this["state"] = "";
+        }
+        if (!("retryCount" in $$source)) {
+            this["retryCount"] = 0;
         }
         if (!("updatedAt" in $$source)) {
             this["updatedAt"] = "";

@@ -4,6 +4,9 @@ toolRefreshSeconds: 60
 toolRefreshConcurrency: 4
 callerCheckSeconds: 5
 callerInactiveSeconds: 300
+serverInitRetryBaseSeconds: 1
+serverInitRetryMaxSeconds: 30
+serverInitMaxRetries: 5
 exposeTools: true
 toolNamespaceStrategy: "prefix"
 observability:

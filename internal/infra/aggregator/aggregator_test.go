@@ -136,10 +136,15 @@ func TestToolIndex_RefreshConcurrentFetches(t *testing.T) {
 		done <- index.refresh(ctx)
 	}()
 
-	require.Eventually(t, func() bool {
-		snapshot := index.Snapshot()
-		return len(snapshot.Tools) == 1 && snapshot.Tools[0].Name == "fast.fast"
-	}, time.Second, 10*time.Millisecond, "fast server should refresh before slow server completes")
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+		t.Fatalf("refresh completed before slow server released")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	snapshot := index.Snapshot()
+	require.Empty(t, snapshot.Tools, "snapshot should not update until all servers refresh")
 
 	close(slowBlock)
 
@@ -150,7 +155,7 @@ func TestToolIndex_RefreshConcurrentFetches(t *testing.T) {
 		t.Fatalf("refresh did not complete after releasing slow server")
 	}
 
-	snapshot := index.Snapshot()
+	snapshot = index.Snapshot()
 	require.Len(t, snapshot.Tools, 2)
 	require.Equal(t, "fast.fast", snapshot.Tools[0].Name)
 	require.Equal(t, "slow.slow", snapshot.Tools[1].Name)

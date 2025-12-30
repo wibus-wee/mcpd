@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	ErrUnknownSpecKey = errors.New("unknown spec key")
+	ErrUnknownSpecKey = domain.ErrUnknownSpecKey
 	ErrNoCapacity     = errors.New("no capacity available")
 	ErrStickyBusy     = errors.New("sticky instance at capacity")
 	ErrNotImplemented = errors.New("scheduler not implemented")

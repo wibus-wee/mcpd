@@ -9,6 +9,9 @@ const (
 	DefaultToolRefreshConcurrency     = 4
 	DefaultCallerCheckSeconds         = 5
 	DefaultCallerInactiveSeconds      = 300
+	DefaultServerInitRetryBaseSeconds = 1
+	DefaultServerInitRetryMaxSeconds  = 30
+	DefaultServerInitMaxRetries       = 5
 	DefaultDrainTimeoutSeconds        = 30
 	DefaultExposeTools                = true
 	DefaultToolNamespaceStrategy      = "prefix"

@@ -35,6 +35,7 @@ type ToolIndex struct {
 type serverCache struct {
 	tools   []domain.ToolDefinition
 	targets map[string]domain.ToolTarget
+	etag    string
 }
 
 func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *ToolIndex {
@@ -66,6 +67,7 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 		CopySnapshot:      copySnapshot,
 		SnapshotETag:      func(snapshot domain.ToolSnapshot) string { return snapshot.ETag },
 		BuildSnapshot:     toolIndex.buildSnapshot,
+		CacheETag:         func(cache serverCache) string { return cache.etag },
 		Fetch:             toolIndex.fetchServerCache,
 		OnRefreshError:    toolIndex.refreshErrorDecision,
 		ShouldStart:       func(cfg domain.RuntimeConfig) bool { return cfg.ExposeTools },
@@ -224,7 +226,7 @@ func (a *ToolIndex) fetchServerCache(ctx context.Context, serverType string, spe
 	if err != nil {
 		return serverCache{}, err
 	}
-	return serverCache{tools: tools, targets: targets}, nil
+	return serverCache{tools: tools, targets: targets, etag: hashTools(tools)}, nil
 }
 
 func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ToolDefinition, map[string]domain.ToolTarget, error) {

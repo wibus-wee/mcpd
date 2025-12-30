@@ -39,7 +39,7 @@ type processCleanup func()
 
 func (t *StdioTransport) Start(ctx context.Context, spec domain.ServerSpec) (domain.Conn, domain.StopFn, error) {
 	if len(spec.Cmd) == 0 {
-		return nil, nil, errors.New("cmd is required for stdio transport")
+		return nil, nil, fmt.Errorf("%w: cmd is required for stdio transport", domain.ErrInvalidCommand)
 	}
 
 	cmd := exec.CommandContext(ctx, spec.Cmd[0], spec.Cmd[1:]...)
@@ -67,7 +67,7 @@ func (t *StdioTransport) Start(ctx context.Context, spec domain.ServerSpec) (dom
 	mcpConn, err := transport.Connect(ctx)
 	if err != nil {
 		_ = stderr.Close()
-		return nil, nil, fmt.Errorf("connect stdio: %w", err)
+		return nil, nil, fmt.Errorf("connect stdio: %w", classifyStartError(err))
 	}
 
 	conn := &mcpConnAdapter{conn: mcpConn}
@@ -138,4 +138,26 @@ func formatEnv(env map[string]string) []string {
 		out = append(out, fmt.Sprintf("%s=%s", k, v))
 	}
 	return out
+}
+
+func classifyStartError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("%w: %s", domain.ErrExecutableNotFound, err.Error())
+	}
+	if errors.Is(err, os.ErrPermission) {
+		return fmt.Errorf("%w: %s", domain.ErrPermissionDenied, err.Error())
+	}
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		if errors.Is(pathErr.Err, exec.ErrNotFound) || errors.Is(pathErr.Err, os.ErrNotExist) {
+			return fmt.Errorf("%w: %s", domain.ErrExecutableNotFound, err.Error())
+		}
+		if errors.Is(pathErr.Err, os.ErrPermission) {
+			return fmt.Errorf("%w: %s", domain.ErrPermissionDenied, err.Error())
+		}
+	}
+	return err
 }

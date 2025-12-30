@@ -50,6 +50,7 @@ func TestStdioTransport_InvalidCmd(t *testing.T) {
 
 	_, _, err := transport.Start(context.Background(), spec)
 	require.Error(t, err)
+	require.ErrorIs(t, err, domain.ErrInvalidCommand)
 }
 
 func TestStdioTransport_StopKillsProcess(t *testing.T) {
@@ -70,6 +71,20 @@ func TestStdioTransport_StopKillsProcess(t *testing.T) {
 
 	err = stop(ctx)
 	require.NoError(t, err)
+}
+
+func TestStdioTransport_MissingExecutable(t *testing.T) {
+	transport := NewStdioTransport(StdioTransportOptions{})
+	spec := domain.ServerSpec{
+		Name:            "missing",
+		Cmd:             []string{"/no/such/binary"},
+		ProtocolVersion: domain.DefaultProtocolVersion,
+		MaxConcurrent:   1,
+	}
+
+	_, _, err := transport.Start(context.Background(), spec)
+	require.Error(t, err)
+	require.ErrorIs(t, err, domain.ErrExecutableNotFound)
 }
 
 func TestStdioTransport_MirrorsStderr(t *testing.T) {

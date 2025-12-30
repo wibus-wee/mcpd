@@ -33,6 +33,9 @@ func setRuntimeDefaults(v *viper.Viper) {
 	v.SetDefault("toolRefreshConcurrency", domain.DefaultToolRefreshConcurrency)
 	v.SetDefault("callerCheckSeconds", domain.DefaultCallerCheckSeconds)
 	v.SetDefault("callerInactiveSeconds", domain.DefaultCallerInactiveSeconds)
+	v.SetDefault("serverInitRetryBaseSeconds", domain.DefaultServerInitRetryBaseSeconds)
+	v.SetDefault("serverInitRetryMaxSeconds", domain.DefaultServerInitRetryMaxSeconds)
+	v.SetDefault("serverInitMaxRetries", domain.DefaultServerInitMaxRetries)
 	v.SetDefault("exposeTools", domain.DefaultExposeTools)
 	v.SetDefault("toolNamespaceStrategy", domain.DefaultToolNamespaceStrategy)
 	v.SetDefault("observability.listenAddress", domain.DefaultObservabilityListenAddress)
@@ -55,17 +58,20 @@ type rawProfileSubAgentConfig struct {
 }
 
 type rawRuntimeConfig struct {
-	RouteTimeoutSeconds    int                    `mapstructure:"routeTimeoutSeconds"`
-	PingIntervalSeconds    int                    `mapstructure:"pingIntervalSeconds"`
-	ToolRefreshSeconds     int                    `mapstructure:"toolRefreshSeconds"`
-	ToolRefreshConcurrency int                    `mapstructure:"toolRefreshConcurrency"`
-	CallerCheckSeconds     int                    `mapstructure:"callerCheckSeconds"`
-	CallerInactiveSeconds  int                    `mapstructure:"callerInactiveSeconds"`
-	ExposeTools            bool                   `mapstructure:"exposeTools"`
-	ToolNamespaceStrategy  string                 `mapstructure:"toolNamespaceStrategy"`
-	Observability          rawObservabilityConfig `mapstructure:"observability"`
-	RPC                    rawRPCConfig           `mapstructure:"rpc"`
-	SubAgent               rawSubAgentConfig      `mapstructure:"subAgent"`
+	RouteTimeoutSeconds        int                    `mapstructure:"routeTimeoutSeconds"`
+	PingIntervalSeconds        int                    `mapstructure:"pingIntervalSeconds"`
+	ToolRefreshSeconds         int                    `mapstructure:"toolRefreshSeconds"`
+	ToolRefreshConcurrency     int                    `mapstructure:"toolRefreshConcurrency"`
+	CallerCheckSeconds         int                    `mapstructure:"callerCheckSeconds"`
+	CallerInactiveSeconds      int                    `mapstructure:"callerInactiveSeconds"`
+	ServerInitRetryBaseSeconds int                    `mapstructure:"serverInitRetryBaseSeconds"`
+	ServerInitRetryMaxSeconds  int                    `mapstructure:"serverInitRetryMaxSeconds"`
+	ServerInitMaxRetries       int                    `mapstructure:"serverInitMaxRetries"`
+	ExposeTools                bool                   `mapstructure:"exposeTools"`
+	ToolNamespaceStrategy      string                 `mapstructure:"toolNamespaceStrategy"`
+	Observability              rawObservabilityConfig `mapstructure:"observability"`
+	RPC                        rawRPCConfig           `mapstructure:"rpc"`
+	SubAgent                   rawSubAgentConfig      `mapstructure:"subAgent"`
 }
 
 type rawSubAgentConfig struct {
@@ -310,6 +316,22 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		errs = append(errs, "callerInactiveSeconds must be > 0")
 	}
 
+	serverInitRetryBase := cfg.ServerInitRetryBaseSeconds
+	if serverInitRetryBase <= 0 {
+		errs = append(errs, "serverInitRetryBaseSeconds must be > 0")
+	}
+	serverInitRetryMax := cfg.ServerInitRetryMaxSeconds
+	if serverInitRetryMax <= 0 {
+		errs = append(errs, "serverInitRetryMaxSeconds must be > 0")
+	}
+	if serverInitRetryBase > 0 && serverInitRetryMax > 0 && serverInitRetryMax < serverInitRetryBase {
+		errs = append(errs, "serverInitRetryMaxSeconds must be >= serverInitRetryBaseSeconds")
+	}
+	serverInitMaxRetries := cfg.ServerInitMaxRetries
+	if serverInitMaxRetries < 0 {
+		errs = append(errs, "serverInitMaxRetries must be >= 0")
+	}
+
 	strategy := strings.ToLower(strings.TrimSpace(cfg.ToolNamespaceStrategy))
 	if strategy == "" {
 		strategy = domain.DefaultToolNamespaceStrategy
@@ -325,16 +347,19 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 	errs = append(errs, rpcErrs...)
 
 	return domain.RuntimeConfig{
-		RouteTimeoutSeconds:    routeTimeout,
-		PingIntervalSeconds:    pingInterval,
-		ToolRefreshSeconds:     toolRefresh,
-		ToolRefreshConcurrency: refreshConcurrency,
-		CallerCheckSeconds:     callerCheck,
-		CallerInactiveSeconds:  callerInactive,
-		ExposeTools:            cfg.ExposeTools,
-		ToolNamespaceStrategy:  strategy,
-		Observability:          observabilityCfg,
-		RPC:                    rpcCfg,
+		RouteTimeoutSeconds:        routeTimeout,
+		PingIntervalSeconds:        pingInterval,
+		ToolRefreshSeconds:         toolRefresh,
+		ToolRefreshConcurrency:     refreshConcurrency,
+		CallerCheckSeconds:         callerCheck,
+		CallerInactiveSeconds:      callerInactive,
+		ServerInitRetryBaseSeconds: serverInitRetryBase,
+		ServerInitRetryMaxSeconds:  serverInitRetryMax,
+		ServerInitMaxRetries:       serverInitMaxRetries,
+		ExposeTools:                cfg.ExposeTools,
+		ToolNamespaceStrategy:      strategy,
+		Observability:              observabilityCfg,
+		RPC:                        rpcCfg,
 		SubAgent: domain.SubAgentConfig{
 			Model:              cfg.SubAgent.Model,
 			Provider:           cfg.SubAgent.Provider,

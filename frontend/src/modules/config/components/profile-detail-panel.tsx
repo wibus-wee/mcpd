@@ -109,6 +109,9 @@ function RuntimeSection({ profile }: { profile: ProfileDetail }) {
           <DetailRow label="Ping Interval" value={`${runtime.pingIntervalSeconds}s`} mono />
           <DetailRow label="Tool Refresh" value={`${runtime.toolRefreshSeconds}s`} mono />
           <DetailRow label="Caller Check" value={`${runtime.callerCheckSeconds}s`} mono />
+          <DetailRow label="Init Retry Base" value={`${runtime.serverInitRetryBaseSeconds}s`} mono />
+          <DetailRow label="Init Retry Max" value={`${runtime.serverInitRetryMaxSeconds}s`} mono />
+          <DetailRow label="Init Max Retries" value={`${runtime.serverInitMaxRetries}`} mono />
           <DetailRow
             label="Expose Tools"
             value={

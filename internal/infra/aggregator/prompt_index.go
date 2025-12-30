@@ -32,6 +32,7 @@ type PromptIndex struct {
 type promptCache struct {
 	prompts []domain.PromptDefinition
 	targets map[string]domain.PromptTarget
+	etag    string
 }
 
 func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *PromptIndex {
@@ -63,6 +64,7 @@ func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKe
 		CopySnapshot:      copyPromptSnapshot,
 		SnapshotETag:      func(snapshot domain.PromptSnapshot) string { return snapshot.ETag },
 		BuildSnapshot:     promptIndex.buildSnapshot,
+		CacheETag:         func(cache promptCache) string { return cache.etag },
 		Fetch:             promptIndex.fetchServerCache,
 		OnRefreshError:    promptIndex.refreshErrorDecision,
 		ShouldStart:       func(domain.RuntimeConfig) bool { return true },
@@ -220,7 +222,7 @@ func (a *PromptIndex) fetchServerCache(ctx context.Context, serverType string, s
 	if err != nil {
 		return promptCache{}, err
 	}
-	return promptCache{prompts: prompts, targets: targets}, nil
+	return promptCache{prompts: prompts, targets: targets, etag: hashPrompts(prompts)}, nil
 }
 
 func (a *PromptIndex) fetchServerPrompts(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.PromptDefinition, map[string]domain.PromptTarget, error) {

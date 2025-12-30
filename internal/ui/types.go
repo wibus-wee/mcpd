@@ -64,16 +64,19 @@ type ProfileDetail struct {
 
 // RuntimeConfigDetail contains runtime configuration for frontend
 type RuntimeConfigDetail struct {
-	RouteTimeoutSeconds    int                       `json:"routeTimeoutSeconds"`
-	PingIntervalSeconds    int                       `json:"pingIntervalSeconds"`
-	ToolRefreshSeconds     int                       `json:"toolRefreshSeconds"`
-	ToolRefreshConcurrency int                       `json:"toolRefreshConcurrency"`
-	CallerCheckSeconds     int                       `json:"callerCheckSeconds"`
-	CallerInactiveSeconds  int                       `json:"callerInactiveSeconds"`
-	ExposeTools            bool                      `json:"exposeTools"`
-	ToolNamespaceStrategy  string                    `json:"toolNamespaceStrategy"`
-	Observability          ObservabilityConfigDetail `json:"observability"`
-	RPC                    RPCConfigDetail           `json:"rpc"`
+	RouteTimeoutSeconds        int                       `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds        int                       `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds         int                       `json:"toolRefreshSeconds"`
+	ToolRefreshConcurrency     int                       `json:"toolRefreshConcurrency"`
+	CallerCheckSeconds         int                       `json:"callerCheckSeconds"`
+	CallerInactiveSeconds      int                       `json:"callerInactiveSeconds"`
+	ServerInitRetryBaseSeconds int                       `json:"serverInitRetryBaseSeconds"`
+	ServerInitRetryMaxSeconds  int                       `json:"serverInitRetryMaxSeconds"`
+	ServerInitMaxRetries       int                       `json:"serverInitMaxRetries"`
+	ExposeTools                bool                      `json:"exposeTools"`
+	ToolNamespaceStrategy      string                    `json:"toolNamespaceStrategy"`
+	Observability              ObservabilityConfigDetail `json:"observability"`
+	RPC                        RPCConfigDetail           `json:"rpc"`
 }
 
 // ObservabilityConfigDetail for frontend
@@ -178,14 +181,20 @@ type ActiveCaller struct {
 // =============================================================================
 
 type ServerInitStatus struct {
-	SpecKey    string `json:"specKey"`
-	ServerName string `json:"serverName"`
-	MinReady   int    `json:"minReady"`
-	Ready      int    `json:"ready"`
-	Failed     int    `json:"failed"`
-	State      string `json:"state"`
-	LastError  string `json:"lastError,omitempty"`
-	UpdatedAt  string `json:"updatedAt"`
+	SpecKey     string `json:"specKey"`
+	ServerName  string `json:"serverName"`
+	MinReady    int    `json:"minReady"`
+	Ready       int    `json:"ready"`
+	Failed      int    `json:"failed"`
+	State       string `json:"state"`
+	LastError   string `json:"lastError,omitempty"`
+	RetryCount  int    `json:"retryCount"`
+	NextRetryAt string `json:"nextRetryAt,omitempty"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+type RetryServerInitRequest struct {
+	SpecKey string `json:"specKey"`
 }
 
 // =============================================================================
