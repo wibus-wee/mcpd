@@ -95,32 +95,44 @@ type CompletionsCapability struct{}
 type InstanceState string
 
 const (
-	InstanceStateStarting InstanceState = "starting"
-	InstanceStateReady    InstanceState = "ready"
-	InstanceStateBusy     InstanceState = "busy"
-	InstanceStateDraining InstanceState = "draining"
-	InstanceStateStopped  InstanceState = "stopped"
-	InstanceStateFailed   InstanceState = "failed"
+	InstanceStateStarting     InstanceState = "starting"
+	InstanceStateInitializing InstanceState = "initializing"
+	InstanceStateHandshaking  InstanceState = "handshaking"
+	InstanceStateReady        InstanceState = "ready"
+	InstanceStateBusy         InstanceState = "busy"
+	InstanceStateDraining     InstanceState = "draining"
+	InstanceStateStopped      InstanceState = "stopped"
+	InstanceStateFailed       InstanceState = "failed"
 )
 
 type Instance struct {
-	ID           string
-	Spec         ServerSpec
-	SpecKey      string
-	State        InstanceState
-	BusyCount    int
-	LastActive   time.Time
-	StickyKey    string
-	Conn         Conn
-	Capabilities ServerCapabilities
+	ID               string
+	Spec             ServerSpec
+	SpecKey          string
+	State            InstanceState
+	BusyCount        int
+	LastActive       time.Time
+	SpawnedAt        time.Time
+	HandshakedAt     time.Time
+	LastHeartbeatAt  time.Time
+	StickyKey        string
+	Conn             Conn
+	Capabilities     ServerCapabilities
+	callCount        int64
+	errorCount       int64
+	totalDurationNs  int64
+	lastCallUnixNano int64
 }
 
 // InstanceInfo provides a read-only snapshot of instance state for status queries
 type InstanceInfo struct {
-	ID         string
-	State      InstanceState
-	BusyCount  int
-	LastActive time.Time
+	ID              string
+	State           InstanceState
+	BusyCount       int
+	LastActive      time.Time
+	SpawnedAt       time.Time
+	HandshakedAt    time.Time
+	LastHeartbeatAt time.Time
 }
 
 // PoolInfo provides a read-only snapshot of a pool's state for status queries
@@ -129,6 +141,16 @@ type PoolInfo struct {
 	ServerName string
 	MinReady   int
 	Instances  []InstanceInfo
+	Metrics    PoolMetrics
+}
+
+type PoolMetrics struct {
+	StartCount    int
+	StopCount     int
+	TotalCalls    int64
+	TotalErrors   int64
+	TotalDuration time.Duration
+	LastCallAt    time.Time
 }
 
 type ServerInitState string

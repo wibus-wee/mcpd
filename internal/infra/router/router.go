@@ -92,7 +92,9 @@ func (r *BasicRouter) RouteWithOptions(ctx context.Context, serverType, specKey,
 	callCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
+	callStarted := time.Now()
 	resp, err := inst.Conn.Call(callCtx, payload)
+	inst.RecordCall(time.Since(callStarted), err)
 	if err != nil {
 		callErr := fmt.Errorf("call request: %w", err)
 		routeErr := domain.NewRouteError(domain.RouteStageCall, callErr)

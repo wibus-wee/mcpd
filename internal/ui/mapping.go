@@ -50,12 +50,25 @@ func mapRuntimeStatuses(pools []domain.PoolInfo) []ServerRuntimeStatus {
 func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 	instances := make([]InstanceStatus, 0, len(pool.Instances))
 	stats := PoolStats{}
+	metrics := PoolMetrics{
+		StartCount:      pool.Metrics.StartCount,
+		StopCount:       pool.Metrics.StopCount,
+		TotalCalls:      pool.Metrics.TotalCalls,
+		TotalErrors:     pool.Metrics.TotalErrors,
+		TotalDurationMs: pool.Metrics.TotalDuration.Milliseconds(),
+	}
+	if !pool.Metrics.LastCallAt.IsZero() {
+		metrics.LastCallAt = pool.Metrics.LastCallAt.UTC().Format(time.RFC3339Nano)
+	}
 	for _, inst := range pool.Instances {
 		instances = append(instances, InstanceStatus{
-			ID:         inst.ID,
-			State:      string(inst.State),
-			BusyCount:  inst.BusyCount,
-			LastActive: inst.LastActive.Format("2006-01-02T15:04:05Z07:00"),
+			ID:              inst.ID,
+			State:           string(inst.State),
+			BusyCount:       inst.BusyCount,
+			LastActive:      inst.LastActive.Format("2006-01-02T15:04:05Z07:00"),
+			SpawnedAt:       inst.SpawnedAt.Format("2006-01-02T15:04:05Z07:00"),
+			HandshakedAt:    inst.HandshakedAt.Format("2006-01-02T15:04:05Z07:00"),
+			LastHeartbeatAt: inst.LastHeartbeatAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 
 		stats.Total++
@@ -66,6 +79,10 @@ func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 			stats.Busy++
 		case domain.InstanceStateStarting:
 			stats.Starting++
+		case domain.InstanceStateInitializing:
+			stats.Initializing++
+		case domain.InstanceStateHandshaking:
+			stats.Handshaking++
 		case domain.InstanceStateDraining:
 			stats.Draining++
 		case domain.InstanceStateFailed:
@@ -78,6 +95,7 @@ func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 		ServerName: pool.ServerName,
 		Instances:  instances,
 		Stats:      stats,
+		Metrics:    metrics,
 	}
 }
 

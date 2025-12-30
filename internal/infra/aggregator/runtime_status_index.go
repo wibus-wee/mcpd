@@ -88,10 +88,13 @@ func (idx *RuntimeStatusIndex) Refresh(ctx context.Context) error {
 		instances := make([]domain.InstanceStatusInfo, 0, len(pool.Instances))
 		for _, inst := range pool.Instances {
 			instances = append(instances, domain.InstanceStatusInfo{
-				ID:         inst.ID,
-				State:      inst.State,
-				BusyCount:  inst.BusyCount,
-				LastActive: inst.LastActive,
+				ID:              inst.ID,
+				State:           inst.State,
+				BusyCount:       inst.BusyCount,
+				LastActive:      inst.LastActive,
+				SpawnedAt:       inst.SpawnedAt,
+				HandshakedAt:    inst.HandshakedAt,
+				LastHeartbeatAt: inst.LastHeartbeatAt,
 			})
 		}
 
@@ -106,6 +109,10 @@ func (idx *RuntimeStatusIndex) Refresh(ctx context.Context) error {
 				stats.Busy++
 			case domain.InstanceStateStarting:
 				stats.Starting++
+			case domain.InstanceStateInitializing:
+				stats.Initializing++
+			case domain.InstanceStateHandshaking:
+				stats.Handshaking++
 			case domain.InstanceStateDraining:
 				stats.Draining++
 			case domain.InstanceStateFailed:
@@ -118,6 +125,7 @@ func (idx *RuntimeStatusIndex) Refresh(ctx context.Context) error {
 			ServerName: pool.ServerName,
 			Instances:  instances,
 			Stats:      stats,
+			Metrics:    pool.Metrics,
 		})
 	}
 

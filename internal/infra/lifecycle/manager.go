@@ -66,6 +66,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 	}
 
 	started := time.Now()
+	var spawnedAt time.Time
 	m.logger.Info("instance start attempt",
 		telemetry.EventField(telemetry.EventStartAttempt),
 		telemetry.ServerTypeField(spec.Name),
@@ -107,6 +108,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		}
 		return nil, err
 	}
+	spawnedAt = time.Now()
 	if stop == nil {
 		stop = func(context.Context) error { return nil }
 	}
@@ -136,6 +138,17 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		return nil, err
 	}
 
+	instance := &domain.Instance{
+		ID:         m.generateInstanceID(spec),
+		Spec:       spec,
+		SpecKey:    specKey,
+		State:      domain.InstanceStateInitializing,
+		BusyCount:  0,
+		LastActive: time.Now(),
+		SpawnedAt:  spawnedAt,
+		Conn:       conn,
+	}
+
 	if spec.ProtocolVersion != domain.DefaultProtocolVersion {
 		err := fmt.Errorf("%w: %s", domain.ErrUnsupportedProtocol, spec.ProtocolVersion)
 		cancelStart()
@@ -150,6 +163,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		return nil, err
 	}
 
+	instance.State = domain.InstanceStateHandshaking
 	caps, err := m.initializeWithRetry(ctx, conn, spec)
 	if err != nil {
 		cancelStart()
@@ -163,20 +177,15 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		_ = stop(ctx)
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
-	if setter, ok := conn.(interface{ SetCapabilities(domain.ServerCapabilities) }); ok {
+	if setter, ok := conn.(interface {
+		SetCapabilities(domain.ServerCapabilities)
+	}); ok {
 		setter.SetCapabilities(caps)
 	}
-
-	instance := &domain.Instance{
-		ID:           m.generateInstanceID(spec),
-		Spec:         spec,
-		SpecKey:      specKey,
-		State:        domain.InstanceStateReady,
-		BusyCount:    0,
-		LastActive:   time.Now(),
-		Conn:         conn,
-		Capabilities: caps,
-	}
+	instance.State = domain.InstanceStateReady
+	instance.HandshakedAt = time.Now()
+	instance.LastHeartbeatAt = instance.HandshakedAt
+	instance.Capabilities = caps
 
 	m.mu.Lock()
 	m.conns[instance.ID] = conn

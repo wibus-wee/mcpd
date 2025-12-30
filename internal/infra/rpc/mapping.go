@@ -126,10 +126,13 @@ func toProtoRuntimeStatusSnapshot(snapshot domain.RuntimeStatusSnapshot) *contro
 func toProtoServerRuntimeStatus(s domain.ServerRuntimeStatus) *controlv1.ServerRuntimeStatus {
 	instances := mapping.MapSlice(s.Instances, func(inst domain.InstanceStatusInfo) *controlv1.InstanceStatus {
 		return &controlv1.InstanceStatus{
-			Id:                 inst.ID,
-			State:              string(inst.State),
-			BusyCount:          int32(inst.BusyCount),
-			LastActiveUnixNano: inst.LastActive.UnixNano(),
+			Id:                      inst.ID,
+			State:                   string(inst.State),
+			BusyCount:               int32(inst.BusyCount),
+			LastActiveUnixNano:      inst.LastActive.UnixNano(),
+			SpawnedAtUnixNano:       inst.SpawnedAt.UnixNano(),
+			HandshakedAtUnixNano:    inst.HandshakedAt.UnixNano(),
+			LastHeartbeatAtUnixNano: inst.LastHeartbeatAt.UnixNano(),
 		}
 	})
 	return &controlv1.ServerRuntimeStatus{
@@ -137,13 +140,29 @@ func toProtoServerRuntimeStatus(s domain.ServerRuntimeStatus) *controlv1.ServerR
 		ServerName: s.ServerName,
 		Instances:  instances,
 		Stats: &controlv1.PoolStats{
-			Total:    int32(s.Stats.Total),
-			Ready:    int32(s.Stats.Ready),
-			Busy:     int32(s.Stats.Busy),
-			Starting: int32(s.Stats.Starting),
-			Draining: int32(s.Stats.Draining),
-			Failed:   int32(s.Stats.Failed),
+			Total:        int32(s.Stats.Total),
+			Ready:        int32(s.Stats.Ready),
+			Busy:         int32(s.Stats.Busy),
+			Starting:     int32(s.Stats.Starting),
+			Draining:     int32(s.Stats.Draining),
+			Failed:       int32(s.Stats.Failed),
+			Initializing: int32(s.Stats.Initializing),
+			Handshaking:  int32(s.Stats.Handshaking),
 		},
+		Metrics: func() *controlv1.PoolMetrics {
+			lastCallAtUnixNano := int64(0)
+			if !s.Metrics.LastCallAt.IsZero() {
+				lastCallAtUnixNano = s.Metrics.LastCallAt.UnixNano()
+			}
+			return &controlv1.PoolMetrics{
+				StartCount:         int32(s.Metrics.StartCount),
+				StopCount:          int32(s.Metrics.StopCount),
+				TotalCalls:         s.Metrics.TotalCalls,
+				TotalErrors:        s.Metrics.TotalErrors,
+				TotalDurationMs:    s.Metrics.TotalDuration.Milliseconds(),
+				LastCallAtUnixNano: lastCallAtUnixNano,
+			}
+		}(),
 	}
 }
 

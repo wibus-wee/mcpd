@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCoreState } from '@/hooks/use-core-state'
 import { Spring } from '@/lib/spring'
+import { formatDuration } from '@/lib/time'
 
 import { usePrompts, useResources, useTools } from '../hooks'
 
@@ -77,23 +78,6 @@ export function StatusCards() {
     error: 'error' as const,
   }
 
-  const formatUptime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000)
-    if (totalSeconds <= 0) return '0s'
-
-    const seconds = totalSeconds % 60
-    const totalMinutes = Math.floor(totalSeconds / 60)
-    const minutes = totalMinutes % 60
-    const hours = Math.floor(totalMinutes / 60)
-    const days = Math.floor(hours / 24)
-    const remHours = hours % 24
-
-    if (totalSeconds < 60) return `${totalSeconds}s`
-    if (totalSeconds < 3600) return `${totalMinutes}m ${seconds}s`
-    if (totalSeconds < 86400) return `${hours}h ${minutes}m`
-    return `${days}d ${remHours}h`
-  }
-
   return (
     <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
       <m.div
@@ -144,7 +128,7 @@ export function StatusCards() {
               <Skeleton className="h-5 w-12" />
             ) : (
               <div className="text-lg font-semibold">
-                {coreState?.uptime ? formatUptime(coreState.uptime) : '--'}
+                {coreState?.uptime ? formatDuration(coreState.uptime) : '--'}
               </div>
             )}
           </CardContent>

@@ -133,24 +133,30 @@ type ServerRuntimeStatus struct {
 	ServerName string
 	Instances  []InstanceStatusInfo
 	Stats      PoolStats
+	Metrics    PoolMetrics
 }
 
 // InstanceStatusInfo represents the status of a single server instance
 type InstanceStatusInfo struct {
-	ID         string
-	State      InstanceState
-	BusyCount  int
-	LastActive time.Time
+	ID              string
+	State           InstanceState
+	BusyCount       int
+	LastActive      time.Time
+	SpawnedAt       time.Time
+	HandshakedAt    time.Time
+	LastHeartbeatAt time.Time
 }
 
 // PoolStats contains aggregated statistics for a server pool
 type PoolStats struct {
-	Total    int
-	Ready    int
-	Busy     int
-	Starting int
-	Draining int
-	Failed   int
+	Total        int
+	Ready        int
+	Busy         int
+	Starting     int
+	Initializing int
+	Handshaking  int
+	Draining     int
+	Failed       int
 }
 
 // ServerInitStatusSnapshot contains a snapshot of all server initialization statuses

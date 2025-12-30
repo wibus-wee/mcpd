@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -201,12 +202,25 @@ func emitRuntimeStatusUpdated(app *application.App, snapshot domain.RuntimeStatu
 	statuses := make([]ServerRuntimeStatus, 0, len(snapshot.Statuses))
 	for _, s := range snapshot.Statuses {
 		instances := make([]InstanceStatus, 0, len(s.Instances))
+		metrics := PoolMetrics{
+			StartCount:      s.Metrics.StartCount,
+			StopCount:       s.Metrics.StopCount,
+			TotalCalls:      s.Metrics.TotalCalls,
+			TotalErrors:     s.Metrics.TotalErrors,
+			TotalDurationMs: s.Metrics.TotalDuration.Milliseconds(),
+		}
+		if !s.Metrics.LastCallAt.IsZero() {
+			metrics.LastCallAt = s.Metrics.LastCallAt.UTC().Format(time.RFC3339Nano)
+		}
 		for _, inst := range s.Instances {
 			instances = append(instances, InstanceStatus{
-				ID:         inst.ID,
-				State:      string(inst.State),
-				BusyCount:  inst.BusyCount,
-				LastActive: inst.LastActive.Format("2006-01-02T15:04:05.000Z07:00"),
+				ID:              inst.ID,
+				State:           string(inst.State),
+				BusyCount:       inst.BusyCount,
+				LastActive:      inst.LastActive.Format("2006-01-02T15:04:05.000Z07:00"),
+				SpawnedAt:       inst.SpawnedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+				HandshakedAt:    inst.HandshakedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+				LastHeartbeatAt: inst.LastHeartbeatAt.Format("2006-01-02T15:04:05.000Z07:00"),
 			})
 		}
 		statuses = append(statuses, ServerRuntimeStatus{
@@ -214,13 +228,16 @@ func emitRuntimeStatusUpdated(app *application.App, snapshot domain.RuntimeStatu
 			ServerName: s.ServerName,
 			Instances:  instances,
 			Stats: PoolStats{
-				Total:    s.Stats.Total,
-				Ready:    s.Stats.Ready,
-				Busy:     s.Stats.Busy,
-				Starting: s.Stats.Starting,
-				Draining: s.Stats.Draining,
-				Failed:   s.Stats.Failed,
+				Total:        s.Stats.Total,
+				Ready:        s.Stats.Ready,
+				Busy:         s.Stats.Busy,
+				Starting:     s.Stats.Starting,
+				Initializing: s.Stats.Initializing,
+				Handshaking:  s.Stats.Handshaking,
+				Draining:     s.Stats.Draining,
+				Failed:       s.Stats.Failed,
 			},
+			Metrics: metrics,
 		})
 	}
 	event := RuntimeStatusUpdatedEvent{

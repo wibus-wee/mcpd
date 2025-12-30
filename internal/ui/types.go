@@ -215,24 +215,39 @@ type ServerRuntimeStatus struct {
 	ServerName string           `json:"serverName"`
 	Instances  []InstanceStatus `json:"instances"`
 	Stats      PoolStats        `json:"stats"`
+	Metrics    PoolMetrics      `json:"metrics"`
 }
 
 // InstanceStatus represents the status of a single server instance
 type InstanceStatus struct {
-	ID         string `json:"id"`
-	State      string `json:"state"`
-	BusyCount  int    `json:"busyCount"`
-	LastActive string `json:"lastActive"`
+	ID              string `json:"id"`
+	State           string `json:"state"`
+	BusyCount       int    `json:"busyCount"`
+	LastActive      string `json:"lastActive"`
+	SpawnedAt       string `json:"spawnedAt"`
+	HandshakedAt    string `json:"handshakedAt"`
+	LastHeartbeatAt string `json:"lastHeartbeatAt"`
 }
 
 // PoolStats contains aggregated statistics for a server pool
 type PoolStats struct {
-	Total    int `json:"total"`
-	Ready    int `json:"ready"`
-	Busy     int `json:"busy"`
-	Starting int `json:"starting"`
-	Draining int `json:"draining"`
-	Failed   int `json:"failed"`
+	Total        int `json:"total"`
+	Ready        int `json:"ready"`
+	Busy         int `json:"busy"`
+	Starting     int `json:"starting"`
+	Initializing int `json:"initializing"`
+	Handshaking  int `json:"handshaking"`
+	Draining     int `json:"draining"`
+	Failed       int `json:"failed"`
+}
+
+type PoolMetrics struct {
+	StartCount      int    `json:"startCount"`
+	StopCount       int    `json:"stopCount"`
+	TotalCalls      int64  `json:"totalCalls"`
+	TotalErrors     int64  `json:"totalErrors"`
+	TotalDurationMs int64  `json:"totalDurationMs"`
+	LastCallAt      string `json:"lastCallAt"`
 }
 
 // =============================================================================

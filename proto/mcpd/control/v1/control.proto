@@ -205,6 +205,7 @@ message ServerRuntimeStatus {
   string server_name = 2;
   repeated InstanceStatus instances = 3;
   PoolStats stats = 4;
+  PoolMetrics metrics = 5;
 }
 
 message InstanceStatus {
@@ -212,6 +213,9 @@ message InstanceStatus {
   string state = 2;
   int32 busy_count = 3;
   int64 last_active_unix_nano = 4;
+  int64 spawned_at_unix_nano = 5;
+  int64 handshaked_at_unix_nano = 6;
+  int64 last_heartbeat_at_unix_nano = 7;
 }
 
 message PoolStats {
@@ -221,6 +225,17 @@ message PoolStats {
   int32 starting = 4;
   int32 draining = 5;
   int32 failed = 6;
+  int32 initializing = 7;
+  int32 handshaking = 8;
+}
+
+message PoolMetrics {
+  int32 start_count = 1;
+  int32 stop_count = 2;
+  int64 total_calls = 3;
+  int64 total_errors = 4;
+  int64 total_duration_ms = 5;
+  int64 last_call_at_unix_nano = 6;
 }
 
 // =============================================================================

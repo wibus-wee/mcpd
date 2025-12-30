@@ -19,6 +19,7 @@ export {
     InstanceStatus,
     Manager,
     ObservabilityConfigDetail,
+    PoolMetrics,
     PoolStats,
     ProfileDetail,
     ProfileSubAgentConfigDetail,

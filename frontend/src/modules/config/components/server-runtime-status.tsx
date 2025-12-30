@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { formatDuration, formatLatency, getElapsedMs } from '@/lib/time'
 
 import { useRuntimeStatus, useServerInitStatus } from '../hooks'
 
@@ -16,6 +17,8 @@ const stateColors: Record<string, string> = {
   ready: 'bg-success',
   busy: 'bg-warning',
   starting: 'bg-info',
+  initializing: 'bg-info/80',
+  handshaking: 'bg-info/60',
   draining: 'bg-muted-foreground',
   stopped: 'bg-muted-foreground/50',
   failed: 'bg-destructive',
@@ -25,6 +28,8 @@ const stateLabels: Record<string, string> = {
   ready: 'Ready',
   busy: 'Busy',
   starting: 'Starting',
+  initializing: 'Initializing',
+  handshaking: 'Handshaking',
   draining: 'Draining',
   stopped: 'Stopped',
   failed: 'Failed',
@@ -82,6 +87,46 @@ export function ServerRuntimeIndicator({
 	)
 }
 
+interface ServerRuntimeSummaryProps {
+	specKey: string
+	className?: string
+}
+
+export function ServerRuntimeSummary({ specKey, className }: ServerRuntimeSummaryProps) {
+	const { data: runtimeStatus } = useRuntimeStatus()
+	const { data: initStatus } = useServerInitStatus()
+	const serverStatus = (runtimeStatus as ServerRuntimeStatus[] | undefined)?.find(
+		status => status.specKey === specKey,
+	)
+	const init = (initStatus as ServerInitStatus[] | undefined)?.find(
+		status => status.specKey === specKey,
+	)
+
+	if (!serverStatus && !init) {
+		return null
+	}
+
+	if (!serverStatus && init) {
+		return (
+			<div className={cn('space-y-2 text-xs text-muted-foreground', className)}>
+				<InitStatusLine status={init} />
+			</div>
+		)
+	}
+
+	if (!serverStatus) {
+		return null
+	}
+
+	return (
+		<ServerRuntimeDetails
+			status={serverStatus}
+			initStatus={init}
+			className={className}
+		/>
+	)
+}
+
 interface ServerRuntimeDetailsProps {
 	status: ServerRuntimeStatus
 	className?: string
@@ -94,6 +139,7 @@ export function ServerRuntimeDetails({
 	initStatus,
 }: ServerRuntimeDetailsProps) {
 	const { instances, stats } = status
+	const metrics = status.metrics
 	const initLine = initStatus ? <InitStatusLine status={initStatus} /> : null
 
 	if (instances.length === 0) {
@@ -105,9 +151,28 @@ export function ServerRuntimeDetails({
 		)
 	}
 
+	const uptimeMs = getOldestUptimeMs(instances)
+	const restartCount = Math.max(0, metrics.startCount - 1)
+	const avgResponseMs = metrics.totalCalls > 0
+		? metrics.totalDurationMs / metrics.totalCalls
+		: null
+	const lastCallAgeMs = getElapsedMs(metrics.lastCallAt)
+
 	return (
 		<div className={cn('space-y-2', className)}>
 			{initLine}
+			<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+				{uptimeMs !== null && (
+					<span>Up {formatDuration(uptimeMs)}</span>
+				)}
+				<span>Restarts {restartCount}</span>
+				<span>
+					Avg {avgResponseMs === null ? '--' : formatLatency(avgResponseMs)}
+				</span>
+				{lastCallAgeMs !== null && (
+					<span>Last call {formatDuration(lastCallAgeMs)} ago</span>
+				)}
+			</div>
 			<div className="flex items-center gap-3 text-xs">
 				<span className="text-muted-foreground">Instances:</span>
 				<div className="flex items-center gap-2">
@@ -129,6 +194,18 @@ export function ServerRuntimeDetails({
               <span>{stats.starting}</span>
             </span>
           )}
+					{stats.initializing > 0 && (
+						<span className="flex items-center gap-1">
+							<StateDot state="initializing" />
+							<span>{stats.initializing}</span>
+						</span>
+					)}
+					{stats.handshaking > 0 && (
+						<span className="flex items-center gap-1">
+							<StateDot state="handshaking" />
+							<span>{stats.handshaking}</span>
+						</span>
+					)}
           {stats.draining > 0 && (
             <span className="flex items-center gap-1">
               <StateDot state="draining" />
@@ -142,9 +219,23 @@ export function ServerRuntimeDetails({
             </span>
           )}
         </div>
-      </div>
-    </div>
-  )
+			</div>
+			<div className="space-y-1 text-xs text-muted-foreground">
+				{instances.map((inst) => (
+					<div key={inst.id} className="flex flex-wrap items-center gap-2">
+						<StateDot state={inst.state} />
+						<span
+							className="font-mono text-foreground/80"
+							title={inst.id}
+						>
+							{formatInstanceId(inst.id)}
+						</span>
+						{renderInstanceTimeline(inst)}
+					</div>
+				))}
+			</div>
+		</div>
+	)
 }
 
 export function RuntimeStatusLegend({ className }: { className?: string }) {
@@ -162,6 +253,14 @@ export function RuntimeStatusLegend({ className }: { className?: string }) {
         <StateDot state="starting" />
         <span className="text-muted-foreground">Starting</span>
       </span>
+			<span className="flex items-center gap-1">
+				<StateDot state="initializing" />
+				<span className="text-muted-foreground">Initializing</span>
+			</span>
+			<span className="flex items-center gap-1">
+				<StateDot state="handshaking" />
+				<span className="text-muted-foreground">Handshaking</span>
+			</span>
       <span className="flex items-center gap-1">
         <StateDot state="draining" />
         <span className="text-muted-foreground">Draining</span>
@@ -172,6 +271,75 @@ export function RuntimeStatusLegend({ className }: { className?: string }) {
       </span>
 		</div>
 	)
+}
+
+function getOldestUptimeMs(instances: ServerRuntimeStatus['instances']): number | null {
+	let oldestStartedAt: number | null = null
+	for (const inst of instances) {
+		const startedAt = getInstanceStartedAt(inst)
+		if (startedAt === null) {
+			continue
+		}
+		if (oldestStartedAt === null || startedAt < oldestStartedAt) {
+			oldestStartedAt = startedAt
+		}
+	}
+	if (oldestStartedAt === null) {
+		return null
+	}
+	return Math.max(0, Date.now() - oldestStartedAt)
+}
+
+function renderInstanceTimeline(inst: ServerRuntimeStatus['instances'][number]) {
+	const parts: string[] = []
+	const uptimeMs = getElapsedMs(inst.handshakedAt || inst.spawnedAt)
+	if (uptimeMs !== null) {
+		parts.push(`Up ${formatDuration(uptimeMs)}`)
+	}
+
+	const spawnedAt = parseTimestamp(inst.spawnedAt)
+	const handshakedAt = parseTimestamp(inst.handshakedAt)
+	if (spawnedAt !== null && handshakedAt !== null) {
+		const handshakeMs = Math.max(0, handshakedAt - spawnedAt)
+		parts.push(`Handshake ${formatLatency(handshakeMs)}`)
+	}
+
+	const heartbeatAgeMs = getElapsedMs(inst.lastHeartbeatAt)
+	if (heartbeatAgeMs !== null) {
+		parts.push(`Heartbeat ${formatDuration(heartbeatAgeMs)} ago`)
+	}
+
+	if (parts.length === 0) {
+		return null
+	}
+
+	return <span>{parts.join(' · ')}</span>
+}
+
+function getInstanceStartedAt(inst: ServerRuntimeStatus['instances'][number]) {
+	const handshakedAt = parseTimestamp(inst.handshakedAt)
+	if (handshakedAt !== null) {
+		return handshakedAt
+	}
+	return parseTimestamp(inst.spawnedAt)
+}
+
+function parseTimestamp(value: string) {
+	if (!value) {
+		return null
+	}
+	const parsed = Date.parse(value)
+	if (Number.isNaN(parsed)) {
+		return null
+	}
+	return parsed
+}
+
+function formatInstanceId(id: string) {
+	if (id.length <= 12) {
+		return id
+	}
+	return `${id.slice(0, 8)}...${id.slice(-3)}`
 }
 
 function InitStatusLine({ status }: { status: ServerInitStatus }) {

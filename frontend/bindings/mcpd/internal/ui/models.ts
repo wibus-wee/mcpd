@@ -304,6 +304,9 @@ export class InstanceStatus {
     "state": string;
     "busyCount": number;
     "lastActive": string;
+    "spawnedAt": string;
+    "handshakedAt": string;
+    "lastHeartbeatAt": string;
 
     /** Creates a new InstanceStatus instance. */
     constructor($$source: Partial<InstanceStatus> = {}) {
@@ -318,6 +321,15 @@ export class InstanceStatus {
         }
         if (!("lastActive" in $$source)) {
             this["lastActive"] = "";
+        }
+        if (!("spawnedAt" in $$source)) {
+            this["spawnedAt"] = "";
+        }
+        if (!("handshakedAt" in $$source)) {
+            this["handshakedAt"] = "";
+        }
+        if (!("lastHeartbeatAt" in $$source)) {
+            this["lastHeartbeatAt"] = "";
         }
 
         Object.assign(this, $$source);
@@ -376,6 +388,47 @@ export class ObservabilityConfigDetail {
     }
 }
 
+export class PoolMetrics {
+    "startCount": number;
+    "stopCount": number;
+    "totalCalls": number;
+    "totalErrors": number;
+    "totalDurationMs": number;
+    "lastCallAt": string;
+
+    /** Creates a new PoolMetrics instance. */
+    constructor($$source: Partial<PoolMetrics> = {}) {
+        if (!("startCount" in $$source)) {
+            this["startCount"] = 0;
+        }
+        if (!("stopCount" in $$source)) {
+            this["stopCount"] = 0;
+        }
+        if (!("totalCalls" in $$source)) {
+            this["totalCalls"] = 0;
+        }
+        if (!("totalErrors" in $$source)) {
+            this["totalErrors"] = 0;
+        }
+        if (!("totalDurationMs" in $$source)) {
+            this["totalDurationMs"] = 0;
+        }
+        if (!("lastCallAt" in $$source)) {
+            this["lastCallAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PoolMetrics instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PoolMetrics {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PoolMetrics($$parsedSource as Partial<PoolMetrics>);
+    }
+}
+
 /**
  * PoolStats contains aggregated statistics for a server pool
  */
@@ -384,6 +437,8 @@ export class PoolStats {
     "ready": number;
     "busy": number;
     "starting": number;
+    "initializing": number;
+    "handshaking": number;
     "draining": number;
     "failed": number;
 
@@ -400,6 +455,12 @@ export class PoolStats {
         }
         if (!("starting" in $$source)) {
             this["starting"] = 0;
+        }
+        if (!("initializing" in $$source)) {
+            this["initializing"] = 0;
+        }
+        if (!("handshaking" in $$source)) {
+            this["handshaking"] = 0;
         }
         if (!("draining" in $$source)) {
             this["draining"] = 0;
@@ -890,6 +951,7 @@ export class ServerRuntimeStatus {
     "serverName": string;
     "instances": InstanceStatus[];
     "stats": PoolStats;
+    "metrics": PoolMetrics;
 
     /** Creates a new ServerRuntimeStatus instance. */
     constructor($$source: Partial<ServerRuntimeStatus> = {}) {
@@ -905,6 +967,9 @@ export class ServerRuntimeStatus {
         if (!("stats" in $$source)) {
             this["stats"] = (new PoolStats());
         }
+        if (!("metrics" in $$source)) {
+            this["metrics"] = (new PoolMetrics());
+        }
 
         Object.assign(this, $$source);
     }
@@ -915,12 +980,16 @@ export class ServerRuntimeStatus {
     static createFrom($$source: any = {}): ServerRuntimeStatus {
         const $$createField2_0 = $$createType16;
         const $$createField3_0 = $$createType17;
+        const $$createField4_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("instances" in $$parsedSource) {
             $$parsedSource["instances"] = $$createField2_0($$parsedSource["instances"]);
         }
         if ("stats" in $$parsedSource) {
             $$parsedSource["stats"] = $$createField3_0($$parsedSource["stats"]);
+        }
+        if ("metrics" in $$parsedSource) {
+            $$parsedSource["metrics"] = $$createField4_0($$parsedSource["metrics"]);
         }
         return new ServerRuntimeStatus($$parsedSource as Partial<ServerRuntimeStatus>);
     }
@@ -1225,3 +1294,4 @@ const $$createType14 = RPCConfigDetail.createFrom;
 const $$createType15 = InstanceStatus.createFrom;
 const $$createType16 = $Create.Array($$createType15);
 const $$createType17 = PoolStats.createFrom;
+const $$createType18 = PoolMetrics.createFrom;

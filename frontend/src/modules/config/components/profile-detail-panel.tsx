@@ -59,7 +59,7 @@ import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
 
 import { useConfigMode, useProfile, useProfiles } from '../hooks'
-import { ServerRuntimeIndicator } from './server-runtime-status'
+import { ServerRuntimeIndicator, ServerRuntimeSummary } from './server-runtime-status'
 
 interface ProfileDetailPanelProps {
   profileName: string | null
@@ -324,6 +324,11 @@ function ServerItem({
               </AlertDialogContent>
             </AlertDialog>
           </div>
+
+          <ServerRuntimeSummary
+            specKey={specKey}
+            className="rounded-lg border bg-muted/10 px-2.5 py-2"
+          />
 
           {/* Command */}
           <div>

@@ -63,6 +63,8 @@ type poolState struct {
 	specKey     string
 	minReady    int
 	starting    int
+	startCount  int
+	stopCount   int
 	startCh     chan struct{}
 	startCancel context.CancelFunc
 	generation  uint64
@@ -151,6 +153,9 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		startCancel := state.startCancel
 		state.startCancel = nil
 		state.starting--
+		if err == nil {
+			state.startCount++
+		}
 		if err != nil {
 			state.mu.Unlock()
 			if waitCh != nil {
@@ -173,6 +178,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			}
 			stopErr := s.lifecycle.StopInstance(context.Background(), newInst, "start superseded")
 			s.observeInstanceStop(state.spec.Name, stopErr)
+			s.recordInstanceStop(state)
 			return nil, ErrNoCapacity
 		}
 		state.instances = append(state.instances, tracked)
@@ -277,17 +283,22 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 		state.mu.Lock()
 		state.starting--
 		if err == nil {
+			state.startCount++
+		}
+		if err == nil {
 			inst.SpecKey = specKey
 			if state.generation != startGen {
 				state.mu.Unlock()
 				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "start superseded")
 				s.observeInstanceStop(state.spec.Name, stopErr)
+				s.recordInstanceStop(state)
 				continue
 			}
 			if state.minReady == 0 {
 				state.mu.Unlock()
 				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "min ready dropped")
 				s.observeInstanceStop(state.spec.Name, stopErr)
+				s.recordInstanceStop(state)
 				continue
 			}
 			state.instances = append(state.instances, &trackedInstance{instance: inst})
@@ -340,6 +351,7 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 	for _, inst := range immediate {
 		err := s.lifecycle.StopInstance(ctx, inst.instance, reason)
 		s.observeInstanceStop(spec.Name, err)
+		s.recordInstanceStop(state)
 	}
 
 	drainTimeout := time.Duration(spec.DrainTimeoutSeconds) * time.Second
@@ -599,6 +611,7 @@ func (s *BasicScheduler) reapIdle() {
 	for _, candidate := range candidates {
 		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
+		s.recordInstanceStop(candidate.state)
 		candidate.state.mu.Lock()
 		candidate.state.removeInstanceLocked(candidate.inst)
 		candidate.state.mu.Unlock()
@@ -640,7 +653,12 @@ func (s *BasicScheduler) probeInstances() {
 				zap.Error(err),
 			)
 			candidates = append(candidates, candidate)
+			continue
 		}
+
+		candidate.state.mu.Lock()
+		candidate.inst.instance.LastHeartbeatAt = time.Now()
+		candidate.state.mu.Unlock()
 	}
 
 	for _, candidate := range candidates {
@@ -650,6 +668,7 @@ func (s *BasicScheduler) probeInstances() {
 
 		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
+		s.recordInstanceStop(candidate.state)
 		candidate.state.mu.Lock()
 		candidate.state.removeInstanceLocked(candidate.inst)
 		candidate.state.mu.Unlock()
@@ -688,6 +707,7 @@ func (s *BasicScheduler) StopAll(ctx context.Context) {
 	for _, candidate := range candidates {
 		err := s.lifecycle.StopInstance(ctx, candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
+		s.recordInstanceStop(candidate.state)
 	}
 
 	for _, entry := range entries {
@@ -706,25 +726,49 @@ func (s *BasicScheduler) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, 
 	for _, entry := range entries {
 		entry.state.mu.Lock()
 		instances := make([]domain.InstanceInfo, 0, len(entry.state.instances)+len(entry.state.draining))
+		metrics := domain.PoolMetrics{
+			StartCount: entry.state.startCount,
+			StopCount:  entry.state.stopCount,
+		}
 
 		// Include active instances
 		for _, inst := range entry.state.instances {
 			instances = append(instances, domain.InstanceInfo{
-				ID:         inst.instance.ID,
-				State:      inst.instance.State,
-				BusyCount:  inst.instance.BusyCount,
-				LastActive: inst.instance.LastActive,
+				ID:              inst.instance.ID,
+				State:           inst.instance.State,
+				BusyCount:       inst.instance.BusyCount,
+				LastActive:      inst.instance.LastActive,
+				SpawnedAt:       inst.instance.SpawnedAt,
+				HandshakedAt:    inst.instance.HandshakedAt,
+				LastHeartbeatAt: inst.instance.LastHeartbeatAt,
 			})
+			stats := inst.instance.CallStats()
+			metrics.TotalCalls += stats.TotalCalls
+			metrics.TotalErrors += stats.TotalErrors
+			metrics.TotalDuration += stats.TotalDuration
+			if stats.LastCallAt.After(metrics.LastCallAt) {
+				metrics.LastCallAt = stats.LastCallAt
+			}
 		}
 
 		// Include draining instances
 		for _, inst := range entry.state.draining {
 			instances = append(instances, domain.InstanceInfo{
-				ID:         inst.instance.ID,
-				State:      inst.instance.State,
-				BusyCount:  inst.instance.BusyCount,
-				LastActive: inst.instance.LastActive,
+				ID:              inst.instance.ID,
+				State:           inst.instance.State,
+				BusyCount:       inst.instance.BusyCount,
+				LastActive:      inst.instance.LastActive,
+				SpawnedAt:       inst.instance.SpawnedAt,
+				HandshakedAt:    inst.instance.HandshakedAt,
+				LastHeartbeatAt: inst.instance.LastHeartbeatAt,
 			})
+			stats := inst.instance.CallStats()
+			metrics.TotalCalls += stats.TotalCalls
+			metrics.TotalErrors += stats.TotalErrors
+			metrics.TotalDuration += stats.TotalDuration
+			if stats.LastCallAt.After(metrics.LastCallAt) {
+				metrics.LastCallAt = stats.LastCallAt
+			}
 		}
 
 		minReady := entry.state.minReady
@@ -736,6 +780,7 @@ func (s *BasicScheduler) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, 
 			ServerName: serverName,
 			MinReady:   minReady,
 			Instances:  instances,
+			Metrics:    metrics,
 		})
 	}
 
@@ -859,6 +904,7 @@ func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeo
 
 			err := s.lifecycle.StopInstance(context.Background(), inst.instance, finalReason)
 			s.observeInstanceStop(inst.instance.Spec.Name, err)
+			s.recordInstanceStop(state)
 		}()
 
 		state := s.getPool(specKey, inst.instance.Spec)
@@ -887,6 +933,12 @@ func (s *BasicScheduler) observeInstanceStop(serverType string, err error) {
 		return
 	}
 	s.metrics.ObserveInstanceStop(serverType, err)
+}
+
+func (s *BasicScheduler) recordInstanceStop(state *poolState) {
+	state.mu.Lock()
+	state.stopCount++
+	state.mu.Unlock()
 }
 
 func (s *BasicScheduler) observePoolStats(state *poolState) {
