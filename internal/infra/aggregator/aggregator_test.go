@@ -43,17 +43,15 @@ func TestToolIndex_SnapshotPrefixedTool(t *testing.T) {
 		ToolRefreshSeconds:    0,
 	}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
 	index.Start(ctx)
 	defer index.Stop()
 
 	snapshot := index.Snapshot()
 	require.Len(t, snapshot.Tools, 1)
 	require.Equal(t, "echo.echo", snapshot.Tools[0].Name)
-
-	var tool mcp.Tool
-	require.NoError(t, json.Unmarshal(snapshot.Tools[0].ToolJSON, &tool))
-	require.Equal(t, "echo.echo", tool.Name)
+	require.Equal(t, "echo input", snapshot.Tools[0].Description)
+	require.Equal(t, map[string]any{"type": "object"}, snapshot.Tools[0].InputSchema)
 
 	resultRaw, err := index.CallTool(ctx, "echo.echo", json.RawMessage(`{}`), "")
 	require.NoError(t, err)
@@ -88,7 +86,7 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
 	index.Start(ctx)
 	defer index.Stop()
 
@@ -99,7 +97,7 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 
 func TestToolIndex_CallToolNotFound(t *testing.T) {
 	ctx := context.Background()
-	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, zap.NewNop(), nil, nil)
+	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, zap.NewNop(), nil, nil, nil)
 
 	_, err := index.CallTool(ctx, "missing", nil, "")
 	require.ErrorIs(t, err, domain.ErrToolNotFound)
@@ -129,7 +127,7 @@ func TestToolIndex_RefreshConcurrentFetches(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
 
 	done := make(chan error, 1)
 	go func() {
@@ -191,7 +189,7 @@ func TestToolIndex_FlatNamespaceConflictsFailRefresh(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "flat"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
 
 	require.NoError(t, index.refresh(ctx))
 
@@ -205,7 +203,7 @@ func TestToolIndex_CallToolPropagatesRouteError(t *testing.T) {
 	ctx := context.Background()
 	index := NewToolIndex(&failingRouter{err: context.DeadlineExceeded}, nil, map[string]string{}, domain.RuntimeConfig{
 		ToolNamespaceStrategy: "prefix",
-	}, zap.NewNop(), nil, nil)
+	}, zap.NewNop(), nil, nil, nil)
 	index.index.state.Store(genericIndexState[domain.ToolSnapshot, domain.ToolTarget]{
 		snapshot: domain.ToolSnapshot{},
 		targets: map[string]domain.ToolTarget{
@@ -215,6 +213,33 @@ func TestToolIndex_CallToolPropagatesRouteError(t *testing.T) {
 
 	_, err := index.CallTool(ctx, "echo.echo", json.RawMessage(`{}`), "")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestToolIndex_RefreshFailureOpensCircuitBreaker(t *testing.T) {
+	ctx := context.Background()
+	router := &flakyRouter{
+		okTools: []*mcp.Tool{{Name: "echo", InputSchema: map[string]any{"type": "object"}}},
+	}
+	specs := map[string]domain.ServerSpec{
+		"echo": {Name: "echo"},
+	}
+	specKeys := map[string]string{
+		"echo": "spec-echo",
+	}
+	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
+
+	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	require.NoError(t, index.refresh(ctx))
+
+	snapshot := index.Snapshot()
+	require.Len(t, snapshot.Tools, 1)
+
+	for i := 0; i < domain.DefaultRefreshFailureThreshold; i++ {
+		_ = index.refresh(ctx)
+	}
+
+	snapshot = index.Snapshot()
+	require.Empty(t, snapshot.Tools)
 }
 
 type fakeRouter struct {
@@ -302,6 +327,34 @@ func (f *failingRouter) Route(ctx context.Context, serverType, specKey, routingK
 
 func (f *failingRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts domain.RouteOptions) (json.RawMessage, error) {
 	return f.Route(ctx, serverType, specKey, routingKey, payload)
+}
+
+type flakyRouter struct {
+	okTools []*mcp.Tool
+	calls   int
+}
+
+func (f *flakyRouter) Route(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage) (json.RawMessage, error) {
+	return f.RouteWithOptions(ctx, serverType, specKey, routingKey, payload, domain.RouteOptions{})
+}
+
+func (f *flakyRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts domain.RouteOptions) (json.RawMessage, error) {
+	msg, err := jsonrpc.DecodeMessage(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, ok := msg.(*jsonrpc.Request)
+	if !ok {
+		return nil, errors.New("invalid jsonrpc request")
+	}
+	if req.Method != "tools/list" {
+		return nil, nil
+	}
+	f.calls++
+	if f.calls > 1 {
+		return nil, errors.New("boom")
+	}
+	return encodeResponse(req.ID, &mcp.ListToolsResult{Tools: f.okTools})
 }
 
 func encodeResponse(id jsonrpc.ID, result any) (json.RawMessage, error) {

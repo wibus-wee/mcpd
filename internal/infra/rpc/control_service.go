@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/scheduler"
 	controlv1 "mcpd/pkg/api/control/v1"
 )
@@ -446,11 +447,13 @@ func (s *ControlService) IsSubAgentEnabled(ctx context.Context, req *controlv1.I
 
 // toProtoAutomaticMCPResponse converts domain.AutomaticMCPResult to proto response.
 func toProtoAutomaticMCPResponse(snapshot domain.AutomaticMCPResult) *controlv1.AutomaticMCPResponse {
-	tools := make([][]byte, len(snapshot.Tools))
-	for i, t := range snapshot.Tools {
-		raw := make([]byte, len(t))
-		copy(raw, t)
-		tools[i] = raw
+	tools := make([][]byte, 0, len(snapshot.Tools))
+	for _, tool := range snapshot.Tools {
+		raw := mcpcodec.MustMarshalToolDefinition(tool)
+		if len(raw) == 0 {
+			continue
+		}
+		tools = append(tools, raw)
 	}
 	return &controlv1.AutomaticMCPResponse{
 		Etag:           snapshot.ETag,

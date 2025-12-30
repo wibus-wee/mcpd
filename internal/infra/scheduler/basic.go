@@ -142,7 +142,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		state.mu.Unlock()
 
 		started := time.Now()
-		newInst, err := s.lifecycle.StartInstance(startCtx, state.spec)
+		newInst, err := s.lifecycle.StartInstance(startCtx, specKey, state.spec)
 		s.observeInstanceStart(specKey, started, err)
 
 		state.mu.Lock()
@@ -268,7 +268,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 		state.mu.Unlock()
 
 		started := time.Now()
-		inst, err := s.lifecycle.StartInstance(ctx, state.spec)
+		inst, err := s.lifecycle.StartInstance(ctx, specKey, state.spec)
 		s.observeInstanceStart(specKey, started, err)
 		state.mu.Lock()
 		state.starting--

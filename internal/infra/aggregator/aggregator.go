@@ -2,8 +2,6 @@ package aggregator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
 
@@ -27,6 +26,8 @@ type ToolIndex struct {
 	logger   *zap.Logger
 	health   *telemetry.HealthTracker
 	gate     *RefreshGate
+	listChanges listChangeSubscriber
+	specKeySet  map[string]struct{}
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ToolSnapshot, domain.ToolTarget, serverCache]
@@ -38,7 +39,7 @@ type serverCache struct {
 	etag    string
 }
 
-func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *ToolIndex {
+func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ToolIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -53,6 +54,8 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 		logger:   logger.Named("tool_index"),
 		health:   health,
 		gate:     gate,
+		listChanges: listChanges,
+		specKeySet:  specKeySet(specKeys),
 	}
 	toolIndex.index = NewGenericIndex(GenericIndexOptions[domain.ToolSnapshot, domain.ToolTarget, serverCache]{
 		Name:              "tool_index",
@@ -77,6 +80,7 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 
 func (a *ToolIndex) Start(ctx context.Context) {
 	a.index.Start(ctx)
+	a.startListChangeListener(ctx)
 }
 
 func (a *ToolIndex) Stop() {
@@ -124,6 +128,31 @@ func (a *ToolIndex) CallTool(ctx context.Context, name string, args json.RawMess
 
 func (a *ToolIndex) refresh(ctx context.Context) error {
 	return a.index.Refresh(ctx)
+}
+
+func (a *ToolIndex) startListChangeListener(ctx context.Context) {
+	if a.listChanges == nil || !a.cfg.ExposeTools {
+		return
+	}
+	ch := a.listChanges.Subscribe(ctx, domain.ListChangeTools)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+				if !listChangeApplies(a.specs, a.specKeySet, event) {
+					continue
+				}
+				if err := a.index.Refresh(ctx); err != nil {
+					a.logger.Warn("tool refresh after list change failed", zap.Error(err))
+				}
+			}
+		}
+	}()
 }
 
 func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnapshot, map[string]domain.ToolTarget) {
@@ -197,21 +226,8 @@ func (a *ToolIndex) resolveFlatConflict(name, serverType string, existing map[st
 }
 
 func renameToolDefinition(def domain.ToolDefinition, newName string) (domain.ToolDefinition, error) {
-	var obj map[string]any
-	if err := json.Unmarshal(def.ToolJSON, &obj); err != nil {
-		return def, err
-	}
-	obj["name"] = newName
-	raw, err := json.Marshal(obj)
-	if err != nil {
-		return def, err
-	}
-	return domain.ToolDefinition{
-		Name:       newName,
-		ToolJSON:   raw,
-		SpecKey:    def.SpecKey,
-		ServerName: def.ServerName,
-	}, nil
+	def.Name = newName
+	return def, nil
 }
 
 func (a *ToolIndex) refreshErrorDecision(_ string, err error) refreshErrorDecision {
@@ -266,18 +282,11 @@ func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spe
 		toolCopy := *tool
 		toolCopy.Name = name
 
-		raw, err := json.Marshal(&toolCopy)
-		if err != nil {
-			a.logger.Warn("marshal tool failed", zap.String("serverType", serverType), zap.String("tool", tool.Name), zap.Error(err))
-			continue
-		}
-
-		result = append(result, domain.ToolDefinition{
-			Name:       name,
-			ToolJSON:   raw,
-			SpecKey:    specKey,
-			ServerName: spec.Name,
-		})
+		def := mcpcodec.ToolFromMCP(&toolCopy)
+		def.Name = name
+		def.SpecKey = specKey
+		def.ServerName = spec.Name
+		result = append(result, def)
 		targets[name] = domain.ToolTarget{
 			ServerType: serverType,
 			SpecKey:    specKey,
@@ -488,30 +497,9 @@ func marshalToolResult(result *mcp.CallToolResult) (json.RawMessage, error) {
 }
 
 func hashTools(tools []domain.ToolDefinition) string {
-	hasher := sha256.New()
-	for _, tool := range tools {
-		_, _ = hasher.Write([]byte(tool.Name))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(tool.ToolJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashToolDefinitions(tools)
 }
 
 func copySnapshot(snapshot domain.ToolSnapshot) domain.ToolSnapshot {
-	out := domain.ToolSnapshot{
-		ETag:  snapshot.ETag,
-		Tools: make([]domain.ToolDefinition, 0, len(snapshot.Tools)),
-	}
-	for _, tool := range snapshot.Tools {
-		raw := make([]byte, len(tool.ToolJSON))
-		copy(raw, tool.ToolJSON)
-		out.Tools = append(out.Tools, domain.ToolDefinition{
-			Name:       tool.Name,
-			ToolJSON:   raw,
-			SpecKey:    tool.SpecKey,
-			ServerName: tool.ServerName,
-		})
-	}
-	return out
+	return domain.CloneToolSnapshot(snapshot)
 }

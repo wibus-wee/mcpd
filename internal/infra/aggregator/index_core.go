@@ -25,6 +25,7 @@ type GenericIndexOptions[Snapshot any, Target any, Cache any] struct {
 	LogLabel          string
 	FetchErrorMessage string
 	HeartbeatName     string
+	FailureThreshold  int
 	Specs             map[string]domain.ServerSpec
 	Config            domain.RuntimeConfig
 	Logger            *zap.Logger
@@ -63,6 +64,7 @@ type GenericIndex[Snapshot any, Target any, Cache any] struct {
 	fetch             func(ctx context.Context, serverType string, spec domain.ServerSpec) (Cache, error)
 	onRefreshError    func(serverType string, err error) refreshErrorDecision
 	shouldStart       func(cfg domain.RuntimeConfig) bool
+	failureThreshold  int
 
 	mu          sync.Mutex
 	started     bool
@@ -72,6 +74,7 @@ type GenericIndex[Snapshot any, Target any, Cache any] struct {
 	subs        map[chan Snapshot]struct{}
 	refreshBeat *telemetry.Heartbeat
 	state       atomic.Value
+	failures    map[string]int
 }
 
 func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptions[Snapshot, Target, Cache]) *GenericIndex[Snapshot, Target, Cache] {
@@ -86,6 +89,10 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 	heartbeatName := opts.HeartbeatName
 	if heartbeatName == "" {
 		heartbeatName = opts.Name + ".refresh"
+	}
+	failureThreshold := opts.FailureThreshold
+	if failureThreshold <= 0 {
+		failureThreshold = domain.DefaultRefreshFailureThreshold
 	}
 	g := &GenericIndex[Snapshot, Target, Cache]{
 		name:              opts.Name,
@@ -105,8 +112,10 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 		fetch:             opts.Fetch,
 		onRefreshError:    opts.OnRefreshError,
 		shouldStart:       shouldStart,
+		failureThreshold:  failureThreshold,
 		stop:              make(chan struct{}),
 		serverCache:       make(map[string]Cache),
+		failures:          make(map[string]int),
 		subs:              make(map[chan Snapshot]struct{}),
 	}
 	g.state.Store(genericIndexState[Snapshot, Target]{
@@ -298,13 +307,28 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 				continue
 			case refreshErrorDropCache:
 				g.deleteCache(res.serverType)
+				g.resetFailure(res.serverType)
 				changed = true
 				continue
 			default:
+				failures := g.recordFailure(res.serverType)
+				if g.failureThreshold > 0 && failures >= g.failureThreshold {
+					if failures == g.failureThreshold {
+						g.logger.Warn(g.fetchErrorMessage+" (circuit breaker open)",
+							zap.String("serverType", res.serverType),
+							zap.Int("consecutiveFailures", failures),
+							zap.Error(res.err),
+						)
+					}
+					g.deleteCache(res.serverType)
+					changed = true
+					continue
+				}
 				g.logger.Warn(g.fetchErrorMessage, zap.String("serverType", res.serverType), zap.Error(res.err))
 				continue
 			}
 		}
+		g.resetFailure(res.serverType)
 
 		cacheChanged := true
 		if g.cacheETag != nil {
@@ -331,6 +355,19 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 func (g *GenericIndex[Snapshot, Target, Cache]) deleteCache(serverType string) {
 	g.mu.Lock()
 	delete(g.serverCache, serverType)
+	g.mu.Unlock()
+}
+
+func (g *GenericIndex[Snapshot, Target, Cache]) recordFailure(serverType string) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.failures[serverType]++
+	return g.failures[serverType]
+}
+
+func (g *GenericIndex[Snapshot, Target, Cache]) resetFailure(serverType string) {
+	g.mu.Lock()
+	delete(g.failures, serverType)
 	g.mu.Unlock()
 }
 

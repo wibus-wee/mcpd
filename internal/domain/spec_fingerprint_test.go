@@ -48,15 +48,15 @@ func TestSpecFingerprint_DifferentSpec(t *testing.T) {
 	require.NotEqual(t, baseKey, changedKey)
 }
 
-func TestSpecFingerprint_DrainTimeoutAffectsFingerprint(t *testing.T) {
+func TestSpecFingerprint_CwdAffectsFingerprint(t *testing.T) {
 	base := ServerSpec{
-		Name:                "svc",
-		Cmd:                 []string{"./svc"},
-		DrainTimeoutSeconds: 5,
-		ProtocolVersion:     DefaultProtocolVersion,
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		Cwd:             "/tmp/a",
+		ProtocolVersion: DefaultProtocolVersion,
 	}
 	changed := base
-	changed.DrainTimeoutSeconds = 10
+	changed.Cwd = "/tmp/b"
 
 	baseKey, err := SpecFingerprint(base)
 	require.NoError(t, err)
@@ -86,17 +86,17 @@ func TestSpecFingerprint_EnvOrderIndependent(t *testing.T) {
 	require.Equal(t, keyA, keyB)
 }
 
-func TestSpecFingerprint_ExposeToolsOrderIndependent(t *testing.T) {
+func TestSpecFingerprint_EnvChangeAffectsFingerprint(t *testing.T) {
 	specA := ServerSpec{
 		Name:            "svc",
 		Cmd:             []string{"./svc"},
-		ExposeTools:     []string{"tool-b", "tool-a"},
+		Env:             map[string]string{"A": "1"},
 		ProtocolVersion: DefaultProtocolVersion,
 	}
 	specB := ServerSpec{
 		Name:            "svc",
 		Cmd:             []string{"./svc"},
-		ExposeTools:     []string{"tool-a", "tool-b"},
+		Env:             map[string]string{"A": "2"},
 		ProtocolVersion: DefaultProtocolVersion,
 	}
 
@@ -104,22 +104,46 @@ func TestSpecFingerprint_ExposeToolsOrderIndependent(t *testing.T) {
 	require.NoError(t, err)
 	keyB, err := SpecFingerprint(specB)
 	require.NoError(t, err)
-	require.Equal(t, keyA, keyB)
+	require.NotEqual(t, keyA, keyB)
 }
 
-func TestSpecFingerprint_EmptySlicesStable(t *testing.T) {
+func TestSpecFingerprint_IgnoresSchedulerFields(t *testing.T) {
+	base := ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		Env:             map[string]string{"A": "1"},
+		ProtocolVersion: DefaultProtocolVersion,
+		IdleSeconds:     10,
+		MaxConcurrent:   1,
+		MinReady:        1,
+		ExposeTools:     []string{"tool-a"},
+		DrainTimeoutSeconds: 5,
+	}
+	changed := base
+	changed.IdleSeconds = 20
+	changed.MaxConcurrent = 2
+	changed.MinReady = 3
+	changed.ExposeTools = []string{"tool-b"}
+	changed.DrainTimeoutSeconds = 15
+
+	baseKey, err := SpecFingerprint(base)
+	require.NoError(t, err)
+	changedKey, err := SpecFingerprint(changed)
+	require.NoError(t, err)
+	require.Equal(t, baseKey, changedKey)
+}
+
+func TestSpecFingerprint_EmptyEnvStable(t *testing.T) {
 	specA := ServerSpec{
 		Name:            "svc",
 		Cmd:             []string{"./svc"},
 		Env:             nil,
-		ExposeTools:     nil,
 		ProtocolVersion: DefaultProtocolVersion,
 	}
 	specB := ServerSpec{
 		Name:            "svc",
 		Cmd:             []string{"./svc"},
 		Env:             map[string]string{},
-		ExposeTools:     []string{},
 		ProtocolVersion: DefaultProtocolVersion,
 	}
 

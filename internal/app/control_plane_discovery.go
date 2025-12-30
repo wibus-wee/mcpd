@@ -2,13 +2,12 @@ package app
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"sort"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 type discoveryService struct {
@@ -401,36 +400,15 @@ func indexAfterPromptCursor(prompts []domain.PromptDefinition, cursor string) in
 }
 
 func hashTools(tools []domain.ToolDefinition) string {
-	hasher := sha256.New()
-	for _, tool := range tools {
-		_, _ = hasher.Write([]byte(tool.Name))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(tool.ToolJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashToolDefinitions(tools)
 }
 
 func hashResources(resources []domain.ResourceDefinition) string {
-	hasher := sha256.New()
-	for _, resource := range resources {
-		_, _ = hasher.Write([]byte(resource.URI))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(resource.ResourceJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashResourceDefinitions(resources)
 }
 
 func hashPrompts(prompts []domain.PromptDefinition) string {
-	hasher := sha256.New()
-	for _, prompt := range prompts {
-		_, _ = hasher.Write([]byte(prompt.Name))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(prompt.PromptJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashPromptDefinitions(prompts)
 }
 
 func closedToolSnapshotChannel() chan domain.ToolSnapshot {

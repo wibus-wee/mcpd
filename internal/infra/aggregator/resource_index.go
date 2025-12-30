@@ -2,8 +2,6 @@ package aggregator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
 
@@ -24,6 +23,8 @@ type ResourceIndex struct {
 	logger   *zap.Logger
 	health   *telemetry.HealthTracker
 	gate     *RefreshGate
+	listChanges listChangeSubscriber
+	specKeySet  map[string]struct{}
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]
@@ -35,7 +36,7 @@ type resourceCache struct {
 	etag      string
 }
 
-func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *ResourceIndex {
+func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ResourceIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -50,6 +51,8 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 		logger:   logger.Named("resource_index"),
 		health:   health,
 		gate:     gate,
+		listChanges: listChanges,
+		specKeySet:  specKeySet(specKeys),
 	}
 	resourceIndex.index = NewGenericIndex(GenericIndexOptions[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]{
 		Name:              "resource_index",
@@ -74,6 +77,7 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 
 func (a *ResourceIndex) Start(ctx context.Context) {
 	a.index.Start(ctx)
+	a.startListChangeListener(ctx)
 }
 
 func (a *ResourceIndex) Stop() {
@@ -116,6 +120,31 @@ func (a *ResourceIndex) ReadResource(ctx context.Context, uri string) (json.RawM
 		return nil, err
 	}
 	return marshalReadResourceResult(result)
+}
+
+func (a *ResourceIndex) startListChangeListener(ctx context.Context) {
+	if a.listChanges == nil {
+		return
+	}
+	ch := a.listChanges.Subscribe(ctx, domain.ListChangeResources)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+				if !listChangeApplies(a.specs, a.specKeySet, event) {
+					continue
+				}
+				if err := a.index.Refresh(ctx); err != nil {
+					a.logger.Warn("resource refresh after list change failed", zap.Error(err))
+				}
+			}
+		}
+	}()
 }
 
 func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.ResourceSnapshot, map[string]domain.ResourceTarget) {
@@ -186,15 +215,8 @@ func (a *ResourceIndex) fetchServerResources(ctx context.Context, serverType str
 			continue
 		}
 		resourceCopy := *resource
-		raw, err := json.Marshal(&resourceCopy)
-		if err != nil {
-			a.logger.Warn("marshal resource failed", zap.String("serverType", serverType), zap.String("uri", resource.URI), zap.Error(err))
-			continue
-		}
-		result = append(result, domain.ResourceDefinition{
-			URI:          resource.URI,
-			ResourceJSON: raw,
-		})
+		def := mcpcodec.ResourceFromMCP(&resourceCopy)
+		result = append(result, def)
 		targets[resource.URI] = domain.ResourceTarget{
 			ServerType: serverType,
 			SpecKey:    specKey,
@@ -287,28 +309,9 @@ func marshalReadResourceResult(result *mcp.ReadResourceResult) (json.RawMessage,
 }
 
 func hashResources(resources []domain.ResourceDefinition) string {
-	hasher := sha256.New()
-	for _, resource := range resources {
-		_, _ = hasher.Write([]byte(resource.URI))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(resource.ResourceJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashResourceDefinitions(resources)
 }
 
 func copyResourceSnapshot(snapshot domain.ResourceSnapshot) domain.ResourceSnapshot {
-	out := domain.ResourceSnapshot{
-		ETag:      snapshot.ETag,
-		Resources: make([]domain.ResourceDefinition, 0, len(snapshot.Resources)),
-	}
-	for _, resource := range snapshot.Resources {
-		raw := make([]byte, len(resource.ResourceJSON))
-		copy(raw, resource.ResourceJSON)
-		out.Resources = append(out.Resources, domain.ResourceDefinition{
-			URI:          resource.URI,
-			ResourceJSON: raw,
-		})
-	}
-	return out
+	return domain.CloneResourceSnapshot(snapshot)
 }

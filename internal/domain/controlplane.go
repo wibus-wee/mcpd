@@ -13,10 +13,15 @@ type ControlPlaneInfo struct {
 }
 
 type ToolDefinition struct {
-	Name       string
-	ToolJSON   json.RawMessage
-	SpecKey    string
-	ServerName string
+	Name         string
+	Description  string
+	InputSchema  any
+	OutputSchema any
+	Title        string
+	Annotations  *ToolAnnotations
+	Meta         Meta
+	SpecKey      string
+	ServerName   string
 }
 
 type ToolSnapshot struct {
@@ -31,8 +36,14 @@ type ToolTarget struct {
 }
 
 type ResourceDefinition struct {
-	URI          string
-	ResourceJSON json.RawMessage
+	URI         string
+	Name        string
+	Title       string
+	Description string
+	MIMEType    string
+	Size        int64
+	Annotations *Annotations
+	Meta        Meta
 }
 
 type ResourceSnapshot struct {
@@ -52,8 +63,11 @@ type ResourcePage struct {
 }
 
 type PromptDefinition struct {
-	Name       string
-	PromptJSON json.RawMessage
+	Name        string
+	Title       string
+	Description string
+	Arguments   []PromptArgument
+	Meta        Meta
 }
 
 type PromptSnapshot struct {
@@ -89,7 +103,7 @@ type LogEntry struct {
 	Logger    string
 	Level     LogLevel
 	Timestamp time.Time
-	DataJSON  json.RawMessage
+	Data      map[string]any
 }
 
 // ActiveCaller represents a registered caller in the control plane.

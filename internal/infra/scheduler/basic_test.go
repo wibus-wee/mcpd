@@ -423,7 +423,7 @@ type fakeLifecycle struct {
 	counter int
 }
 
-func (f *fakeLifecycle) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+func (f *fakeLifecycle) StartInstance(ctx context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
 	f.counter++
 	return &domain.Instance{
 		ID:         spec.Name + "-inst",
@@ -457,7 +457,7 @@ type blockingLifecycle struct {
 	stopped int
 }
 
-func (b *blockingLifecycle) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+func (b *blockingLifecycle) StartInstance(ctx context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
 	b.mu.Lock()
 	b.count++
 	b.mu.Unlock()
@@ -502,7 +502,7 @@ type trackingLifecycle struct {
 	stopOnce sync.Once
 }
 
-func (t *trackingLifecycle) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+func (t *trackingLifecycle) StartInstance(ctx context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
 	return &domain.Instance{
 		ID:         spec.Name + "-inst",
 		Spec:       spec,

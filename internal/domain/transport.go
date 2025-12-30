@@ -3,16 +3,25 @@ package domain
 import (
 	"context"
 	"encoding/json"
+	"io"
 )
 
+type IOStreams struct {
+	Reader io.ReadCloser
+	Writer io.WriteCloser
+}
+
 type Conn interface {
-	Send(ctx context.Context, msg json.RawMessage) error
-	Recv(ctx context.Context) (json.RawMessage, error)
+	Call(ctx context.Context, payload json.RawMessage) (json.RawMessage, error)
 	Close() error
 }
 
 type StopFn func(ctx context.Context) error
 
+type Launcher interface {
+	Start(ctx context.Context, specKey string, spec ServerSpec) (IOStreams, StopFn, error)
+}
+
 type Transport interface {
-	Start(ctx context.Context, spec ServerSpec) (Conn, StopFn, error)
+	Connect(ctx context.Context, specKey string, spec ServerSpec, streams IOStreams) (Conn, error)
 }

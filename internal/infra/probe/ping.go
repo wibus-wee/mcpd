@@ -49,13 +49,9 @@ func (p *PingProbe) Ping(ctx context.Context, conn domain.Conn) error {
 		return fmt.Errorf("encode ping: %w", err)
 	}
 
-	if err := conn.Send(pingCtx, wire); err != nil {
-		return fmt.Errorf("send ping: %w", err)
-	}
-
-	rawResp, err := conn.Recv(pingCtx)
+	rawResp, err := conn.Call(pingCtx, wire)
 	if err != nil {
-		return fmt.Errorf("recv ping: %w", err)
+		return fmt.Errorf("call ping: %w", err)
 	}
 
 	respMsg, err := jsonrpc.DecodeMessage(rawResp)

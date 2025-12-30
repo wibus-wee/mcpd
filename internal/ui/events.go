@@ -6,6 +6,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 // Event name constants for Wails event emission
@@ -108,7 +109,7 @@ func emitToolsUpdated(app *application.App, snapshot domain.ToolSnapshot) {
 	for _, t := range snapshot.Tools {
 		tools = append(tools, ToolEntry{
 			Name:       t.Name,
-			ToolJSON:   t.ToolJSON,
+			ToolJSON:   mcpcodec.MustMarshalToolDefinition(t),
 			SpecKey:    t.SpecKey,
 			ServerName: t.ServerName,
 		})
@@ -128,7 +129,7 @@ func emitResourcesUpdated(app *application.App, snapshot domain.ResourceSnapshot
 	for _, r := range snapshot.Resources {
 		resources = append(resources, ResourceEntry{
 			URI:          r.URI,
-			ResourceJSON: r.ResourceJSON,
+			ResourceJSON: mcpcodec.MustMarshalResourceDefinition(r),
 		})
 	}
 	event := ResourcesUpdatedEvent{
@@ -146,7 +147,7 @@ func emitPromptsUpdated(app *application.App, snapshot domain.PromptSnapshot) {
 	for _, p := range snapshot.Prompts {
 		prompts = append(prompts, PromptEntry{
 			Name:       p.Name,
-			PromptJSON: p.PromptJSON,
+			PromptJSON: mcpcodec.MustMarshalPromptDefinition(p),
 		})
 	}
 	event := PromptsUpdatedEvent{
@@ -160,13 +161,25 @@ func emitLogEntry(app *application.App, entry domain.LogEntry) {
 	if app == nil {
 		return
 	}
+	data := mustMarshalLogData(entry.Data)
 	event := LogEntryEvent{
 		Logger:    entry.Logger,
 		Level:     string(entry.Level),
 		Timestamp: entry.Timestamp.Format("2006-01-02T15:04:05.000Z07:00"),
-		Data:      entry.DataJSON,
+		Data:      data,
 	}
 	app.Event.Emit(EventLogEntry, event)
+}
+
+func mustMarshalLogData(data map[string]any) json.RawMessage {
+	if len(data) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 func emitError(app *application.App, code, message, details string) {

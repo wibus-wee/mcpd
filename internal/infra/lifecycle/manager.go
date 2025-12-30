@@ -18,6 +18,7 @@ import (
 )
 
 type Manager struct {
+	launcher  domain.Launcher
 	transport domain.Transport
 	logger    *zap.Logger
 	ctx       context.Context
@@ -32,9 +33,12 @@ const (
 	initializeRetryDelay = 500 * time.Millisecond
 )
 
-func NewManager(ctx context.Context, transport domain.Transport, logger *zap.Logger) *Manager {
+func NewManager(ctx context.Context, launcher domain.Launcher, transport domain.Transport, logger *zap.Logger) *Manager {
 	if transport == nil {
 		panic("lifecycle.Manager requires a transport")
+	}
+	if launcher == nil {
+		panic("lifecycle.Manager requires a launcher")
 	}
 	if logger == nil {
 		logger = zap.NewNop()
@@ -43,6 +47,7 @@ func NewManager(ctx context.Context, transport domain.Transport, logger *zap.Log
 		ctx = context.Background()
 	}
 	return &Manager{
+		launcher:  launcher,
 		transport: transport,
 		conns:     make(map[string]domain.Conn),
 		stops:     make(map[string]domain.StopFn),
@@ -51,7 +56,7 @@ func NewManager(ctx context.Context, transport domain.Transport, logger *zap.Log
 	}
 }
 
-func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
 	baseCtx := m.ctx
 	if baseCtx == nil {
 		baseCtx = context.Background()
@@ -76,7 +81,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 		}
 	}()
 
-	conn, stop, err := m.transport.Start(startCtx, spec)
+	streams, stop, err := m.launcher.Start(startCtx, specKey, spec)
 	close(startDone)
 	if err != nil {
 		cancelStart()
@@ -86,7 +91,37 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 			telemetry.DurationField(time.Since(started)),
 			zap.Error(err),
 		)
-		return nil, fmt.Errorf("start transport: %w", err)
+		return nil, fmt.Errorf("start launcher: %w", err)
+	}
+	if streams.Reader == nil || streams.Writer == nil {
+		err := errors.New("launcher returned nil streams")
+		cancelStart()
+		m.logger.Error("instance start failed",
+			telemetry.EventField(telemetry.EventStartFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
+		if stop != nil {
+			_ = stop(ctx)
+		}
+		return nil, err
+	}
+	if stop == nil {
+		stop = func(context.Context) error { return nil }
+	}
+
+	conn, err := m.transport.Connect(startCtx, specKey, spec, streams)
+	if err != nil {
+		cancelStart()
+		m.logger.Error("instance connect failed",
+			telemetry.EventField(telemetry.EventStartFailure),
+			telemetry.ServerTypeField(spec.Name),
+			telemetry.DurationField(time.Since(started)),
+			zap.Error(err),
+		)
+		_ = stop(ctx)
+		return nil, fmt.Errorf("connect transport: %w", err)
 	}
 	if conn == nil {
 		err := errors.New("transport returned nil connection")
@@ -97,10 +132,8 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 			telemetry.DurationField(time.Since(started)),
 			zap.Error(err),
 		)
+		_ = stop(ctx)
 		return nil, err
-	}
-	if stop == nil {
-		stop = func(context.Context) error { return nil }
 	}
 
 	if spec.ProtocolVersion != domain.DefaultProtocolVersion {
@@ -130,10 +163,14 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 		_ = stop(ctx)
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
+	if setter, ok := conn.(interface{ SetCapabilities(domain.ServerCapabilities) }); ok {
+		setter.SetCapabilities(caps)
+	}
 
 	instance := &domain.Instance{
 		ID:           m.generateInstanceID(spec),
 		Spec:         spec,
+		SpecKey:      specKey,
 		State:        domain.InstanceStateReady,
 		BusyCount:    0,
 		LastActive:   time.Now(),
@@ -218,13 +255,9 @@ func (m *Manager) initialize(ctx context.Context, conn domain.Conn) (domain.Serv
 		return domain.ServerCapabilities{}, fmt.Errorf("encode initialize: %w", err)
 	}
 
-	if err := conn.Send(pingCtx, wire); err != nil {
-		return domain.ServerCapabilities{}, fmt.Errorf("send initialize: %w", err)
-	}
-
-	rawResp, err := conn.Recv(pingCtx)
+	rawResp, err := conn.Call(pingCtx, wire)
 	if err != nil {
-		return domain.ServerCapabilities{}, fmt.Errorf("recv initialize: %w", err)
+		return domain.ServerCapabilities{}, fmt.Errorf("call initialize: %w", err)
 	}
 
 	return m.validateInitializeResponse(rawResp)

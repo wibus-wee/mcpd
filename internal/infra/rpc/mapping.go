@@ -1,8 +1,11 @@
 package rpc
 
 import (
+	"encoding/json"
+
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mapping"
+	"mcpd/internal/infra/mcpcodec"
 	controlv1 "mcpd/pkg/api/control/v1"
 )
 
@@ -10,7 +13,7 @@ func toProtoSnapshot(snapshot domain.ToolSnapshot) *controlv1.ToolsSnapshot {
 	tools := mapping.MapSlice(snapshot.Tools, func(tool domain.ToolDefinition) *controlv1.ToolDefinition {
 		return &controlv1.ToolDefinition{
 			Name:     tool.Name,
-			ToolJson: tool.ToolJSON,
+			ToolJson: mcpcodec.MustMarshalToolDefinition(tool),
 		}
 	})
 	return &controlv1.ToolsSnapshot{
@@ -23,7 +26,7 @@ func toProtoResourcesSnapshot(snapshot domain.ResourceSnapshot) *controlv1.Resou
 	resources := mapping.MapSlice(snapshot.Resources, func(resource domain.ResourceDefinition) *controlv1.ResourceDefinition {
 		return &controlv1.ResourceDefinition{
 			Uri:          resource.URI,
-			ResourceJson: resource.ResourceJSON,
+			ResourceJson: mcpcodec.MustMarshalResourceDefinition(resource),
 		}
 	})
 	return &controlv1.ResourcesSnapshot{
@@ -36,7 +39,7 @@ func toProtoPromptsSnapshot(snapshot domain.PromptSnapshot) *controlv1.PromptsSn
 	prompts := mapping.MapSlice(snapshot.Prompts, func(prompt domain.PromptDefinition) *controlv1.PromptDefinition {
 		return &controlv1.PromptDefinition{
 			Name:       prompt.Name,
-			PromptJson: prompt.PromptJSON,
+			PromptJson: mcpcodec.MustMarshalPromptDefinition(prompt),
 		}
 	})
 	return &controlv1.PromptsSnapshot{
@@ -50,8 +53,19 @@ func toProtoLogEntry(entry domain.LogEntry) *controlv1.LogEntry {
 		Logger:            entry.Logger,
 		Level:             toProtoLogLevel(entry.Level),
 		TimestampUnixNano: entry.Timestamp.UnixNano(),
-		DataJson:          entry.DataJSON,
+		DataJson:          mustMarshalLogData(entry.Data),
 	}
+}
+
+func mustMarshalLogData(data map[string]any) []byte {
+	if len(data) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 func fromProtoLogLevel(level controlv1.LogLevel) domain.LogLevel {

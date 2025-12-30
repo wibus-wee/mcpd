@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -12,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 const (
@@ -86,18 +85,16 @@ func (a *automationService) fallbackAutomaticMCP(caller string, profile *profile
 	snapshot := profile.tools.Snapshot()
 	sessionKey := domain.AutomaticMCPSessionKey(caller, params.SessionID)
 
-	toolsToSend := make([]json.RawMessage, 0, len(snapshot.Tools))
+	toolsToSend := make([]domain.ToolDefinition, 0, len(snapshot.Tools))
 	sentSchemas := make(map[string]string)
 	for _, tool := range snapshot.Tools {
-		hash := hashToolSchema(tool.ToolJSON)
+		hash := mcpcodec.HashToolDefinition(tool)
 		shouldSend := params.ForceRefresh || a.cache.NeedsFull(sessionKey, tool.Name, hash)
 		if !shouldSend {
 			continue
 		}
 
-		raw := make([]byte, len(tool.ToolJSON))
-		copy(raw, tool.ToolJSON)
-		toolsToSend = append(toolsToSend, raw)
+		toolsToSend = append(toolsToSend, domain.CloneToolDefinition(tool))
 		sentSchemas[tool.Name] = hash
 	}
 
@@ -117,8 +114,8 @@ func (a *automationService) AutomaticEval(ctx context.Context, caller string, pa
 		return nil, err
 	}
 
-	if err := validateToolArguments(tool.ToolJSON, params.Arguments); err != nil {
-		result, buildErr := buildAutomaticEvalSchemaError(tool.ToolJSON, err)
+	if err := validateToolArguments(tool, params.Arguments); err != nil {
+		result, buildErr := buildAutomaticEvalSchemaError(tool, err)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -146,19 +143,17 @@ func (a *automationService) getToolDefinition(caller, name string) (domain.ToolD
 	return domain.ToolDefinition{}, domain.ErrToolNotFound
 }
 
-func validateToolArguments(toolJSON, args json.RawMessage) error {
-	var tool struct {
-		InputSchema json.RawMessage `json:"inputSchema"`
-	}
-	if err := json.Unmarshal(toolJSON, &tool); err != nil {
-		return fmt.Errorf("decode tool schema: %w", err)
-	}
-	if len(tool.InputSchema) == 0 {
+func validateToolArguments(tool domain.ToolDefinition, args json.RawMessage) error {
+	if tool.InputSchema == nil {
 		return nil
 	}
 
 	var schema jsonschema.Schema
-	if err := json.Unmarshal(tool.InputSchema, &schema); err != nil {
+	schemaJSON, err := json.Marshal(tool.InputSchema)
+	if err != nil {
+		return fmt.Errorf("encode tool input schema: %w", err)
+	}
+	if err := json.Unmarshal(schemaJSON, &schema); err != nil {
 		return fmt.Errorf("decode tool input schema: %w", err)
 	}
 
@@ -180,7 +175,11 @@ func validateToolArguments(toolJSON, args json.RawMessage) error {
 	return nil
 }
 
-func buildAutomaticEvalSchemaError(toolJSON json.RawMessage, err error) (json.RawMessage, error) {
+func buildAutomaticEvalSchemaError(tool domain.ToolDefinition, err error) (json.RawMessage, error) {
+	toolJSON, marshalErr := mcpcodec.MarshalToolDefinition(tool)
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
 	payload := struct {
 		Error      string          `json:"error"`
 		ToolSchema json.RawMessage `json:"toolSchema"`
@@ -205,10 +204,4 @@ func buildAutomaticEvalSchemaError(toolJSON json.RawMessage, err error) (json.Ra
 		return nil, err
 	}
 	return raw, nil
-}
-
-func hashToolSchema(schema json.RawMessage) string {
-	hasher := sha256.New()
-	_, _ = hasher.Write(schema)
-	return hex.EncodeToString(hasher.Sum(nil))
 }

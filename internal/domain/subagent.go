@@ -27,7 +27,7 @@ type ProfileSubAgentConfig struct {
 // AutomaticMCPResult is returned by automatic_mcp.
 type AutomaticMCPResult struct {
 	ETag           string            `json:"etag"`
-	Tools          []json.RawMessage `json:"tools"`
+	Tools          []ToolDefinition  `json:"tools"`
 	TotalAvailable int               `json:"totalAvailable"`
 	Filtered       int               `json:"filtered"`
 }

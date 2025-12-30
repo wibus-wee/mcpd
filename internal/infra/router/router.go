@@ -93,19 +93,12 @@ func (r *BasicRouter) RouteWithOptions(ctx context.Context, serverType, specKey,
 	callCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	if err := inst.Conn.Send(callCtx, payload); err != nil {
-		sendErr := fmt.Errorf("send request: %w", err)
-		r.observeRoute(serverType, start, sendErr)
-		r.logRouteError(serverType, method, inst, start, sendErr)
-		return nil, sendErr
-	}
-
-	resp, err := inst.Conn.Recv(callCtx)
+	resp, err := inst.Conn.Call(callCtx, payload)
 	if err != nil {
-		recvErr := fmt.Errorf("receive response: %w", err)
-		r.observeRoute(serverType, start, recvErr)
-		r.logRouteError(serverType, method, inst, start, recvErr)
-		return nil, recvErr
+		callErr := fmt.Errorf("call request: %w", err)
+		r.observeRoute(serverType, start, callErr)
+		r.logRouteError(serverType, method, inst, start, callErr)
+		return nil, callErr
 	}
 
 	r.observeRoute(serverType, start, nil)

@@ -14,11 +14,12 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
-func TestStdioTransport_StartAndRoundTrip(t *testing.T) {
-	transport := NewStdioTransport(StdioTransportOptions{})
+func TestCommandLauncher_StartAndRoundTrip(t *testing.T) {
+	launcher := NewCommandLauncher(CommandLauncherOptions{})
+	transport := NewMCPTransport(MCPTransportOptions{})
 	spec := domain.ServerSpec{
-		Name:            "cat",
-		Cmd:             []string{"/bin/sh", "-c", "cat"},
+		Name:            "echo",
+		Cmd:             []string{"python3", "-u", "-c", pythonEchoServerScript},
 		MaxConcurrent:   1,
 		IdleSeconds:     0,
 		MinReady:        0,
@@ -28,33 +29,35 @@ func TestStdioTransport_StartAndRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	conn, stop, err := transport.Start(ctx, spec)
+	streams, stop, err := launcher.Start(ctx, "spec-echo", spec)
 	require.NoError(t, err)
 	defer stop(context.Background())
 
-	msg := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping"}`)
-	require.NoError(t, conn.Send(ctx, msg))
-
-	got, err := conn.Recv(ctx)
+	conn, err := transport.Connect(ctx, "spec-echo", spec, streams)
 	require.NoError(t, err)
-	require.JSONEq(t, string(msg), string(got))
+	defer conn.Close()
+
+	msg := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}`)
+	got, err := conn.Call(ctx, msg)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":1,"result":{"ok":true}}`, string(got))
 }
 
-func TestStdioTransport_InvalidCmd(t *testing.T) {
-	transport := NewStdioTransport(StdioTransportOptions{})
+func TestCommandLauncher_InvalidCmd(t *testing.T) {
+	launcher := NewCommandLauncher(CommandLauncherOptions{})
 	spec := domain.ServerSpec{
 		Name:            "bad",
 		Cmd:             []string{},
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
 
-	_, _, err := transport.Start(context.Background(), spec)
+	_, _, err := launcher.Start(context.Background(), "spec-bad", spec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, domain.ErrInvalidCommand)
 }
 
-func TestStdioTransport_StopKillsProcess(t *testing.T) {
-	transport := NewStdioTransport(StdioTransportOptions{})
+func TestCommandLauncher_StopKillsProcess(t *testing.T) {
+	launcher := NewCommandLauncher(CommandLauncherOptions{})
 	spec := domain.ServerSpec{
 		Name:            "sleep",
 		Cmd:             []string{"/bin/sh", "-c", "sleep 10"},
@@ -62,9 +65,10 @@ func TestStdioTransport_StopKillsProcess(t *testing.T) {
 		MaxConcurrent:   1,
 	}
 
-	conn, stop, err := transport.Start(context.Background(), spec)
+	streams, stop, err := launcher.Start(context.Background(), "spec-sleep", spec)
 	require.NoError(t, err)
-	_ = conn.Close()
+	_ = streams.Reader.Close()
+	_ = streams.Writer.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -73,8 +77,8 @@ func TestStdioTransport_StopKillsProcess(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestStdioTransport_MissingExecutable(t *testing.T) {
-	transport := NewStdioTransport(StdioTransportOptions{})
+func TestCommandLauncher_MissingExecutable(t *testing.T) {
+	launcher := NewCommandLauncher(CommandLauncherOptions{})
 	spec := domain.ServerSpec{
 		Name:            "missing",
 		Cmd:             []string{"/no/such/binary"},
@@ -82,12 +86,12 @@ func TestStdioTransport_MissingExecutable(t *testing.T) {
 		MaxConcurrent:   1,
 	}
 
-	_, _, err := transport.Start(context.Background(), spec)
+	_, _, err := launcher.Start(context.Background(), "spec-missing", spec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, domain.ErrExecutableNotFound)
 }
 
-func TestStdioTransport_MirrorsStderr(t *testing.T) {
+func TestCommandLauncher_MirrorsStderr(t *testing.T) {
 	logs := telemetry.NewLogBroadcaster(zapcore.InfoLevel)
 	logger := zap.New(zapcore.NewTee(zapcore.NewNopCore(), logs.Core()))
 	logger = logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceCore))
@@ -97,7 +101,7 @@ func TestStdioTransport_MirrorsStderr(t *testing.T) {
 
 	logCh := logs.Subscribe(ctx)
 
-	transport := NewStdioTransport(StdioTransportOptions{Logger: logger})
+	launcher := NewCommandLauncher(CommandLauncherOptions{Logger: logger})
 	spec := domain.ServerSpec{
 		Name:            "stderr",
 		Cmd:             []string{"/bin/sh", "-c", "echo \"stderr line\" 1>&2; cat"},
@@ -107,23 +111,21 @@ func TestStdioTransport_MirrorsStderr(t *testing.T) {
 		ProtocolVersion: domain.DefaultProtocolVersion,
 	}
 
-	conn, stop, err := transport.Start(ctx, spec)
+	streams, stop, err := launcher.Start(ctx, "spec-stderr", spec)
 	require.NoError(t, err)
 	defer stop(context.Background())
-	_ = conn.Close()
+	_ = streams.Reader.Close()
+	_ = streams.Writer.Close()
 
 	entry := waitForDownstreamLog(t, logCh)
-	require.NotEmpty(t, entry.DataJSON)
+	require.NotEmpty(t, entry.Data)
 
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(entry.DataJSON, &payload))
-
-	fields, ok := payload["fields"].(map[string]any)
+	fields, ok := entry.Data["fields"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, telemetry.LogSourceDownstream, fields[telemetry.FieldLogSource])
 	require.Equal(t, "stderr", fields[telemetry.FieldLogStream])
 	require.Equal(t, spec.Name, fields[telemetry.FieldServerType])
-	require.Equal(t, "stderr line", payload["message"])
+	require.Equal(t, "stderr line", entry.Data["message"])
 }
 
 func waitForDownstreamLog(t *testing.T, logCh <-chan domain.LogEntry) domain.LogEntry {
@@ -133,14 +135,10 @@ func waitForDownstreamLog(t *testing.T, logCh <-chan domain.LogEntry) domain.Log
 	for {
 		select {
 		case entry := <-logCh:
-			if len(entry.DataJSON) == 0 {
+			if len(entry.Data) == 0 {
 				continue
 			}
-			var payload map[string]any
-			if err := json.Unmarshal(entry.DataJSON, &payload); err != nil {
-				continue
-			}
-			fields, ok := payload["fields"].(map[string]any)
+			fields, ok := entry.Data["fields"].(map[string]any)
 			if !ok {
 				continue
 			}
@@ -152,3 +150,12 @@ func waitForDownstreamLog(t *testing.T, logCh <-chan domain.LogEntry) domain.Log
 		}
 	}
 }
+
+const pythonEchoServerScript = `import sys, json
+for line in sys.stdin:
+    msg = json.loads(line)
+    if "id" in msg:
+        resp = {"jsonrpc": "2.0", "id": msg["id"], "result": {"ok": True}}
+        sys.stdout.write(json.dumps(resp) + "\n")
+        sys.stdout.flush()
+`

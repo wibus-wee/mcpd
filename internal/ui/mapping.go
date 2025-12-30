@@ -5,13 +5,14 @@ import (
 
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mapping"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 func mapToolEntries(snapshot domain.ToolSnapshot) []ToolEntry {
 	return mapping.MapSlice(snapshot.Tools, func(tool domain.ToolDefinition) ToolEntry {
 		return ToolEntry{
 			Name:       tool.Name,
-			ToolJSON:   tool.ToolJSON,
+			ToolJSON:   mcpcodec.MustMarshalToolDefinition(tool),
 			SpecKey:    tool.SpecKey,
 			ServerName: tool.ServerName,
 		}
@@ -24,7 +25,7 @@ func mapResourcePage(page domain.ResourcePage) *ResourcePage {
 		Resources: mapping.MapSlice(page.Snapshot.Resources, func(resource domain.ResourceDefinition) ResourceEntry {
 			return ResourceEntry{
 				URI:          resource.URI,
-				ResourceJSON: resource.ResourceJSON,
+				ResourceJSON: mcpcodec.MustMarshalResourceDefinition(resource),
 			}
 		}),
 	}
@@ -36,7 +37,7 @@ func mapPromptPage(page domain.PromptPage) *PromptPage {
 		Prompts: mapping.MapSlice(page.Snapshot.Prompts, func(prompt domain.PromptDefinition) PromptEntry {
 			return PromptEntry{
 				Name:       prompt.Name,
-				PromptJSON: prompt.PromptJSON,
+				PromptJSON: mcpcodec.MustMarshalPromptDefinition(prompt),
 			}
 		}),
 	}

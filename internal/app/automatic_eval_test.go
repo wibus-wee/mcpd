@@ -6,20 +6,40 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"mcpd/internal/domain"
 )
 
 func TestValidateToolArguments_Invalid(t *testing.T) {
-	toolJSON := json.RawMessage(`{"name":"demo.echo","inputSchema":{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}}`)
+	tool := domain.ToolDefinition{
+		Name: "demo.echo",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []any{"message"},
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
+			},
+		},
+	}
 	args := json.RawMessage(`{}`)
 
-	err := validateToolArguments(toolJSON, args)
+	err := validateToolArguments(tool, args)
 	require.Error(t, err)
 }
 
 func TestBuildAutomaticEvalSchemaError_EmbedsSchema(t *testing.T) {
-	toolJSON := json.RawMessage(`{"name":"demo.echo","inputSchema":{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}}`)
+	tool := domain.ToolDefinition{
+		Name: "demo.echo",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []any{"message"},
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
+			},
+		},
+	}
 
-	raw, err := buildAutomaticEvalSchemaError(toolJSON, errors.New("invalid tool arguments"))
+	raw, err := buildAutomaticEvalSchemaError(tool, errors.New("invalid tool arguments"))
 	require.NoError(t, err)
 
 	var result struct {

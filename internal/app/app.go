@@ -17,6 +17,7 @@ import (
 	"mcpd/internal/infra/aggregator"
 	"mcpd/internal/infra/catalog"
 	"mcpd/internal/infra/lifecycle"
+	"mcpd/internal/infra/notifications"
 	"mcpd/internal/infra/probe"
 	"mcpd/internal/infra/router"
 	"mcpd/internal/infra/rpc"
@@ -112,8 +113,13 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	registry.MustRegister(prometheus.NewGoCollector())
 
-	stdioTransport := transport.NewStdioTransport(transport.StdioTransportOptions{Logger: logger})
-	lc := lifecycle.NewManager(ctx, stdioTransport, logger)
+	listChanges := notifications.NewListChangeHub()
+	launcher := transport.NewCommandLauncher(transport.CommandLauncherOptions{Logger: logger})
+	mcpTransport := transport.NewMCPTransport(transport.MCPTransportOptions{
+		Logger:            logger,
+		ListChangeEmitter: listChanges,
+	})
+	lc := lifecycle.NewManager(ctx, launcher, mcpTransport, logger)
 	pingProbe := &probe.PingProbe{Timeout: defaultPingProbeTimeout}
 	metrics := telemetry.NewPrometheusMetrics(registry)
 	health := telemetry.NewHealthTracker()
@@ -138,9 +144,9 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 			Logger:  profileLogger,
 			Metrics: metrics,
 		})
-		toolIndex := aggregator.NewToolIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate)
-		resourceIndex := aggregator.NewResourceIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate)
-		promptIndex := aggregator.NewPromptIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate)
+		toolIndex := aggregator.NewToolIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
+		resourceIndex := aggregator.NewResourceIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
+		promptIndex := aggregator.NewPromptIndex(rt, cfg.profile.Catalog.Specs, cfg.specKeys, cfg.profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
 		profiles[name] = &profileRuntime{
 			name:      name,
 			specKeys:  collectSpecKeys(cfg.specKeys),

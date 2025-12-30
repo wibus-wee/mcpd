@@ -129,12 +129,8 @@ type fakeConn struct {
 	err  error
 }
 
-func (f *fakeConn) Send(ctx context.Context, msg json.RawMessage) error {
-	f.req = msg
-	return f.err
-}
-
-func (f *fakeConn) Recv(ctx context.Context) (json.RawMessage, error) {
+func (f *fakeConn) Call(ctx context.Context, payload json.RawMessage) (json.RawMessage, error) {
+	f.req = payload
 	return f.resp, f.err
 }
 

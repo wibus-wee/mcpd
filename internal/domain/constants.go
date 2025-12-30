@@ -7,6 +7,7 @@ const (
 	DefaultPingIntervalSeconds        = 30
 	DefaultToolRefreshSeconds         = 60
 	DefaultToolRefreshConcurrency     = 4
+	DefaultRefreshFailureThreshold    = 3
 	DefaultCallerCheckSeconds         = 5
 	DefaultCallerInactiveSeconds      = 300
 	DefaultServerInitRetryBaseSeconds = 1

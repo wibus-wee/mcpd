@@ -99,7 +99,7 @@ func TestControlService_ListTools(t *testing.T) {
 		snapshot: domain.ToolSnapshot{
 			ETag: "v1",
 			Tools: []domain.ToolDefinition{
-				{Name: "echo.echo", ToolJSON: json.RawMessage(`{"name":"echo.echo","inputSchema":{"type":"object"}}`)},
+				{Name: "echo.echo", InputSchema: map[string]any{"type": "object"}},
 			},
 		},
 	}, nil)

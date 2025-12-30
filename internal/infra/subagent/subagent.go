@@ -2,8 +2,6 @@ package subagent
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 const (
@@ -146,23 +145,13 @@ func (s *EinoSubAgent) buildToolSummaries(tools []domain.ToolDefinition) ([]tool
 	hashMap := make(map[string]string, len(tools))
 
 	for _, t := range tools {
-		var toolObj struct {
-			Description string `json:"description"`
-			InputSchema struct {
-				Properties map[string]interface{} `json:"properties"`
-			} `json:"inputSchema"`
-		}
-		_ = json.Unmarshal(t.ToolJSON, &toolObj)
-
 		summaries = append(summaries, toolSummary{
 			Name:        t.Name,
-			Description: toolObj.Description,
-			ParamCount:  len(toolObj.InputSchema.Properties),
+			Description: t.Description,
+			ParamCount:  countSchemaProperties(t.InputSchema),
 		})
 
-		// Compute hash of full schema
-		hash := sha256.Sum256(t.ToolJSON)
-		hashMap[t.Name] = hex.EncodeToString(hash[:])
+		hashMap[t.Name] = mcpcodec.HashToolDefinition(t)
 	}
 
 	return summaries, hashMap
@@ -254,7 +243,7 @@ func (s *EinoSubAgent) observeTokenUsage(response *schema.Message) {
 	s.metrics.ObserveSubAgentTokens(s.config.Provider, s.config.Model, tokens)
 }
 
-func (s *EinoSubAgent) observeFilterPrecision(selectedNames []string, toolsToSend []json.RawMessage) {
+func (s *EinoSubAgent) observeFilterPrecision(selectedNames []string, toolsToSend []domain.ToolDefinition) {
 	precision := 0.0
 	if len(selectedNames) > 0 {
 		precision = float64(len(toolsToSend)) / float64(len(selectedNames))
@@ -268,14 +257,14 @@ func (s *EinoSubAgent) buildToolPayloads(
 	selectedNames []string,
 	hashMap map[string]string,
 	shouldSend map[string]bool,
-) ([]json.RawMessage, map[string]string) {
+) ([]domain.ToolDefinition, map[string]string) {
 	// Build lookup for tools
 	toolMap := make(map[string]domain.ToolDefinition, len(tools))
 	for _, t := range tools {
 		toolMap[t.Name] = t
 	}
 
-	result := make([]json.RawMessage, 0, len(selectedNames))
+	result := make([]domain.ToolDefinition, 0, len(selectedNames))
 	sentSchemas := make(map[string]string)
 	for _, name := range selectedNames {
 		t, ok := toolMap[name]
@@ -286,13 +275,23 @@ func (s *EinoSubAgent) buildToolPayloads(
 			continue
 		}
 
-		raw := make([]byte, len(t.ToolJSON))
-		copy(raw, t.ToolJSON)
-		result = append(result, raw)
+		result = append(result, domain.CloneToolDefinition(t))
 		sentSchemas[name] = hashMap[name]
 	}
 
 	return result, sentSchemas
+}
+
+func countSchemaProperties(schema any) int {
+	obj, ok := schema.(map[string]any)
+	if !ok || obj == nil {
+		return 0
+	}
+	props, ok := obj["properties"].(map[string]any)
+	if !ok {
+		return 0
+	}
+	return len(props)
 }
 
 // allToolNames extracts all tool names from summaries.

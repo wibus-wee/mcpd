@@ -2,8 +2,6 @@ package aggregator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
 
@@ -24,6 +23,8 @@ type PromptIndex struct {
 	logger   *zap.Logger
 	health   *telemetry.HealthTracker
 	gate     *RefreshGate
+	listChanges listChangeSubscriber
+	specKeySet  map[string]struct{}
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.PromptSnapshot, domain.PromptTarget, promptCache]
@@ -35,7 +36,7 @@ type promptCache struct {
 	etag    string
 }
 
-func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate) *PromptIndex {
+func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *PromptIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -50,6 +51,8 @@ func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKe
 		logger:   logger.Named("prompt_index"),
 		health:   health,
 		gate:     gate,
+		listChanges: listChanges,
+		specKeySet:  specKeySet(specKeys),
 	}
 	promptIndex.index = NewGenericIndex(GenericIndexOptions[domain.PromptSnapshot, domain.PromptTarget, promptCache]{
 		Name:              "prompt_index",
@@ -74,6 +77,7 @@ func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKe
 
 func (a *PromptIndex) Start(ctx context.Context) {
 	a.index.Start(ctx)
+	a.startListChangeListener(ctx)
 }
 
 func (a *PromptIndex) Stop() {
@@ -124,6 +128,31 @@ func (a *PromptIndex) GetPrompt(ctx context.Context, name string, args json.RawM
 		return nil, err
 	}
 	return marshalPromptResult(result)
+}
+
+func (a *PromptIndex) startListChangeListener(ctx context.Context) {
+	if a.listChanges == nil {
+		return
+	}
+	ch := a.listChanges.Subscribe(ctx, domain.ListChangePrompts)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+				if !listChangeApplies(a.specs, a.specKeySet, event) {
+					continue
+				}
+				if err := a.index.Refresh(ctx); err != nil {
+					a.logger.Warn("prompt refresh after list change failed", zap.Error(err))
+				}
+			}
+		}
+	}()
 }
 
 func (a *PromptIndex) buildSnapshot(cache map[string]promptCache) (domain.PromptSnapshot, map[string]domain.PromptTarget) {
@@ -192,19 +221,8 @@ func (a *PromptIndex) resolveFlatConflict(name, serverType string, existing map[
 }
 
 func renamePromptDefinition(def domain.PromptDefinition, newName string) (domain.PromptDefinition, error) {
-	var obj map[string]any
-	if err := json.Unmarshal(def.PromptJSON, &obj); err != nil {
-		return def, err
-	}
-	obj["name"] = newName
-	raw, err := json.Marshal(obj)
-	if err != nil {
-		return def, err
-	}
-	return domain.PromptDefinition{
-		Name:       newName,
-		PromptJSON: raw,
-	}, nil
+	def.Name = newName
+	return def, nil
 }
 
 func (a *PromptIndex) refreshErrorDecision(_ string, err error) refreshErrorDecision {
@@ -249,16 +267,9 @@ func (a *PromptIndex) fetchServerPrompts(ctx context.Context, serverType string,
 		promptCopy := *prompt
 		promptCopy.Name = name
 
-		raw, err := json.Marshal(&promptCopy)
-		if err != nil {
-			a.logger.Warn("marshal prompt failed", zap.String("serverType", serverType), zap.String("prompt", prompt.Name), zap.Error(err))
-			continue
-		}
-
-		result = append(result, domain.PromptDefinition{
-			Name:       name,
-			PromptJSON: raw,
-		})
+		def := mcpcodec.PromptFromMCP(&promptCopy)
+		def.Name = name
+		result = append(result, def)
 		targets[name] = domain.PromptTarget{
 			ServerType: serverType,
 			SpecKey:    specKey,
@@ -358,28 +369,9 @@ func marshalPromptResult(result *mcp.GetPromptResult) (json.RawMessage, error) {
 }
 
 func hashPrompts(prompts []domain.PromptDefinition) string {
-	hasher := sha256.New()
-	for _, prompt := range prompts {
-		_, _ = hasher.Write([]byte(prompt.Name))
-		_, _ = hasher.Write([]byte{0})
-		_, _ = hasher.Write(prompt.PromptJSON)
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return mcpcodec.HashPromptDefinitions(prompts)
 }
 
 func copyPromptSnapshot(snapshot domain.PromptSnapshot) domain.PromptSnapshot {
-	out := domain.PromptSnapshot{
-		ETag:    snapshot.ETag,
-		Prompts: make([]domain.PromptDefinition, 0, len(snapshot.Prompts)),
-	}
-	for _, prompt := range snapshot.Prompts {
-		raw := make([]byte, len(prompt.PromptJSON))
-		copy(raw, prompt.PromptJSON)
-		out.Prompts = append(out.Prompts, domain.PromptDefinition{
-			Name:       prompt.Name,
-			PromptJSON: raw,
-		})
-	}
-	return out
+	return domain.ClonePromptSnapshot(snapshot)
 }

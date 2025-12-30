@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -83,16 +82,11 @@ func (c *logBroadcasterCore) Check(entry zapcore.Entry, checked *zapcore.Checked
 }
 
 func (c *logBroadcasterCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	dataJSON, err := c.buildDataJSON(entry, fields)
-	if err != nil {
-		return nil
-	}
-
 	c.broadcaster.publish(domain.LogEntry{
 		Logger:    c.loggerName(entry.LoggerName),
 		Level:     mapZapLevel(entry.Level),
 		Timestamp: entry.Time,
-		DataJSON:  dataJSON,
+		Data:      c.buildData(entry, fields),
 	})
 	return nil
 }
@@ -108,7 +102,7 @@ func (c *logBroadcasterCore) loggerName(entryName string) string {
 	return "mcpd"
 }
 
-func (c *logBroadcasterCore) buildDataJSON(entry zapcore.Entry, fields []zapcore.Field) (json.RawMessage, error) {
+func (c *logBroadcasterCore) buildData(entry zapcore.Entry, fields []zapcore.Field) map[string]any {
 	encoder := zapcore.NewMapObjectEncoder()
 	for _, field := range c.fields {
 		field.AddTo(encoder)
@@ -128,11 +122,7 @@ func (c *logBroadcasterCore) buildDataJSON(entry zapcore.Entry, fields []zapcore
 		data["fields"] = encoder.Fields
 	}
 
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	return raw, nil
+	return data
 }
 
 func mapZapLevel(level zapcore.Level) domain.LogLevel {
