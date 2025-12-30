@@ -113,7 +113,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	registry.MustRegister(prometheus.NewGoCollector())
 
 	stdioTransport := transport.NewStdioTransport(transport.StdioTransportOptions{Logger: logger})
-	lc := lifecycle.NewManager(stdioTransport, logger)
+	lc := lifecycle.NewManager(ctx, stdioTransport, logger)
 	pingProbe := &probe.PingProbe{Timeout: defaultPingProbeTimeout}
 	metrics := telemetry.NewPrometheusMetrics(registry)
 	health := telemetry.NewHealthTracker()

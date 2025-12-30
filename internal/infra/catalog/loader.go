@@ -117,9 +117,12 @@ func (l *Loader) LoadRuntimeConfig(ctx context.Context, path string) (domain.Run
 		return domain.RuntimeConfig{}, fmt.Errorf("read config: %w", err)
 	}
 
-	expanded, err := expandConfigEnv(data)
+	expanded, missing, err := expandConfigEnv(data)
 	if err != nil {
 		return domain.RuntimeConfig{}, err
+	}
+	if len(missing) > 0 {
+		l.logger.Warn("missing environment variables in runtime config", zap.String("path", path), zap.Strings("missing", missing))
 	}
 
 	rawCfg, err := decodeRuntimeConfig(expanded)
@@ -144,9 +147,12 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 		return domain.Catalog{}, fmt.Errorf("read config: %w", err)
 	}
 
-	expanded, err := expandConfigEnv(data)
+	expanded, missing, err := expandConfigEnv(data)
 	if err != nil {
 		return domain.Catalog{}, err
+	}
+	if len(missing) > 0 {
+		l.logger.Warn("missing environment variables in config", zap.String("path", path), zap.Strings("missing", missing))
 	}
 
 	if err := validateCatalogSchema(expanded); err != nil {

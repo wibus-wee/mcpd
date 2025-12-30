@@ -20,30 +20,39 @@ import (
 type Manager struct {
 	transport domain.Transport
 	logger    *zap.Logger
+	ctx       context.Context
 
 	mu    sync.Mutex
 	conns map[string]domain.Conn
 	stops map[string]domain.StopFn
 }
 
-func NewManager(transport domain.Transport, logger *zap.Logger) *Manager {
+func NewManager(ctx context.Context, transport domain.Transport, logger *zap.Logger) *Manager {
 	if transport == nil {
 		panic("lifecycle.Manager requires a transport")
 	}
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return &Manager{
 		transport: transport,
 		conns:     make(map[string]domain.Conn),
 		stops:     make(map[string]domain.StopFn),
 		logger:    logger.Named("lifecycle"),
+		ctx:       ctx,
 	}
 }
 
 func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*domain.Instance, error) {
+	baseCtx := m.ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = baseCtx
 	}
 
 	started := time.Now()
@@ -52,7 +61,7 @@ func (m *Manager) StartInstance(ctx context.Context, spec domain.ServerSpec) (*d
 		telemetry.ServerTypeField(spec.Name),
 	)
 
-	startCtx, cancelStart := context.WithCancel(context.Background())
+	startCtx, cancelStart := context.WithCancel(baseCtx)
 	startDone := make(chan struct{})
 	go func() {
 		select {

@@ -202,7 +202,8 @@ func (s *EinoSubAgent) buildFilterPrompt(query string, summaries []toolSummary) 
 		sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
 	}
 
-	sb.WriteString("\nSelect only the tools that are directly relevant to completing this task.")
+	sb.WriteString("\nSelect only the tools that are directly relevant to completing this task.\n")
+	sb.WriteString("Return only a JSON array of tool names. Do not include any other text.")
 	return sb.String()
 }
 
@@ -214,31 +215,22 @@ func (s *EinoSubAgent) parseSelectedTools(response string, summaries []toolSumma
 		validNames[t.Name] = true
 	}
 
-	// Try to parse as JSON array first
 	var jsonNames []string
-	if err := json.Unmarshal([]byte(response), &jsonNames); err == nil {
-		result := make([]string, 0, len(jsonNames))
-		for _, name := range jsonNames {
-			if validNames[name] {
-				result = append(result, name)
-			}
-		}
-		if len(result) > 0 {
-			return result, nil
-		}
+	if err := json.Unmarshal([]byte(response), &jsonNames); err != nil {
+		return nil, fmt.Errorf("invalid JSON response: %w", err)
 	}
 
-	// Fallback: scan for tool names in response text
-	result := make([]string, 0)
-	for name := range validNames {
-		if strings.Contains(response, name) {
+	result := make([]string, 0, len(jsonNames))
+	invalid := make([]string, 0)
+	for _, name := range jsonNames {
+		if validNames[name] {
 			result = append(result, name)
+			continue
 		}
+		invalid = append(invalid, name)
 	}
-
-	if len(result) == 0 {
-		// If nothing found, return all tools
-		return allToolNames(summaries), nil
+	if len(invalid) > 0 {
+		return nil, fmt.Errorf("invalid tool names: %s", strings.Join(invalid, ", "))
 	}
 
 	return result, nil
@@ -288,7 +280,7 @@ func allToolNames(summaries []toolSummary) []string {
 
 const defaultFilterSystemPrompt = `You are a tool selection assistant. Given a user task and a list of available tools, select only the tools that are relevant to completing the task.
 
-Output format: JSON array of tool names that are relevant.
+Output only a JSON array of tool names. Do not include any extra text or formatting.
 Example: ["tool1", "tool2"]
 
 Be selective - only include tools that are directly useful for the given task. Do not include tools that are only tangentially related.`

@@ -1,8 +1,6 @@
 package domain
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"time"
 )
@@ -148,54 +146,6 @@ type ServerInitStatus struct {
 	State      ServerInitState
 	LastError  string
 	UpdatedAt  time.Time
-}
-
-type Conn interface {
-	Send(ctx context.Context, msg json.RawMessage) error
-	Recv(ctx context.Context) (json.RawMessage, error)
-	Close() error
-}
-
-type StopFn func(ctx context.Context) error
-
-type Transport interface {
-	Start(ctx context.Context, spec ServerSpec) (Conn, StopFn, error)
-}
-
-type Lifecycle interface {
-	StartInstance(ctx context.Context, spec ServerSpec) (*Instance, error)
-	StopInstance(ctx context.Context, instance *Instance, reason string) error
-}
-
-type Scheduler interface {
-	Acquire(ctx context.Context, specKey, routingKey string) (*Instance, error)
-	AcquireReady(ctx context.Context, specKey, routingKey string) (*Instance, error)
-	Release(ctx context.Context, instance *Instance) error
-	SetDesiredMinReady(ctx context.Context, specKey string, minReady int) error
-	StopSpec(ctx context.Context, specKey, reason string) error
-	StartIdleManager(interval time.Duration)
-	StopIdleManager()
-	StartPingManager(interval time.Duration)
-	StopPingManager()
-	StopAll(ctx context.Context)
-	GetPoolStatus(ctx context.Context) ([]PoolInfo, error)
-}
-
-type Router interface {
-	Route(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage) (json.RawMessage, error)
-	RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts RouteOptions) (json.RawMessage, error)
-}
-
-type RouteOptions struct {
-	AllowStart bool
-}
-
-type CatalogLoader interface {
-	Load(ctx context.Context, path string) (Catalog, error)
-}
-
-type HealthProbe interface {
-	Ping(ctx context.Context, conn Conn) error
 }
 
 var ErrMethodNotAllowed = errors.New("method not allowed")

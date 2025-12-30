@@ -107,7 +107,7 @@ func (r *callerRegistry) RegisterCaller(ctx context.Context, caller string, pid 
 			snapshot = r.snapshotActiveCallersLocked(now)
 			shouldBroadcast = true
 			r.mu.Unlock()
-			r.broadcastActiveCallers(snapshot)
+			r.broadcastActiveCallers(finalizeActiveCallerSnapshot(snapshot))
 			return profileName, nil
 		}
 		r.removeProfileLocked(existing.profile, &toStopProfiles, &toDeactivateSpecs)
@@ -128,7 +128,7 @@ func (r *callerRegistry) RegisterCaller(ctx context.Context, caller string, pid 
 		r.state.logger.Warn("spec deactivation failed", zap.Error(err))
 	}
 	if shouldBroadcast {
-		r.broadcastActiveCallers(snapshot)
+		r.broadcastActiveCallers(finalizeActiveCallerSnapshot(snapshot))
 	}
 	r.activateProfiles(toStartProfiles)
 	r.deactivateProfiles(toStopProfiles)
@@ -158,7 +158,7 @@ func (r *callerRegistry) UnregisterCaller(ctx context.Context, caller string) er
 		r.state.logger.Warn("spec deactivation failed", zap.Error(err))
 	}
 	if shouldBroadcast {
-		r.broadcastActiveCallers(snapshot)
+		r.broadcastActiveCallers(finalizeActiveCallerSnapshot(snapshot))
 	}
 	r.deactivateProfiles(toStopProfiles)
 	return nil
@@ -169,7 +169,7 @@ func (r *callerRegistry) ListActiveCallers(ctx context.Context) ([]domain.Active
 	r.mu.Lock()
 	snapshot := r.snapshotActiveCallersLocked(now)
 	r.mu.Unlock()
-	return snapshot.Callers, nil
+	return finalizeActiveCallerSnapshot(snapshot).Callers, nil
 }
 
 func (r *callerRegistry) WatchActiveCallers(ctx context.Context) (<-chan domain.ActiveCallerSnapshot, error) {
@@ -179,7 +179,7 @@ func (r *callerRegistry) WatchActiveCallers(ctx context.Context) (<-chan domain.
 	snapshot := r.snapshotActiveCallersLocked(time.Now())
 	r.mu.Unlock()
 
-	sendActiveCallerSnapshot(ch, snapshot)
+	sendActiveCallerSnapshot(ch, finalizeActiveCallerSnapshot(snapshot))
 
 	go func() {
 		<-ctx.Done()
@@ -401,14 +401,22 @@ func (r *callerRegistry) snapshotActiveCallersLocked(now time.Time) domain.Activ
 		})
 	}
 
-	sort.Slice(callers, func(i, j int) bool {
-		return callers[i].Caller < callers[j].Caller
-	})
-
 	return domain.ActiveCallerSnapshot{
 		Callers:     callers,
 		GeneratedAt: now,
 	}
+}
+
+func finalizeActiveCallerSnapshot(snapshot domain.ActiveCallerSnapshot) domain.ActiveCallerSnapshot {
+	if len(snapshot.Callers) == 0 {
+		return snapshot
+	}
+	callers := append([]domain.ActiveCaller(nil), snapshot.Callers...)
+	sort.Slice(callers, func(i, j int) bool {
+		return callers[i].Caller < callers[j].Caller
+	})
+	snapshot.Callers = callers
+	return snapshot
 }
 
 func (r *callerRegistry) broadcastActiveCallers(snapshot domain.ActiveCallerSnapshot) {

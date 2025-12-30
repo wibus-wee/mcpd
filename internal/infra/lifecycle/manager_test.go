@@ -20,7 +20,7 @@ func TestManager_StartInstance_Success(t *testing.T) {
 		},
 		stop: func(ctx context.Context) error { return nil },
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -50,7 +50,7 @@ func TestManager_StartInstance_DetachesFromCallerContext(t *testing.T) {
 		},
 		stop: func(ctx context.Context) error { return nil },
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -83,7 +83,7 @@ func TestManager_StartInstance_ProtocolMismatch(t *testing.T) {
 		},
 		stop: func(ctx context.Context) error { return nil },
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -103,7 +103,7 @@ func TestManager_StartInstance_TransportError(t *testing.T) {
 	ft := &fakeTransport{
 		err: errors.New("boom"),
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -124,7 +124,7 @@ func TestManager_StartInstance_InitializeFail(t *testing.T) {
 		conn: &fakeConn{sendErr: errors.New("send fail")},
 		stop: func(ctx context.Context) error { return nil },
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -149,7 +149,7 @@ func TestManager_StopInstance_Success(t *testing.T) {
 			return nil
 		},
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",
@@ -170,7 +170,7 @@ func TestManager_StopInstance_Success(t *testing.T) {
 }
 
 func TestManager_StopInstance_Unknown(t *testing.T) {
-	mgr := NewManager(&fakeTransport{}, zap.NewNop())
+	mgr := NewManager(context.Background(), &fakeTransport{}, zap.NewNop())
 	inst := &domain.Instance{ID: "missing", Spec: domain.ServerSpec{Name: "svc"}}
 
 	err := mgr.StopInstance(context.Background(), inst, "test")
@@ -217,7 +217,7 @@ func TestManager_InitializeMissingCapabilities(t *testing.T) {
 			recvPayload: json.RawMessage(`{"jsonrpc":"2.0","id":"mcpd-init","result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"srv"}}}`),
 		},
 	}
-	mgr := NewManager(ft, zap.NewNop())
+	mgr := NewManager(context.Background(), ft, zap.NewNop())
 
 	spec := domain.ServerSpec{
 		Name:            "svc",

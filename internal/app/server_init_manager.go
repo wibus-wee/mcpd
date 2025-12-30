@@ -161,6 +161,9 @@ func (m *ServerInitializationManager) runSpec(ctx context.Context, specKey strin
 		m.mu.Unlock()
 	}()
 
+	timer := time.NewTimer(serverInitRetryDelay)
+	defer timer.Stop()
+
 	for {
 		target := m.target(specKey)
 		if target == 0 {
@@ -198,6 +201,14 @@ func (m *ServerInitializationManager) runSpec(ctx context.Context, specKey strin
 			return
 		}
 
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(serverInitRetryDelay)
+
 		select {
 		case <-ctx.Done():
 			m.updateStatus(specKey, func(status *domain.ServerInitStatus) {
@@ -206,7 +217,7 @@ func (m *ServerInitializationManager) runSpec(ctx context.Context, specKey strin
 				status.UpdatedAt = time.Now()
 			})
 			return
-		case <-time.After(serverInitRetryDelay):
+		case <-timer.C:
 		}
 	}
 }

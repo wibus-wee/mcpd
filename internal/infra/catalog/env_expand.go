@@ -3,47 +3,49 @@ package catalog
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-func expandConfigEnv(raw []byte) (string, error) {
+func expandConfigEnv(raw []byte) (string, []string, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(raw, &root); err != nil {
-		return "", fmt.Errorf("parse config: %w", err)
+		return "", nil, fmt.Errorf("parse config: %w", err)
 	}
 
-	expandNode(&root)
+	missing := make(map[string]struct{})
+	expandNode(&root, missing)
 
 	expanded, err := yaml.Marshal(&root)
 	if err != nil {
-		return "", fmt.Errorf("encode expanded config: %w", err)
+		return "", nil, fmt.Errorf("encode expanded config: %w", err)
 	}
-	return string(expanded), nil
+	return string(expanded), missingList(missing), nil
 }
 
-func expandNode(node *yaml.Node) {
+func expandNode(node *yaml.Node, missing map[string]struct{}) {
 	switch node.Kind {
 	case yaml.DocumentNode:
 		for _, child := range node.Content {
-			expandNode(child)
+			expandNode(child, missing)
 		}
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(node.Content); i += 2 {
-			expandNode(node.Content[i+1])
+			expandNode(node.Content[i+1], missing)
 		}
 	case yaml.SequenceNode:
 		for _, child := range node.Content {
-			expandNode(child)
+			expandNode(child, missing)
 		}
 	case yaml.ScalarNode:
-		expandScalar(node)
+		expandScalar(node, missing)
 	}
 }
 
-func expandScalar(node *yaml.Node) {
+func expandScalar(node *yaml.Node, missing map[string]struct{}) {
 	if node.Tag != "" && node.Tag != "!!str" {
 		return
 	}
@@ -51,7 +53,7 @@ func expandScalar(node *yaml.Node) {
 		return
 	}
 
-	expanded := os.ExpandEnv(node.Value)
+	expanded := expandEnvWithTracking(node.Value, missing)
 	if expanded == node.Value {
 		return
 	}
@@ -65,6 +67,28 @@ func expandScalar(node *yaml.Node) {
 	tag, value := coerceExpandedScalar(expanded)
 	node.Tag = tag
 	node.Value = value
+}
+
+func expandEnvWithTracking(value string, missing map[string]struct{}) string {
+	return os.Expand(value, func(key string) string {
+		if val, ok := os.LookupEnv(key); ok {
+			return val
+		}
+		missing[key] = struct{}{}
+		return ""
+	})
+}
+
+func missingList(missing map[string]struct{}) []string {
+	if len(missing) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(missing))
+	for name := range missing {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func coerceExpandedScalar(value string) (string, string) {
