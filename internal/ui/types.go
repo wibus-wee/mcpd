@@ -56,9 +56,10 @@ type ProfileSummary struct {
 
 // ProfileDetail contains full profile configuration
 type ProfileDetail struct {
-	Name    string              `json:"name"`
-	Runtime RuntimeConfigDetail `json:"runtime"`
-	Servers []ServerSpecDetail  `json:"servers"`
+	Name     string                      `json:"name"`
+	Runtime  RuntimeConfigDetail         `json:"runtime"`
+	Servers  []ServerSpecDetail          `json:"servers"`
+	SubAgent ProfileSubAgentConfigDetail `json:"subAgent"`
 }
 
 // RuntimeConfigDetail contains runtime configuration for frontend
@@ -214,4 +215,38 @@ type PoolStats struct {
 	Starting int `json:"starting"`
 	Draining int `json:"draining"`
 	Failed   int `json:"failed"`
+}
+
+// =============================================================================
+// SubAgent Configuration Types
+// =============================================================================
+
+// SubAgentConfigDetail contains the runtime-level SubAgent LLM provider config
+type SubAgentConfigDetail struct {
+	Model              string `json:"model"`
+	Provider           string `json:"provider"`
+	APIKeyEnvVar       string `json:"apiKeyEnvVar"`
+	BaseURL            string `json:"baseURL"`
+	MaxToolsPerRequest int    `json:"maxToolsPerRequest"`
+	FilterPrompt       string `json:"filterPrompt"`
+}
+
+// ProfileSubAgentConfigDetail contains the per-profile SubAgent settings
+type ProfileSubAgentConfigDetail struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UpdateSubAgentConfigRequest updates the runtime-level SubAgent config
+type UpdateSubAgentConfigRequest struct {
+	Model              string `json:"model"`
+	Provider           string `json:"provider"`
+	APIKeyEnvVar       string `json:"apiKeyEnvVar"`
+	MaxToolsPerRequest int    `json:"maxToolsPerRequest"`
+	FilterPrompt       string `json:"filterPrompt"`
+}
+
+// UpdateProfileSubAgentRequest updates the per-profile SubAgent enabled state
+type UpdateProfileSubAgentRequest struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
 }

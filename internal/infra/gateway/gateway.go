@@ -14,19 +14,21 @@ import (
 	"google.golang.org/grpc/status"
 
 	"mcpd/internal/infra/rpc"
+	"mcpd/internal/infra/subagent"
 	controlv1 "mcpd/pkg/api/control/v1"
 )
 
 type Gateway struct {
-	cfg        rpc.ClientConfig
-	caller     string
-	logger     *zap.Logger
-	server     *mcp.Server
-	clients    *clientManager
-	registry   *toolRegistry
-	resources  *resourceRegistry
-	prompts    *promptRegistry
-	registered atomic.Bool
+	cfg             rpc.ClientConfig
+	caller          string
+	logger          *zap.Logger
+	server          *mcp.Server
+	clients         *clientManager
+	registry        *toolRegistry
+	resources       *resourceRegistry
+	prompts         *promptRegistry
+	registered      atomic.Bool
+	subAgentEnabled atomic.Bool
 }
 
 const defaultHeartbeatInterval = 2 * time.Second
@@ -81,8 +83,16 @@ func (g *Gateway) Run(ctx context.Context) error {
 		_ = g.unregisterCaller(context.Background())
 	}()
 
+	// Check if SubAgent is enabled and register builtin tools if so
+	if err := g.checkAndSetupSubAgent(runCtx); err != nil {
+		g.logger.Warn("failed to check SubAgent status", zap.Error(err))
+	}
+
 	go g.heartbeat(runCtx)
-	go g.syncTools(runCtx)
+	// Only sync tools from control plane if SubAgent is NOT enabled
+	if !g.subAgentEnabled.Load() {
+		go g.syncTools(runCtx)
+	}
 	go g.syncResources(runCtx)
 	go g.syncPrompts(runCtx)
 	go newLogBridge(g.server, g.clients, g.caller, g.logger).Run(runCtx)
@@ -588,4 +598,183 @@ func (g *Gateway) listAllPrompts(ctx context.Context, client *rpc.Client) (*cont
 		Etag:    etag,
 		Prompts: combined,
 	}, nil
+}
+
+// checkAndSetupSubAgent checks if SubAgent is enabled and registers builtin tools.
+func (g *Gateway) checkAndSetupSubAgent(ctx context.Context) error {
+	client, err := g.clients.get(ctx)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Control().IsSubAgentEnabled(ctx, &controlv1.IsSubAgentEnabledRequest{
+		Caller: g.caller,
+	})
+	if err != nil {
+		// If the RPC doesn't exist (old server), assume SubAgent is disabled
+		if status.Code(err) == codes.Unimplemented {
+			g.subAgentEnabled.Store(false)
+			return nil
+		}
+		return err
+	}
+
+	if resp != nil && resp.Enabled {
+		g.subAgentEnabled.Store(true)
+		g.registerSubAgentTools()
+		g.logger.Info("SubAgent enabled, registered automatic_mcp and automatic_eval tools")
+	} else {
+		g.subAgentEnabled.Store(false)
+	}
+
+	return nil
+}
+
+// registerSubAgentTools registers the mcpd.automatic_mcp and mcpd.automatic_eval tools.
+func (g *Gateway) registerSubAgentTools() {
+	// Register mcpd.automatic_mcp
+	automaticMCPTool := subagent.AutomaticMCPTool()
+	g.server.AddTool(&automaticMCPTool, g.automaticMCPHandler())
+
+	// Register mcpd.automatic_eval
+	automaticEvalTool := subagent.AutomaticEvalTool()
+	g.server.AddTool(&automaticEvalTool, g.automaticEvalHandler())
+}
+
+// automaticMCPHandler handles the mcpd.automatic_mcp tool call.
+func (g *Gateway) automaticMCPHandler() mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Parse arguments
+		var params struct {
+			Query        string `json:"query"`
+			SessionID    string `json:"sessionId"`
+			ForceRefresh bool   `json:"forceRefresh"`
+		}
+		if req.Params.Arguments != nil {
+			if err := json.Unmarshal(req.Params.Arguments, &params); err != nil {
+				return nil, err
+			}
+		}
+
+		client, err := g.clients.get(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := client.Control().AutomaticMCP(ctx, &controlv1.AutomaticMCPRequest{
+			Caller:       g.caller,
+			Query:        params.Query,
+			SessionId:    params.SessionID,
+			ForceRefresh: params.ForceRefresh,
+		})
+		if err != nil {
+			if status.Code(err) == codes.FailedPrecondition {
+				if regErr := g.registerCaller(ctx); regErr == nil {
+					resp, err = client.Control().AutomaticMCP(ctx, &controlv1.AutomaticMCPRequest{
+						Caller:       g.caller,
+						Query:        params.Query,
+						SessionId:    params.SessionID,
+						ForceRefresh: params.ForceRefresh,
+					})
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		type automaticMCPResult struct {
+			ETag           string            `json:"etag"`
+			Tools          []json.RawMessage `json:"tools"`
+			TotalAvailable int               `json:"totalAvailable"`
+			Filtered       int               `json:"filtered"`
+		}
+
+		tools := make([]json.RawMessage, 0, len(resp.GetToolsJson()))
+		for _, raw := range resp.GetToolsJson() {
+			if len(raw) == 0 {
+				continue
+			}
+			tools = append(tools, json.RawMessage(raw))
+		}
+
+		resultJSON, err := json.Marshal(automaticMCPResult{
+			ETag:           resp.GetEtag(),
+			Tools:          tools,
+			TotalAvailable: int(resp.GetTotalAvailable()),
+			Filtered:       int(resp.GetFiltered()),
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(resultJSON)},
+			},
+		}, nil
+	}
+}
+
+// automaticEvalHandler handles the mcpd.automatic_eval tool call.
+func (g *Gateway) automaticEvalHandler() mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Parse arguments
+		var params struct {
+			ToolName   string          `json:"toolName"`
+			Arguments  json.RawMessage `json:"arguments"`
+			RoutingKey string          `json:"routingKey"`
+		}
+		if req.Params.Arguments != nil {
+			if err := json.Unmarshal(req.Params.Arguments, &params); err != nil {
+				return nil, err
+			}
+		}
+
+		if params.ToolName == "" {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "toolName is required"},
+				},
+			}, nil
+		}
+
+		client, err := g.clients.get(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := client.Control().AutomaticEval(ctx, &controlv1.AutomaticEvalRequest{
+			Caller:        g.caller,
+			ToolName:      params.ToolName,
+			ArgumentsJson: params.Arguments,
+			RoutingKey:    params.RoutingKey,
+		})
+		if err != nil {
+			if status.Code(err) == codes.FailedPrecondition {
+				if regErr := g.registerCaller(ctx); regErr == nil {
+					resp, err = client.Control().AutomaticEval(ctx, &controlv1.AutomaticEvalRequest{
+						Caller:        g.caller,
+						ToolName:      params.ToolName,
+						ArgumentsJson: params.Arguments,
+						RoutingKey:    params.RoutingKey,
+					})
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if resp == nil || len(resp.ResultJson) == 0 {
+			return nil, errors.New("empty automatic_eval response")
+		}
+
+		var result mcp.CallToolResult
+		if err := json.Unmarshal(resp.ResultJson, &result); err != nil {
+			return nil, err
+		}
+		return &result, nil
+	}
 }

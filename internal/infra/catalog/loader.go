@@ -44,8 +44,13 @@ func setRuntimeDefaults(v *viper.Viper) {
 }
 
 type rawCatalog struct {
-	Servers          []domain.ServerSpec `mapstructure:"servers"`
+	Servers          []domain.ServerSpec      `mapstructure:"servers"`
+	SubAgent         rawProfileSubAgentConfig `mapstructure:"subAgent"`
 	rawRuntimeConfig `mapstructure:",squash"`
+}
+
+type rawProfileSubAgentConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 type rawRuntimeConfig struct {
@@ -58,6 +63,17 @@ type rawRuntimeConfig struct {
 	ToolNamespaceStrategy  string                 `mapstructure:"toolNamespaceStrategy"`
 	Observability          rawObservabilityConfig `mapstructure:"observability"`
 	RPC                    rawRPCConfig           `mapstructure:"rpc"`
+	SubAgent               rawSubAgentConfig      `mapstructure:"subAgent"`
+}
+
+type rawSubAgentConfig struct {
+	Model              string `mapstructure:"model"`
+	Provider           string `mapstructure:"provider"`
+	APIKey             string `mapstructure:"apiKey"`
+	APIKeyEnvVar       string `mapstructure:"apiKeyEnvVar"`
+	BaseURL            string `mapstructure:"baseURL"`
+	MaxToolsPerRequest int    `mapstructure:"maxToolsPerRequest"`
+	FilterPrompt       string `mapstructure:"filterPrompt"`
 }
 
 type rawObservabilityConfig struct {
@@ -179,8 +195,9 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 	}
 
 	return domain.Catalog{
-		Specs:   specs,
-		Runtime: runtime,
+		Specs:    specs,
+		Runtime:  runtime,
+		SubAgent: domain.ProfileSubAgentConfig{Enabled: cfg.SubAgent.Enabled},
 	}, nil
 }
 
@@ -304,6 +321,15 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		ToolNamespaceStrategy:  strategy,
 		Observability:          observabilityCfg,
 		RPC:                    rpcCfg,
+		SubAgent: domain.SubAgentConfig{
+			Model:              cfg.SubAgent.Model,
+			Provider:           cfg.SubAgent.Provider,
+			APIKey:             cfg.SubAgent.APIKey,
+			APIKeyEnvVar:       cfg.SubAgent.APIKeyEnvVar,
+			BaseURL:            cfg.SubAgent.BaseURL,
+			MaxToolsPerRequest: cfg.SubAgent.MaxToolsPerRequest,
+			FilterPrompt:       cfg.SubAgent.FilterPrompt,
+		},
 	}, errs
 }
 

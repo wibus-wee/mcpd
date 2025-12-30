@@ -20,6 +20,10 @@ service ControlPlaneService {
   rpc StreamLogs(StreamLogsRequest) returns (stream LogEntry);
   rpc WatchRuntimeStatus(WatchRuntimeStatusRequest) returns (stream RuntimeStatusSnapshot);
   rpc WatchServerInitStatus(WatchServerInitStatusRequest) returns (stream ServerInitStatusSnapshot);
+  // SubAgent automatic tool discovery and execution
+  rpc AutomaticMCP(AutomaticMCPRequest) returns (AutomaticMCPResponse);
+  rpc AutomaticEval(AutomaticEvalRequest) returns (AutomaticEvalResponse);
+  rpc IsSubAgentEnabled(IsSubAgentEnabledRequest) returns (IsSubAgentEnabledResponse);
 }
 
 message GetInfoRequest {}
@@ -241,4 +245,41 @@ message ServerInitStatus {
   string state = 6;
   string last_error = 7;
   int64 updated_at_unix_nano = 8;
+}
+
+// =============================================================================
+// SubAgent Automatic MCP
+// =============================================================================
+
+message AutomaticMCPRequest {
+  string caller = 1;
+  string query = 2;
+  string session_id = 3;
+  bool force_refresh = 4;
+}
+
+message AutomaticMCPResponse {
+  string etag = 1;
+  repeated bytes tools_json = 2;
+  int32 total_available = 3;
+  int32 filtered = 4;
+}
+
+message AutomaticEvalRequest {
+  string caller = 1;
+  string tool_name = 2;
+  bytes arguments_json = 3;
+  string routing_key = 4;
+}
+
+message AutomaticEvalResponse {
+  bytes result_json = 1;
+}
+
+message IsSubAgentEnabledRequest {
+  string caller = 1;
+}
+
+message IsSubAgentEnabledResponse {
+  bool enabled = 1;
 }

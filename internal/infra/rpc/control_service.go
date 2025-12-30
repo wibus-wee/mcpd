@@ -398,3 +398,64 @@ func (s *ControlService) WatchServerInitStatus(req *controlv1.WatchServerInitSta
 		}
 	}
 }
+
+// AutomaticMCP handles the automatic_mcp tool call for SubAgent.
+func (s *ControlService) AutomaticMCP(ctx context.Context, req *controlv1.AutomaticMCPRequest) (*controlv1.AutomaticMCPResponse, error) {
+	params := domain.AutomaticMCPParams{
+		Query:        req.GetQuery(),
+		SessionID:    req.GetSessionId(),
+		ForceRefresh: req.GetForceRefresh(),
+	}
+
+	result, err := s.control.AutomaticMCP(ctx, req.GetCaller(), params)
+	if err != nil {
+		return nil, mapCallerError("automatic_mcp", err)
+	}
+
+	return toProtoAutomaticMCPResponse(result), nil
+}
+
+// AutomaticEval handles the automatic_eval tool call for SubAgent.
+func (s *ControlService) AutomaticEval(ctx context.Context, req *controlv1.AutomaticEvalRequest) (*controlv1.AutomaticEvalResponse, error) {
+	if req.GetToolName() == "" {
+		return nil, status.Error(codes.InvalidArgument, "tool_name is required")
+	}
+
+	params := domain.AutomaticEvalParams{
+		ToolName:   req.GetToolName(),
+		Arguments:  req.GetArgumentsJson(),
+		RoutingKey: req.GetRoutingKey(),
+	}
+
+	result, err := s.control.AutomaticEval(ctx, req.GetCaller(), params)
+	if err != nil {
+		return nil, mapCallToolError(req.GetToolName(), err)
+	}
+
+	return &controlv1.AutomaticEvalResponse{
+		ResultJson: result,
+	}, nil
+}
+
+// IsSubAgentEnabled returns whether the SubAgent is enabled for the caller's profile.
+func (s *ControlService) IsSubAgentEnabled(ctx context.Context, req *controlv1.IsSubAgentEnabledRequest) (*controlv1.IsSubAgentEnabledResponse, error) {
+	return &controlv1.IsSubAgentEnabledResponse{
+		Enabled: s.control.IsSubAgentEnabledForCaller(req.GetCaller()),
+	}, nil
+}
+
+// toProtoAutomaticMCPResponse converts domain.AutomaticMCPResult to proto response.
+func toProtoAutomaticMCPResponse(snapshot domain.AutomaticMCPResult) *controlv1.AutomaticMCPResponse {
+	tools := make([][]byte, len(snapshot.Tools))
+	for i, t := range snapshot.Tools {
+		raw := make([]byte, len(t))
+		copy(raw, t)
+		tools[i] = raw
+	}
+	return &controlv1.AutomaticMCPResponse{
+		Etag:           snapshot.ETag,
+		ToolsJson:      tools,
+		TotalAvailable: int32(snapshot.TotalAvailable),
+		Filtered:       int32(snapshot.Filtered),
+	}
+}

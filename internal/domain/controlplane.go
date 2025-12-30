@@ -175,4 +175,18 @@ type ControlPlane interface {
 	WatchRuntimeStatusAllProfiles(ctx context.Context) (<-chan RuntimeStatusSnapshot, error)
 	WatchServerInitStatus(ctx context.Context, caller string) (<-chan ServerInitStatusSnapshot, error)
 	WatchServerInitStatusAllProfiles(ctx context.Context) (<-chan ServerInitStatusSnapshot, error)
+
+	// AutomaticMCP returns filtered tool metadata based on caller profile and query.
+	// When SubAgent is enabled, uses LLM to filter tools by relevance.
+	// Uses session-based hash tracking to minimize schema resending.
+	AutomaticMCP(ctx context.Context, caller string, params AutomaticMCPParams) (AutomaticMCPResult, error)
+
+	// AutomaticEval proxies a tool call to the actual MCP tool implementation.
+	AutomaticEval(ctx context.Context, caller string, params AutomaticEvalParams) (json.RawMessage, error)
+
+	// IsSubAgentEnabled returns whether the SubAgent infrastructure is available.
+	IsSubAgentEnabled() bool
+
+	// IsSubAgentEnabledForCaller returns whether SubAgent is enabled for the caller's profile.
+	IsSubAgentEnabledForCaller(caller string) bool
 }

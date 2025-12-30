@@ -299,3 +299,19 @@ func (f *fakeControlPlane) WatchServerInitStatus(ctx context.Context, caller str
 func (f *fakeControlPlane) WatchServerInitStatusAllProfiles(ctx context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
 	return f.WatchServerInitStatus(ctx, "")
 }
+
+func (f *fakeControlPlane) AutomaticMCP(ctx context.Context, caller string, params domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
+	return domain.AutomaticMCPResult{}, nil
+}
+
+func (f *fakeControlPlane) AutomaticEval(ctx context.Context, caller string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
+	return f.CallTool(ctx, caller, params.ToolName, params.Arguments, params.RoutingKey)
+}
+
+func (f *fakeControlPlane) IsSubAgentEnabled() bool {
+	return false
+}
+
+func (f *fakeControlPlane) IsSubAgentEnabledForCaller(caller string) bool {
+	return false
+}

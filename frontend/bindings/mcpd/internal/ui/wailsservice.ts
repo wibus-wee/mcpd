@@ -112,6 +112,15 @@ export function GetProfile(name: string): $CancellablePromise<$models.ProfileDet
 }
 
 /**
+ * GetProfileSubAgentConfig returns the per-profile SubAgent enabled state.
+ */
+export function GetProfileSubAgentConfig(profileName: string): $CancellablePromise<$models.ProfileSubAgentConfigDetail> {
+    return $Call.ByID(1813077673, profileName).then(($result: any) => {
+        return $$createType8($result);
+    });
+}
+
+/**
  * GetPrompt 获取提示模板内容
  */
 export function GetPrompt(name: string, args: json$0.RawMessage): $CancellablePromise<json$0.RawMessage> {
@@ -123,7 +132,7 @@ export function GetPrompt(name: string, args: json$0.RawMessage): $CancellablePr
  */
 export function GetRuntimeStatus(): $CancellablePromise<$models.ServerRuntimeStatus[]> {
     return $Call.ByID(2938457663).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType10($result);
     });
 }
 
@@ -132,7 +141,16 @@ export function GetRuntimeStatus(): $CancellablePromise<$models.ServerRuntimeSta
  */
 export function GetServerInitStatus(): $CancellablePromise<$models.ServerInitStatus[]> {
     return $Call.ByID(2208834076).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType12($result);
+    });
+}
+
+/**
+ * GetSubAgentConfig returns the runtime-level SubAgent LLM provider configuration.
+ */
+export function GetSubAgentConfig(): $CancellablePromise<$models.SubAgentConfigDetail> {
+    return $Call.ByID(2210812234).then(($result: any) => {
+        return $$createType13($result);
     });
 }
 
@@ -160,11 +178,18 @@ export function ImportMcpServers(req: $models.ImportMcpServersRequest): $Cancell
 }
 
 /**
+ * IsSubAgentAvailable returns whether the SubAgent infrastructure is configured at runtime level.
+ */
+export function IsSubAgentAvailable(): $CancellablePromise<boolean> {
+    return $Call.ByID(543713273);
+}
+
+/**
  * ListProfiles 列出所有 profiles
  */
 export function ListProfiles(): $CancellablePromise<$models.ProfileSummary[]> {
     return $Call.ByID(3827145375).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType15($result);
     });
 }
 
@@ -173,7 +198,7 @@ export function ListProfiles(): $CancellablePromise<$models.ProfileSummary[]> {
  */
 export function ListPrompts(cursor: string): $CancellablePromise<$models.PromptPage | null> {
     return $Call.ByID(2106692208, cursor).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType17($result);
     });
 }
 
@@ -182,7 +207,7 @@ export function ListPrompts(cursor: string): $CancellablePromise<$models.PromptP
  */
 export function ListResources(cursor: string): $CancellablePromise<$models.ResourcePage | null> {
     return $Call.ByID(3909930490, cursor).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType19($result);
     });
 }
 
@@ -191,7 +216,7 @@ export function ListResources(cursor: string): $CancellablePromise<$models.Resou
  */
 export function ListTools(): $CancellablePromise<$models.ToolEntry[]> {
     return $Call.ByID(1487086052).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType21($result);
     });
 }
 
@@ -252,6 +277,13 @@ export function SetManager(manager: $models.Manager | null): $CancellablePromise
 }
 
 /**
+ * SetProfileSubAgentEnabled updates the per-profile SubAgent enabled state.
+ */
+export function SetProfileSubAgentEnabled(req: $models.UpdateProfileSubAgentRequest): $CancellablePromise<void> {
+    return $Call.ByID(3888689956, req);
+}
+
+/**
  * SetServerDisabled updates the disabled state for a server in a profile.
  */
 export function SetServerDisabled(req: $models.UpdateServerStateRequest): $CancellablePromise<void> {
@@ -302,15 +334,17 @@ const $$createType4 = $models.CoreStateResponse.createFrom;
 const $$createType5 = $models.InfoResponse.createFrom;
 const $$createType6 = $models.ProfileDetail.createFrom;
 const $$createType7 = $Create.Nullable($$createType6);
-const $$createType8 = $models.ServerRuntimeStatus.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $models.ServerInitStatus.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $models.ProfileSummary.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $models.PromptPage.createFrom;
-const $$createType15 = $Create.Nullable($$createType14);
-const $$createType16 = $models.ResourcePage.createFrom;
+const $$createType8 = $models.ProfileSubAgentConfigDetail.createFrom;
+const $$createType9 = $models.ServerRuntimeStatus.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = $models.ServerInitStatus.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $models.SubAgentConfigDetail.createFrom;
+const $$createType14 = $models.ProfileSummary.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = $models.PromptPage.createFrom;
 const $$createType17 = $Create.Nullable($$createType16);
-const $$createType18 = $models.ToolEntry.createFrom;
-const $$createType19 = $Create.Array($$createType18);
+const $$createType18 = $models.ResourcePage.createFrom;
+const $$createType19 = $Create.Nullable($$createType18);
+const $$createType20 = $models.ToolEntry.createFrom;
+const $$createType21 = $Create.Array($$createType20);

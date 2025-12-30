@@ -427,6 +427,7 @@ export class ProfileDetail {
     "name": string;
     "runtime": RuntimeConfigDetail;
     "servers": ServerSpecDetail[];
+    "subAgent": ProfileSubAgentConfigDetail;
 
     /** Creates a new ProfileDetail instance. */
     constructor($$source: Partial<ProfileDetail> = {}) {
@@ -439,6 +440,9 @@ export class ProfileDetail {
         if (!("servers" in $$source)) {
             this["servers"] = [];
         }
+        if (!("subAgent" in $$source)) {
+            this["subAgent"] = (new ProfileSubAgentConfigDetail());
+        }
 
         Object.assign(this, $$source);
     }
@@ -449,6 +453,7 @@ export class ProfileDetail {
     static createFrom($$source: any = {}): ProfileDetail {
         const $$createField1_0 = $$createType4;
         const $$createField2_0 = $$createType6;
+        const $$createField3_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("runtime" in $$parsedSource) {
             $$parsedSource["runtime"] = $$createField1_0($$parsedSource["runtime"]);
@@ -456,7 +461,34 @@ export class ProfileDetail {
         if ("servers" in $$parsedSource) {
             $$parsedSource["servers"] = $$createField2_0($$parsedSource["servers"]);
         }
+        if ("subAgent" in $$parsedSource) {
+            $$parsedSource["subAgent"] = $$createField3_0($$parsedSource["subAgent"]);
+        }
         return new ProfileDetail($$parsedSource as Partial<ProfileDetail>);
+    }
+}
+
+/**
+ * ProfileSubAgentConfigDetail contains the per-profile SubAgent settings
+ */
+export class ProfileSubAgentConfigDetail {
+    "enabled": boolean;
+
+    /** Creates a new ProfileSubAgentConfigDetail instance. */
+    constructor($$source: Partial<ProfileSubAgentConfigDetail> = {}) {
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProfileSubAgentConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ProfileSubAgentConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ProfileSubAgentConfigDetail($$parsedSource as Partial<ProfileSubAgentConfigDetail>);
     }
 }
 
@@ -540,7 +572,7 @@ export class PromptPage {
      * Creates a new PromptPage instance from a string or object.
      */
     static createFrom($$source: any = {}): PromptPage {
-        const $$createField0_0 = $$createType8;
+        const $$createField0_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("prompts" in $$parsedSource) {
             $$parsedSource["prompts"] = $$createField0_0($$parsedSource["prompts"]);
@@ -592,7 +624,7 @@ export class RPCConfigDetail {
      * Creates a new RPCConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RPCConfigDetail {
-        const $$createField6_0 = $$createType9;
+        const $$createField6_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tls" in $$parsedSource) {
             $$parsedSource["tls"] = $$createField6_0($$parsedSource["tls"]);
@@ -689,7 +721,7 @@ export class ResourcePage {
      * Creates a new ResourcePage instance from a string or object.
      */
     static createFrom($$source: any = {}): ResourcePage {
-        const $$createField0_0 = $$createType11;
+        const $$createField0_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("resources" in $$parsedSource) {
             $$parsedSource["resources"] = $$createField0_0($$parsedSource["resources"]);
@@ -749,8 +781,8 @@ export class RuntimeConfigDetail {
      * Creates a new RuntimeConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RuntimeConfigDetail {
-        const $$createField7_0 = $$createType12;
-        const $$createField8_0 = $$createType13;
+        const $$createField7_0 = $$createType13;
+        const $$createField8_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observability" in $$parsedSource) {
             $$parsedSource["observability"] = $$createField7_0($$parsedSource["observability"]);
@@ -839,8 +871,8 @@ export class ServerRuntimeStatus {
      * Creates a new ServerRuntimeStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): ServerRuntimeStatus {
-        const $$createField2_0 = $$createType15;
-        const $$createField3_0 = $$createType16;
+        const $$createField2_0 = $$createType16;
+        const $$createField3_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("instances" in $$parsedSource) {
             $$parsedSource["instances"] = $$createField2_0($$parsedSource["instances"]);
@@ -941,6 +973,50 @@ export class ServerSpecDetail {
 }
 
 /**
+ * SubAgentConfigDetail contains the runtime-level SubAgent LLM provider config
+ */
+export class SubAgentConfigDetail {
+    "model": string;
+    "provider": string;
+    "apiKeyEnvVar": string;
+    "baseURL": string;
+    "maxToolsPerRequest": number;
+    "filterPrompt": string;
+
+    /** Creates a new SubAgentConfigDetail instance. */
+    constructor($$source: Partial<SubAgentConfigDetail> = {}) {
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("apiKeyEnvVar" in $$source)) {
+            this["apiKeyEnvVar"] = "";
+        }
+        if (!("baseURL" in $$source)) {
+            this["baseURL"] = "";
+        }
+        if (!("maxToolsPerRequest" in $$source)) {
+            this["maxToolsPerRequest"] = 0;
+        }
+        if (!("filterPrompt" in $$source)) {
+            this["filterPrompt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SubAgentConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SubAgentConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SubAgentConfigDetail($$parsedSource as Partial<SubAgentConfigDetail>);
+    }
+}
+
+/**
  * ToolEntry represents a single tool for the frontend
  */
 export class ToolEntry {
@@ -1005,6 +1081,34 @@ export class UpdateCallerMappingRequest {
 }
 
 /**
+ * UpdateProfileSubAgentRequest updates the per-profile SubAgent enabled state
+ */
+export class UpdateProfileSubAgentRequest {
+    "profile": string;
+    "enabled": boolean;
+
+    /** Creates a new UpdateProfileSubAgentRequest instance. */
+    constructor($$source: Partial<UpdateProfileSubAgentRequest> = {}) {
+        if (!("profile" in $$source)) {
+            this["profile"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateProfileSubAgentRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateProfileSubAgentRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateProfileSubAgentRequest($$parsedSource as Partial<UpdateProfileSubAgentRequest>);
+    }
+}
+
+/**
  * UpdateServerStateRequest updates the disabled state for a server in a profile.
  */
 export class UpdateServerStateRequest {
@@ -1044,13 +1148,14 @@ const $$createType3 = $Create.Map($Create.Any, $Create.Any);
 const $$createType4 = RuntimeConfigDetail.createFrom;
 const $$createType5 = ServerSpecDetail.createFrom;
 const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = PromptEntry.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = RPCTLSConfigDetail.createFrom;
-const $$createType10 = ResourceEntry.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = ObservabilityConfigDetail.createFrom;
-const $$createType13 = RPCConfigDetail.createFrom;
-const $$createType14 = InstanceStatus.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = PoolStats.createFrom;
+const $$createType7 = ProfileSubAgentConfigDetail.createFrom;
+const $$createType8 = PromptEntry.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = RPCTLSConfigDetail.createFrom;
+const $$createType11 = ResourceEntry.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = ObservabilityConfigDetail.createFrom;
+const $$createType14 = RPCConfigDetail.createFrom;
+const $$createType15 = InstanceStatus.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = PoolStats.createFrom;

@@ -34,6 +34,9 @@ const (
 	ControlPlaneService_StreamLogs_FullMethodName            = "/mcpd.control.v1.ControlPlaneService/StreamLogs"
 	ControlPlaneService_WatchRuntimeStatus_FullMethodName    = "/mcpd.control.v1.ControlPlaneService/WatchRuntimeStatus"
 	ControlPlaneService_WatchServerInitStatus_FullMethodName = "/mcpd.control.v1.ControlPlaneService/WatchServerInitStatus"
+	ControlPlaneService_AutomaticMCP_FullMethodName          = "/mcpd.control.v1.ControlPlaneService/AutomaticMCP"
+	ControlPlaneService_AutomaticEval_FullMethodName         = "/mcpd.control.v1.ControlPlaneService/AutomaticEval"
+	ControlPlaneService_IsSubAgentEnabled_FullMethodName     = "/mcpd.control.v1.ControlPlaneService/IsSubAgentEnabled"
 )
 
 // ControlPlaneServiceClient is the client API for ControlPlaneService service.
@@ -55,6 +58,10 @@ type ControlPlaneServiceClient interface {
 	StreamLogs(ctx context.Context, in *StreamLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogEntry], error)
 	WatchRuntimeStatus(ctx context.Context, in *WatchRuntimeStatusRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RuntimeStatusSnapshot], error)
 	WatchServerInitStatus(ctx context.Context, in *WatchServerInitStatusRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ServerInitStatusSnapshot], error)
+	// SubAgent automatic tool discovery and execution
+	AutomaticMCP(ctx context.Context, in *AutomaticMCPRequest, opts ...grpc.CallOption) (*AutomaticMCPResponse, error)
+	AutomaticEval(ctx context.Context, in *AutomaticEvalRequest, opts ...grpc.CallOption) (*AutomaticEvalResponse, error)
+	IsSubAgentEnabled(ctx context.Context, in *IsSubAgentEnabledRequest, opts ...grpc.CallOption) (*IsSubAgentEnabledResponse, error)
 }
 
 type controlPlaneServiceClient struct {
@@ -269,6 +276,36 @@ func (c *controlPlaneServiceClient) WatchServerInitStatus(ctx context.Context, i
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ControlPlaneService_WatchServerInitStatusClient = grpc.ServerStreamingClient[ServerInitStatusSnapshot]
 
+func (c *controlPlaneServiceClient) AutomaticMCP(ctx context.Context, in *AutomaticMCPRequest, opts ...grpc.CallOption) (*AutomaticMCPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutomaticMCPResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_AutomaticMCP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) AutomaticEval(ctx context.Context, in *AutomaticEvalRequest, opts ...grpc.CallOption) (*AutomaticEvalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutomaticEvalResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_AutomaticEval_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) IsSubAgentEnabled(ctx context.Context, in *IsSubAgentEnabledRequest, opts ...grpc.CallOption) (*IsSubAgentEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IsSubAgentEnabledResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_IsSubAgentEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControlPlaneServiceServer is the server API for ControlPlaneService service.
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
@@ -288,6 +325,10 @@ type ControlPlaneServiceServer interface {
 	StreamLogs(*StreamLogsRequest, grpc.ServerStreamingServer[LogEntry]) error
 	WatchRuntimeStatus(*WatchRuntimeStatusRequest, grpc.ServerStreamingServer[RuntimeStatusSnapshot]) error
 	WatchServerInitStatus(*WatchServerInitStatusRequest, grpc.ServerStreamingServer[ServerInitStatusSnapshot]) error
+	// SubAgent automatic tool discovery and execution
+	AutomaticMCP(context.Context, *AutomaticMCPRequest) (*AutomaticMCPResponse, error)
+	AutomaticEval(context.Context, *AutomaticEvalRequest) (*AutomaticEvalResponse, error)
+	IsSubAgentEnabled(context.Context, *IsSubAgentEnabledRequest) (*IsSubAgentEnabledResponse, error)
 	mustEmbedUnimplementedControlPlaneServiceServer()
 }
 
@@ -342,6 +383,15 @@ func (UnimplementedControlPlaneServiceServer) WatchRuntimeStatus(*WatchRuntimeSt
 }
 func (UnimplementedControlPlaneServiceServer) WatchServerInitStatus(*WatchServerInitStatusRequest, grpc.ServerStreamingServer[ServerInitStatusSnapshot]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchServerInitStatus not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) AutomaticMCP(context.Context, *AutomaticMCPRequest) (*AutomaticMCPResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AutomaticMCP not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) AutomaticEval(context.Context, *AutomaticEvalRequest) (*AutomaticEvalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AutomaticEval not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) IsSubAgentEnabled(context.Context, *IsSubAgentEnabledRequest) (*IsSubAgentEnabledResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IsSubAgentEnabled not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) mustEmbedUnimplementedControlPlaneServiceServer() {}
 func (UnimplementedControlPlaneServiceServer) testEmbeddedByValue()                             {}
@@ -592,6 +642,60 @@ func _ControlPlaneService_WatchServerInitStatus_Handler(srv interface{}, stream 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ControlPlaneService_WatchServerInitStatusServer = grpc.ServerStreamingServer[ServerInitStatusSnapshot]
 
+func _ControlPlaneService_AutomaticMCP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AutomaticMCPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).AutomaticMCP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_AutomaticMCP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).AutomaticMCP(ctx, req.(*AutomaticMCPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_AutomaticEval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AutomaticEvalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).AutomaticEval(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_AutomaticEval_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).AutomaticEval(ctx, req.(*AutomaticEvalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_IsSubAgentEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IsSubAgentEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).IsSubAgentEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_IsSubAgentEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).IsSubAgentEnabled(ctx, req.(*IsSubAgentEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControlPlaneService_ServiceDesc is the grpc.ServiceDesc for ControlPlaneService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -634,6 +738,18 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPrompt",
 			Handler:    _ControlPlaneService_GetPrompt_Handler,
+		},
+		{
+			MethodName: "AutomaticMCP",
+			Handler:    _ControlPlaneService_AutomaticMCP_Handler,
+		},
+		{
+			MethodName: "AutomaticEval",
+			Handler:    _ControlPlaneService_AutomaticEval_Handler,
+		},
+		{
+			MethodName: "IsSubAgentEnabled",
+			Handler:    _ControlPlaneService_IsSubAgentEnabled_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

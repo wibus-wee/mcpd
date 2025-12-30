@@ -1,4 +1,4 @@
-// Input: Card, Badge, Button, ScrollArea, Checkbox, Select components, logs hook
+// Input: Card, Badge, Button, Checkbox, Select components, logs hook
 // Output: LogsPanel component displaying real-time logs
 // Position: Dashboard logs section with filtering
 
@@ -13,6 +13,7 @@ import {
   TrashIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { logStreamTokenAtom } from '@/atoms/logs'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +21,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -163,7 +163,7 @@ export function LogsPanel() {
   const [serverFilter, setServerFilter] = useState<string>('all')
   const [autoScroll, setAutoScroll] = useState(true)
   const bumpLogStreamToken = useSetAtom(logStreamTokenAtom)
-  const topAnchorRef = useRef<HTMLDivElement | null>(null)
+  const parentRef = useRef<HTMLDivElement | null>(null)
   const levelLabels: Record<string, string> = {
     all: 'All levels',
     debug: 'Debug',
@@ -219,12 +219,24 @@ export function LogsPanel() {
   const showServerFilter = serverOptions.length > 0
     && (sourceFilter === 'all' || sourceFilter === 'downstream')
 
+  // Setup virtualizer for logs
+  const virtualizer = useVirtualizer({
+    count: filteredLogs.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100, // Estimate item height
+    overscan: 10, // Render extra items outside viewport
+  })
+
   useEffect(() => {
     if (!autoScroll || filteredLogs.length === 0) {
       return
     }
-    topAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [autoScroll, filteredLogs.length])
+    // Scroll to the end (latest log)
+    virtualizer.scrollToIndex(filteredLogs.length - 1, {
+      align: 'end',
+      behavior: 'smooth',
+    })
+  }, [autoScroll, filteredLogs.length, virtualizer])
 
   useEffect(() => {
     if (sourceFilter !== 'downstream' && sourceFilter !== 'all' && serverFilter !== 'all') {
@@ -379,23 +391,45 @@ export function LogsPanel() {
         </CardHeader>
         <Separator />
         <CardContent className="p-0">
-          <ScrollArea className="h-80">
+          <div
+            ref={parentRef}
+            className="h-80 overflow-y-auto overflow-x-hidden"
+          >
             {filteredLogs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
                 <ScrollTextIcon className="size-8 mb-2 opacity-50" />
                 {renderEmptyState()}
               </div>
             ) : (
-              <div>
-                <div ref={topAnchorRef} className="h-0" />
-                <div className="divide-y">
-                  {filteredLogs.map(log => (
-                    <LogItem key={log.id} log={log} />
-                  ))}
-                </div>
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const log = filteredLogs[virtualItem.index]
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                      className="border-b divide-y"
+                    >
+                      <LogItem log={log} />
+                    </div>
+                  )
+                })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>

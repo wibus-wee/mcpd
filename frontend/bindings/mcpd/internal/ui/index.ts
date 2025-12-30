@@ -21,6 +21,7 @@ export {
     ObservabilityConfigDetail,
     PoolStats,
     ProfileDetail,
+    ProfileSubAgentConfigDetail,
     ProfileSummary,
     PromptEntry,
     PromptPage,
@@ -32,7 +33,9 @@ export {
     ServerInitStatus,
     ServerRuntimeStatus,
     ServerSpecDetail,
+    SubAgentConfigDetail,
     ToolEntry,
     UpdateCallerMappingRequest,
+    UpdateProfileSubAgentRequest,
     UpdateServerStateRequest
 } from "./models.js";

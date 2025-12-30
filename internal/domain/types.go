@@ -33,6 +33,7 @@ type RuntimeConfig struct {
 	ToolNamespaceStrategy  string              `json:"toolNamespaceStrategy"`
 	Observability          ObservabilityConfig `json:"observability"`
 	RPC                    RPCConfig           `json:"rpc"`
+	SubAgent               SubAgentConfig      `json:"subAgent"`
 }
 
 type ObservabilityConfig struct {
@@ -58,8 +59,9 @@ type RPCTLSConfig struct {
 }
 
 type Catalog struct {
-	Specs   map[string]ServerSpec
-	Runtime RuntimeConfig
+	Specs    map[string]ServerSpec
+	Runtime  RuntimeConfig
+	SubAgent ProfileSubAgentConfig // Per-profile SubAgent settings (enabled/disabled)
 }
 
 type ServerCapabilities struct {

@@ -20,3 +20,14 @@ rpc:
     keyFile: ""
     caFile: ""
     clientAuth: false
+
+# SubAgent LLM Provider Configuration (runtime-level, shared across all profiles)
+# Per-profile enabling is done in profiles/xxx.yaml with subAgent.enabled: true
+subAgent:
+  model: "gpt-4o"
+  provider: "openai"
+  # apiKey: ""  # Optional: inline API key (avoid committing secrets)
+  apiKeyEnvVar: "OPENAI_API_KEY"
+  baseURL: "https://108-aistudio.wibus.ren/api/v1"  # Optional: custom API endpoint
+  maxToolsPerRequest: 20
+  # filterPrompt: ""  # Optional custom prompt for tool filtering

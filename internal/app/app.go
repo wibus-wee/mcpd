@@ -21,6 +21,7 @@ import (
 	"mcpd/internal/infra/router"
 	"mcpd/internal/infra/rpc"
 	"mcpd/internal/infra/scheduler"
+	"mcpd/internal/infra/subagent"
 	"mcpd/internal/infra/telemetry"
 	"mcpd/internal/infra/transport"
 )
@@ -150,6 +151,21 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	}
 
 	control := NewControlPlane(ctx, profiles, store.Callers, summary.specRegistry, sched, initManager, summary.defaultRuntime, store, logs, logger)
+
+	// Initialize SubAgent if configured in runtime
+	if summary.defaultRuntime.SubAgent.Model != "" && summary.defaultRuntime.SubAgent.Provider != "" {
+		subAgent, err := initializeSubAgent(ctx, summary.defaultRuntime.SubAgent, control, logger)
+		if err != nil {
+			logger.Warn("failed to initialize SubAgent", zap.Error(err))
+		} else {
+			control.SetSubAgent(subAgent)
+			logger.Info("SubAgent initialized",
+				zap.String("provider", summary.defaultRuntime.SubAgent.Provider),
+				zap.String("model", summary.defaultRuntime.SubAgent.Model),
+			)
+		}
+	}
+
 	if cfg.OnReady != nil {
 		cfg.OnReady(control)
 	}
@@ -330,4 +346,8 @@ func validateSharedRuntime(base domain.RuntimeConfig, current domain.RuntimeConf
 		return errors.New("observability config must match across profiles")
 	}
 	return nil
+}
+
+func initializeSubAgent(ctx context.Context, config domain.SubAgentConfig, controlPlane *ControlPlane, logger *zap.Logger) (domain.SubAgent, error) {
+	return subagent.NewEinoSubAgent(ctx, config, controlPlane, logger)
 }

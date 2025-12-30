@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
@@ -18,20 +20,27 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+const (
+	defaultAutomaticMCPSessionTTL = 30 * time.Minute
+	defaultAutomaticMCPCacheSize  = 10000
+)
+
 type ControlPlane struct {
-	info             domain.ControlPlaneInfo
-	profiles         map[string]*profileRuntime
-	callers          map[string]string
-	specRegistry     map[string]domain.ServerSpec
-	scheduler        domain.Scheduler
-	initManager      *ServerInitializationManager
-	runtime          domain.RuntimeConfig
-	logs             *telemetry.LogBroadcaster
-	logger           *zap.Logger
-	ctx              context.Context
-	profileStore     domain.ProfileStore
-	runtimeStatusIdx *aggregator.RuntimeStatusIndex
-	serverInitIdx    *aggregator.ServerInitIndex
+	info              domain.ControlPlaneInfo
+	profiles          map[string]*profileRuntime
+	callers           map[string]string
+	specRegistry      map[string]domain.ServerSpec
+	scheduler         domain.Scheduler
+	initManager       *ServerInitializationManager
+	runtime           domain.RuntimeConfig
+	logs              *telemetry.LogBroadcaster
+	logger            *zap.Logger
+	ctx               context.Context
+	profileStore      domain.ProfileStore
+	runtimeStatusIdx  *aggregator.RuntimeStatusIndex
+	serverInitIdx     *aggregator.ServerInitIndex
+	subAgent          domain.SubAgent
+	automaticMCPCache *domain.SessionCache
 
 	mu               sync.Mutex
 	activeCallers    map[string]callerState
@@ -120,21 +129,22 @@ func NewControlPlane(
 		callers = map[string]string{}
 	}
 	return &ControlPlane{
-		info:             defaultControlPlaneInfo(),
-		profiles:         profiles,
-		callers:          callers,
-		specRegistry:     specRegistry,
-		scheduler:        scheduler,
-		initManager:      initManager,
-		runtime:          runtime,
-		profileStore:     store,
-		logs:             logs,
-		logger:           logger.Named("control_plane"),
-		ctx:              ctx,
-		activeCallers:    make(map[string]callerState),
-		activeCallerSubs: make(map[chan domain.ActiveCallerSnapshot]struct{}),
-		profileCounts:    make(map[string]int),
-		specCounts:       make(map[string]int),
+		info:              defaultControlPlaneInfo(),
+		profiles:          profiles,
+		callers:           callers,
+		specRegistry:      specRegistry,
+		scheduler:         scheduler,
+		initManager:       initManager,
+		runtime:           runtime,
+		profileStore:      store,
+		logs:              logs,
+		logger:            logger.Named("control_plane"),
+		ctx:               ctx,
+		activeCallers:     make(map[string]callerState),
+		activeCallerSubs:  make(map[chan domain.ActiveCallerSnapshot]struct{}),
+		profileCounts:     make(map[string]int),
+		specCounts:        make(map[string]int),
+		automaticMCPCache: domain.NewSessionCache(defaultAutomaticMCPSessionTTL, defaultAutomaticMCPCacheSize),
 	}
 }
 
@@ -1200,4 +1210,215 @@ func (c *ControlPlane) runServerInitWorker() {
 			}
 		}
 	}
+}
+
+// SetSubAgent sets the SubAgent for automatic tool filtering.
+func (c *ControlPlane) SetSubAgent(agent domain.SubAgent) {
+	c.subAgent = agent
+}
+
+// IsSubAgentEnabled returns whether the SubAgent is enabled for the given caller's profile.
+func (c *ControlPlane) IsSubAgentEnabledForCaller(caller string) bool {
+	// First check if SubAgent infrastructure is available (runtime config)
+	if c.subAgent == nil {
+		return false
+	}
+
+	// Then check if the caller's profile has SubAgent enabled
+	c.mu.Lock()
+	state, ok := c.activeCallers[caller]
+	c.mu.Unlock()
+	if !ok {
+		return false
+	}
+
+	profile, ok := c.profiles[state.profile]
+	if !ok {
+		return false
+	}
+
+	// Get the catalog for this profile from the profile store
+	if c.profileStore.Profiles == nil {
+		return false
+	}
+	profileData, ok := c.profileStore.Profiles[profile.name]
+	if !ok {
+		return false
+	}
+
+	return profileData.Catalog.SubAgent.Enabled
+}
+
+// IsSubAgentEnabled returns whether the SubAgent infrastructure is available (for backward compatibility).
+func (c *ControlPlane) IsSubAgentEnabled() bool {
+	return c.subAgent != nil
+}
+
+// GetToolSnapshotForCaller returns the tool snapshot for the given caller's profile.
+func (c *ControlPlane) GetToolSnapshotForCaller(caller string) (domain.ToolSnapshot, error) {
+	profile, err := c.resolveProfile(caller)
+	if err != nil {
+		return domain.ToolSnapshot{}, err
+	}
+	if profile.tools == nil {
+		return domain.ToolSnapshot{}, nil
+	}
+	return profile.tools.Snapshot(), nil
+}
+
+// AutomaticMCP returns filtered tool metadata based on caller profile and query.
+// When SubAgent is enabled, uses LLM to filter tools by relevance.
+// Uses session-based hash tracking to minimize schema resending.
+func (c *ControlPlane) AutomaticMCP(ctx context.Context, caller string, params domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
+	profile, err := c.resolveProfile(caller)
+	if err != nil {
+		return domain.AutomaticMCPResult{}, err
+	}
+
+	if c.subAgent != nil {
+		// Use SubAgent for LLM-based filtering
+		return c.subAgent.SelectToolsForCaller(ctx, caller, params)
+	}
+
+	// Fallback: return full tool list (no LLM filtering)
+	return c.fallbackAutomaticMCP(ctx, caller, profile, params)
+}
+
+// fallbackAutomaticMCP returns all tools when SubAgent is disabled.
+func (c *ControlPlane) fallbackAutomaticMCP(_ context.Context, caller string, profile *profileRuntime, params domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
+	if profile.tools == nil {
+		return domain.AutomaticMCPResult{}, nil
+	}
+
+	snapshot := profile.tools.Snapshot()
+	sessionKey := domain.AutomaticMCPSessionKey(caller, params.SessionID)
+
+	toolsToSend := make([]json.RawMessage, 0, len(snapshot.Tools))
+	sentSchemas := make(map[string]string)
+	for _, tool := range snapshot.Tools {
+		// Compute hash
+		hash := hashToolSchema(tool.ToolJSON)
+		shouldSend := params.ForceRefresh || c.automaticMCPCache.NeedsFull(sessionKey, tool.Name, hash)
+		if !shouldSend {
+			continue
+		}
+
+		raw := make([]byte, len(tool.ToolJSON))
+		copy(raw, tool.ToolJSON)
+		toolsToSend = append(toolsToSend, raw)
+		sentSchemas[tool.Name] = hash
+	}
+
+	c.automaticMCPCache.Update(sessionKey, sentSchemas)
+
+	return domain.AutomaticMCPResult{
+		ETag:           snapshot.ETag,
+		Tools:          toolsToSend,
+		TotalAvailable: len(snapshot.Tools),
+		Filtered:       len(toolsToSend),
+	}, nil
+}
+
+// AutomaticEval proxies a tool call to the actual MCP tool implementation.
+func (c *ControlPlane) AutomaticEval(ctx context.Context, caller string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
+	tool, err := c.getToolDefinition(caller, params.ToolName)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateToolArguments(tool.ToolJSON, params.Arguments); err != nil {
+		result, buildErr := buildAutomaticEvalSchemaError(tool.ToolJSON, err)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		return result, nil
+	}
+
+	return c.CallTool(ctx, caller, params.ToolName, params.Arguments, params.RoutingKey)
+}
+
+func (c *ControlPlane) getToolDefinition(caller, name string) (domain.ToolDefinition, error) {
+	profile, err := c.resolveProfile(caller)
+	if err != nil {
+		return domain.ToolDefinition{}, err
+	}
+	if profile.tools == nil {
+		return domain.ToolDefinition{}, domain.ErrToolNotFound
+	}
+
+	snapshot := profile.tools.Snapshot()
+	for _, tool := range snapshot.Tools {
+		if tool.Name == name {
+			return tool, nil
+		}
+	}
+	return domain.ToolDefinition{}, domain.ErrToolNotFound
+}
+
+func validateToolArguments(toolJSON, args json.RawMessage) error {
+	var tool struct {
+		InputSchema json.RawMessage `json:"inputSchema"`
+	}
+	if err := json.Unmarshal(toolJSON, &tool); err != nil {
+		return fmt.Errorf("decode tool schema: %w", err)
+	}
+	if len(tool.InputSchema) == 0 {
+		return nil
+	}
+
+	var schema jsonschema.Schema
+	if err := json.Unmarshal(tool.InputSchema, &schema); err != nil {
+		return fmt.Errorf("decode tool input schema: %w", err)
+	}
+
+	resolved, err := schema.Resolve(nil)
+	if err != nil {
+		return fmt.Errorf("resolve tool input schema: %w", err)
+	}
+
+	var payload any
+	if len(args) == 0 {
+		payload = map[string]any{}
+	} else if err := json.Unmarshal(args, &payload); err != nil {
+		return fmt.Errorf("decode tool arguments: %w", err)
+	}
+
+	if err := resolved.Validate(payload); err != nil {
+		return fmt.Errorf("invalid tool arguments: %w", err)
+	}
+	return nil
+}
+
+func buildAutomaticEvalSchemaError(toolJSON json.RawMessage, err error) (json.RawMessage, error) {
+	payload := struct {
+		Error      string          `json:"error"`
+		ToolSchema json.RawMessage `json:"toolSchema"`
+	}{
+		Error:      err.Error(),
+		ToolSchema: toolJSON,
+	}
+
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	result := mcp.CallToolResult{
+		IsError: true,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(payloadJSON)},
+		},
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+// hashToolSchema computes SHA256 hash of a tool schema.
+func hashToolSchema(schema json.RawMessage) string {
+	hasher := sha256.New()
+	_, _ = hasher.Write(schema)
+	return hex.EncodeToString(hasher.Sum(nil))
 }

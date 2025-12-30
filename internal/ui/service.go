@@ -1013,6 +1013,9 @@ func (s *WailsService) GetProfile(ctx context.Context, name string) (*ProfileDet
 		Name:    profile.Name,
 		Runtime: convertRuntimeConfig(profile.Catalog.Runtime),
 		Servers: servers,
+		SubAgent: ProfileSubAgentConfigDetail{
+			Enabled: profile.Catalog.SubAgent.Enabled,
+		},
 	}, nil
 }
 
@@ -1194,4 +1197,101 @@ func normalizeImportEnv(env map[string]string) map[string]string {
 		return nil
 	}
 	return cleaned
+}
+
+// =============================================================================
+// SubAgent Configuration Methods
+// =============================================================================
+
+// GetSubAgentConfig returns the runtime-level SubAgent LLM provider configuration.
+func (s *WailsService) GetSubAgentConfig(ctx context.Context) (SubAgentConfigDetail, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return SubAgentConfigDetail{}, err
+	}
+
+	// Get runtime config from any profile (they share the same runtime config)
+	store := cp.GetProfileStore()
+	for _, profile := range store.Profiles {
+		cfg := profile.Catalog.Runtime.SubAgent
+		return SubAgentConfigDetail{
+			Model:              cfg.Model,
+			Provider:           cfg.Provider,
+			APIKeyEnvVar:       cfg.APIKeyEnvVar,
+			BaseURL:            cfg.BaseURL,
+			MaxToolsPerRequest: cfg.MaxToolsPerRequest,
+			FilterPrompt:       cfg.FilterPrompt,
+		}, nil
+	}
+
+	return SubAgentConfigDetail{}, nil
+}
+
+// GetProfileSubAgentConfig returns the per-profile SubAgent enabled state.
+func (s *WailsService) GetProfileSubAgentConfig(ctx context.Context, profileName string) (ProfileSubAgentConfigDetail, error) {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return ProfileSubAgentConfigDetail{}, err
+	}
+
+	store := cp.GetProfileStore()
+	profile, ok := store.Profiles[profileName]
+	if !ok {
+		return ProfileSubAgentConfigDetail{}, NewUIError(ErrCodeNotFound, fmt.Sprintf("Profile %q not found", profileName))
+	}
+
+	return ProfileSubAgentConfigDetail{
+		Enabled: profile.Catalog.SubAgent.Enabled,
+	}, nil
+}
+
+// SetProfileSubAgentEnabled updates the per-profile SubAgent enabled state.
+func (s *WailsService) SetProfileSubAgentEnabled(ctx context.Context, req UpdateProfileSubAgentRequest) error {
+	if s.manager == nil {
+		return NewUIError(ErrCodeInternal, "Manager not initialized")
+	}
+
+	profileName := strings.TrimSpace(req.Profile)
+	if profileName == "" {
+		return NewUIError(ErrCodeInvalidRequest, "Profile name is required")
+	}
+
+	mode := s.GetConfigMode()
+	if mode.Mode == "unknown" || mode.Path == "" {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not available")
+	}
+	if !mode.IsWritable {
+		return NewUIError(ErrCodeInvalidConfig, "Configuration path is not writable")
+	}
+
+	var update catalog.ProfileUpdate
+	var err error
+	if mode.Mode == "single" {
+		if profileName != domain.DefaultProfileName {
+			return NewUIErrorWithDetails(ErrCodeInvalidRequest, "Single-file config only supports default profile", profileName)
+		}
+		update, err = catalog.SetProfileSubAgentEnabled(mode.Path, req.Enabled)
+	} else {
+		path, resolveErr := catalog.ResolveProfilePath(mode.Path, profileName)
+		if resolveErr != nil {
+			return NewUIErrorWithDetails(ErrCodeProfileNotFound, "Profile not found", resolveErr.Error())
+		}
+		update, err = catalog.SetProfileSubAgentEnabled(path, req.Enabled)
+	}
+	if err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to update SubAgent config", err.Error())
+	}
+	if err := os.WriteFile(update.Path, update.Data, 0o644); err != nil {
+		return NewUIErrorWithDetails(ErrCodeInvalidConfig, "Failed to write profile file", err.Error())
+	}
+	return nil
+}
+
+// IsSubAgentAvailable returns whether the SubAgent infrastructure is configured at runtime level.
+func (s *WailsService) IsSubAgentAvailable(ctx context.Context) bool {
+	cp, err := s.getControlPlane()
+	if err != nil {
+		return false
+	}
+	return cp.IsSubAgentEnabled()
 }

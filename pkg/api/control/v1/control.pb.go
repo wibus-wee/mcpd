@@ -2093,6 +2093,342 @@ func (x *ServerInitStatus) GetUpdatedAtUnixNano() int64 {
 	return 0
 }
 
+type AutomaticMCPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Caller        string                 `protobuf:"bytes,1,opt,name=caller,proto3" json:"caller,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ForceRefresh  bool                   `protobuf:"varint,4,opt,name=force_refresh,json=forceRefresh,proto3" json:"force_refresh,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutomaticMCPRequest) Reset() {
+	*x = AutomaticMCPRequest{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomaticMCPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomaticMCPRequest) ProtoMessage() {}
+
+func (x *AutomaticMCPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomaticMCPRequest.ProtoReflect.Descriptor instead.
+func (*AutomaticMCPRequest) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *AutomaticMCPRequest) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+func (x *AutomaticMCPRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *AutomaticMCPRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AutomaticMCPRequest) GetForceRefresh() bool {
+	if x != nil {
+		return x.ForceRefresh
+	}
+	return false
+}
+
+type AutomaticMCPResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Etag           string                 `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
+	ToolsJson      [][]byte               `protobuf:"bytes,2,rep,name=tools_json,json=toolsJson,proto3" json:"tools_json,omitempty"`
+	TotalAvailable int32                  `protobuf:"varint,3,opt,name=total_available,json=totalAvailable,proto3" json:"total_available,omitempty"`
+	Filtered       int32                  `protobuf:"varint,4,opt,name=filtered,proto3" json:"filtered,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AutomaticMCPResponse) Reset() {
+	*x = AutomaticMCPResponse{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomaticMCPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomaticMCPResponse) ProtoMessage() {}
+
+func (x *AutomaticMCPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomaticMCPResponse.ProtoReflect.Descriptor instead.
+func (*AutomaticMCPResponse) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *AutomaticMCPResponse) GetEtag() string {
+	if x != nil {
+		return x.Etag
+	}
+	return ""
+}
+
+func (x *AutomaticMCPResponse) GetToolsJson() [][]byte {
+	if x != nil {
+		return x.ToolsJson
+	}
+	return nil
+}
+
+func (x *AutomaticMCPResponse) GetTotalAvailable() int32 {
+	if x != nil {
+		return x.TotalAvailable
+	}
+	return 0
+}
+
+func (x *AutomaticMCPResponse) GetFiltered() int32 {
+	if x != nil {
+		return x.Filtered
+	}
+	return 0
+}
+
+type AutomaticEvalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Caller        string                 `protobuf:"bytes,1,opt,name=caller,proto3" json:"caller,omitempty"`
+	ToolName      string                 `protobuf:"bytes,2,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	ArgumentsJson []byte                 `protobuf:"bytes,3,opt,name=arguments_json,json=argumentsJson,proto3" json:"arguments_json,omitempty"`
+	RoutingKey    string                 `protobuf:"bytes,4,opt,name=routing_key,json=routingKey,proto3" json:"routing_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutomaticEvalRequest) Reset() {
+	*x = AutomaticEvalRequest{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomaticEvalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomaticEvalRequest) ProtoMessage() {}
+
+func (x *AutomaticEvalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomaticEvalRequest.ProtoReflect.Descriptor instead.
+func (*AutomaticEvalRequest) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *AutomaticEvalRequest) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+func (x *AutomaticEvalRequest) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *AutomaticEvalRequest) GetArgumentsJson() []byte {
+	if x != nil {
+		return x.ArgumentsJson
+	}
+	return nil
+}
+
+func (x *AutomaticEvalRequest) GetRoutingKey() string {
+	if x != nil {
+		return x.RoutingKey
+	}
+	return ""
+}
+
+type AutomaticEvalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ResultJson    []byte                 `protobuf:"bytes,1,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutomaticEvalResponse) Reset() {
+	*x = AutomaticEvalResponse{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomaticEvalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomaticEvalResponse) ProtoMessage() {}
+
+func (x *AutomaticEvalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomaticEvalResponse.ProtoReflect.Descriptor instead.
+func (*AutomaticEvalResponse) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *AutomaticEvalResponse) GetResultJson() []byte {
+	if x != nil {
+		return x.ResultJson
+	}
+	return nil
+}
+
+type IsSubAgentEnabledRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Caller        string                 `protobuf:"bytes,1,opt,name=caller,proto3" json:"caller,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IsSubAgentEnabledRequest) Reset() {
+	*x = IsSubAgentEnabledRequest{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IsSubAgentEnabledRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IsSubAgentEnabledRequest) ProtoMessage() {}
+
+func (x *IsSubAgentEnabledRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IsSubAgentEnabledRequest.ProtoReflect.Descriptor instead.
+func (*IsSubAgentEnabledRequest) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *IsSubAgentEnabledRequest) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+type IsSubAgentEnabledResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IsSubAgentEnabledResponse) Reset() {
+	*x = IsSubAgentEnabledResponse{}
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IsSubAgentEnabledResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IsSubAgentEnabledResponse) ProtoMessage() {}
+
+func (x *IsSubAgentEnabledResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mcpd_control_v1_control_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IsSubAgentEnabledResponse.ProtoReflect.Descriptor instead.
+func (*IsSubAgentEnabledResponse) Descriptor() ([]byte, []int) {
+	return file_mcpd_control_v1_control_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *IsSubAgentEnabledResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
 var File_mcpd_control_v1_control_proto protoreflect.FileDescriptor
 
 const file_mcpd_control_v1_control_proto_rawDesc = "" +
@@ -2228,7 +2564,32 @@ const file_mcpd_control_v1_control_proto_rawDesc = "" +
 	"\x05state\x18\x06 \x01(\tR\x05state\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\a \x01(\tR\tlastError\x12/\n" +
-	"\x14updated_at_unix_nano\x18\b \x01(\x03R\x11updatedAtUnixNano*\xd6\x01\n" +
+	"\x14updated_at_unix_nano\x18\b \x01(\x03R\x11updatedAtUnixNano\"\x87\x01\n" +
+	"\x13AutomaticMCPRequest\x12\x16\n" +
+	"\x06caller\x18\x01 \x01(\tR\x06caller\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12#\n" +
+	"\rforce_refresh\x18\x04 \x01(\bR\fforceRefresh\"\x8e\x01\n" +
+	"\x14AutomaticMCPResponse\x12\x12\n" +
+	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x1d\n" +
+	"\n" +
+	"tools_json\x18\x02 \x03(\fR\ttoolsJson\x12'\n" +
+	"\x0ftotal_available\x18\x03 \x01(\x05R\x0etotalAvailable\x12\x1a\n" +
+	"\bfiltered\x18\x04 \x01(\x05R\bfiltered\"\x93\x01\n" +
+	"\x14AutomaticEvalRequest\x12\x16\n" +
+	"\x06caller\x18\x01 \x01(\tR\x06caller\x12\x1b\n" +
+	"\ttool_name\x18\x02 \x01(\tR\btoolName\x12%\n" +
+	"\x0earguments_json\x18\x03 \x01(\fR\rargumentsJson\x12\x1f\n" +
+	"\vrouting_key\x18\x04 \x01(\tR\n" +
+	"routingKey\"8\n" +
+	"\x15AutomaticEvalResponse\x12\x1f\n" +
+	"\vresult_json\x18\x01 \x01(\fR\n" +
+	"resultJson\"2\n" +
+	"\x18IsSubAgentEnabledRequest\x12\x16\n" +
+	"\x06caller\x18\x01 \x01(\tR\x06caller\"5\n" +
+	"\x19IsSubAgentEnabledResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled*\xd6\x01\n" +
 	"\bLogLevel\x12\x19\n" +
 	"\x15LOG_LEVEL_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOG_LEVEL_DEBUG\x10\x01\x12\x12\n" +
@@ -2238,8 +2599,7 @@ const file_mcpd_control_v1_control_proto_rawDesc = "" +
 	"\x0fLOG_LEVEL_ERROR\x10\x05\x12\x16\n" +
 	"\x12LOG_LEVEL_CRITICAL\x10\x06\x12\x13\n" +
 	"\x0fLOG_LEVEL_ALERT\x10\a\x12\x17\n" +
-	"\x13LOG_LEVEL_EMERGENCY\x10\b2\xfd\n" +
-	"\n" +
+	"\x13LOG_LEVEL_EMERGENCY\x10\b2\xa6\r\n" +
 	"\x13ControlPlaneService\x12L\n" +
 	"\aGetInfo\x12\x1f.mcpd.control.v1.GetInfoRequest\x1a .mcpd.control.v1.GetInfoResponse\x12a\n" +
 	"\x0eRegisterCaller\x12&.mcpd.control.v1.RegisterCallerRequest\x1a'.mcpd.control.v1.RegisterCallerResponse\x12g\n" +
@@ -2257,7 +2617,10 @@ const file_mcpd_control_v1_control_proto_rawDesc = "" +
 	"\n" +
 	"StreamLogs\x12\".mcpd.control.v1.StreamLogsRequest\x1a\x19.mcpd.control.v1.LogEntry0\x01\x12j\n" +
 	"\x12WatchRuntimeStatus\x12*.mcpd.control.v1.WatchRuntimeStatusRequest\x1a&.mcpd.control.v1.RuntimeStatusSnapshot0\x01\x12s\n" +
-	"\x15WatchServerInitStatus\x12-.mcpd.control.v1.WatchServerInitStatusRequest\x1a).mcpd.control.v1.ServerInitStatusSnapshot0\x01B#Z!mcpd/pkg/api/control/v1;controlv1b\x06proto3"
+	"\x15WatchServerInitStatus\x12-.mcpd.control.v1.WatchServerInitStatusRequest\x1a).mcpd.control.v1.ServerInitStatusSnapshot0\x01\x12[\n" +
+	"\fAutomaticMCP\x12$.mcpd.control.v1.AutomaticMCPRequest\x1a%.mcpd.control.v1.AutomaticMCPResponse\x12^\n" +
+	"\rAutomaticEval\x12%.mcpd.control.v1.AutomaticEvalRequest\x1a&.mcpd.control.v1.AutomaticEvalResponse\x12j\n" +
+	"\x11IsSubAgentEnabled\x12).mcpd.control.v1.IsSubAgentEnabledRequest\x1a*.mcpd.control.v1.IsSubAgentEnabledResponseB#Z!mcpd/pkg/api/control/v1;controlv1b\x06proto3"
 
 var (
 	file_mcpd_control_v1_control_proto_rawDescOnce sync.Once
@@ -2272,7 +2635,7 @@ func file_mcpd_control_v1_control_proto_rawDescGZIP() []byte {
 }
 
 var file_mcpd_control_v1_control_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_mcpd_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_mcpd_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_mcpd_control_v1_control_proto_goTypes = []any{
 	(LogLevel)(0),                        // 0: mcpd.control.v1.LogLevel
 	(*GetInfoRequest)(nil),               // 1: mcpd.control.v1.GetInfoRequest
@@ -2312,6 +2675,12 @@ var file_mcpd_control_v1_control_proto_goTypes = []any{
 	(*WatchServerInitStatusRequest)(nil), // 35: mcpd.control.v1.WatchServerInitStatusRequest
 	(*ServerInitStatusSnapshot)(nil),     // 36: mcpd.control.v1.ServerInitStatusSnapshot
 	(*ServerInitStatus)(nil),             // 37: mcpd.control.v1.ServerInitStatus
+	(*AutomaticMCPRequest)(nil),          // 38: mcpd.control.v1.AutomaticMCPRequest
+	(*AutomaticMCPResponse)(nil),         // 39: mcpd.control.v1.AutomaticMCPResponse
+	(*AutomaticEvalRequest)(nil),         // 40: mcpd.control.v1.AutomaticEvalRequest
+	(*AutomaticEvalResponse)(nil),        // 41: mcpd.control.v1.AutomaticEvalResponse
+	(*IsSubAgentEnabledRequest)(nil),     // 42: mcpd.control.v1.IsSubAgentEnabledRequest
+	(*IsSubAgentEnabledResponse)(nil),    // 43: mcpd.control.v1.IsSubAgentEnabledResponse
 }
 var file_mcpd_control_v1_control_proto_depIdxs = []int32{
 	10, // 0: mcpd.control.v1.ListToolsResponse.snapshot:type_name -> mcpd.control.v1.ToolsSnapshot
@@ -2341,23 +2710,29 @@ var file_mcpd_control_v1_control_proto_depIdxs = []int32{
 	28, // 24: mcpd.control.v1.ControlPlaneService.StreamLogs:input_type -> mcpd.control.v1.StreamLogsRequest
 	30, // 25: mcpd.control.v1.ControlPlaneService.WatchRuntimeStatus:input_type -> mcpd.control.v1.WatchRuntimeStatusRequest
 	35, // 26: mcpd.control.v1.ControlPlaneService.WatchServerInitStatus:input_type -> mcpd.control.v1.WatchServerInitStatusRequest
-	2,  // 27: mcpd.control.v1.ControlPlaneService.GetInfo:output_type -> mcpd.control.v1.GetInfoResponse
-	4,  // 28: mcpd.control.v1.ControlPlaneService.RegisterCaller:output_type -> mcpd.control.v1.RegisterCallerResponse
-	6,  // 29: mcpd.control.v1.ControlPlaneService.UnregisterCaller:output_type -> mcpd.control.v1.UnregisterCallerResponse
-	8,  // 30: mcpd.control.v1.ControlPlaneService.ListTools:output_type -> mcpd.control.v1.ListToolsResponse
-	10, // 31: mcpd.control.v1.ControlPlaneService.WatchTools:output_type -> mcpd.control.v1.ToolsSnapshot
-	13, // 32: mcpd.control.v1.ControlPlaneService.CallTool:output_type -> mcpd.control.v1.CallToolResponse
-	15, // 33: mcpd.control.v1.ControlPlaneService.ListResources:output_type -> mcpd.control.v1.ListResourcesResponse
-	17, // 34: mcpd.control.v1.ControlPlaneService.WatchResources:output_type -> mcpd.control.v1.ResourcesSnapshot
-	20, // 35: mcpd.control.v1.ControlPlaneService.ReadResource:output_type -> mcpd.control.v1.ReadResourceResponse
-	22, // 36: mcpd.control.v1.ControlPlaneService.ListPrompts:output_type -> mcpd.control.v1.ListPromptsResponse
-	24, // 37: mcpd.control.v1.ControlPlaneService.WatchPrompts:output_type -> mcpd.control.v1.PromptsSnapshot
-	27, // 38: mcpd.control.v1.ControlPlaneService.GetPrompt:output_type -> mcpd.control.v1.GetPromptResponse
-	29, // 39: mcpd.control.v1.ControlPlaneService.StreamLogs:output_type -> mcpd.control.v1.LogEntry
-	31, // 40: mcpd.control.v1.ControlPlaneService.WatchRuntimeStatus:output_type -> mcpd.control.v1.RuntimeStatusSnapshot
-	36, // 41: mcpd.control.v1.ControlPlaneService.WatchServerInitStatus:output_type -> mcpd.control.v1.ServerInitStatusSnapshot
-	27, // [27:42] is the sub-list for method output_type
-	12, // [12:27] is the sub-list for method input_type
+	38, // 27: mcpd.control.v1.ControlPlaneService.AutomaticMCP:input_type -> mcpd.control.v1.AutomaticMCPRequest
+	40, // 28: mcpd.control.v1.ControlPlaneService.AutomaticEval:input_type -> mcpd.control.v1.AutomaticEvalRequest
+	42, // 29: mcpd.control.v1.ControlPlaneService.IsSubAgentEnabled:input_type -> mcpd.control.v1.IsSubAgentEnabledRequest
+	2,  // 30: mcpd.control.v1.ControlPlaneService.GetInfo:output_type -> mcpd.control.v1.GetInfoResponse
+	4,  // 31: mcpd.control.v1.ControlPlaneService.RegisterCaller:output_type -> mcpd.control.v1.RegisterCallerResponse
+	6,  // 32: mcpd.control.v1.ControlPlaneService.UnregisterCaller:output_type -> mcpd.control.v1.UnregisterCallerResponse
+	8,  // 33: mcpd.control.v1.ControlPlaneService.ListTools:output_type -> mcpd.control.v1.ListToolsResponse
+	10, // 34: mcpd.control.v1.ControlPlaneService.WatchTools:output_type -> mcpd.control.v1.ToolsSnapshot
+	13, // 35: mcpd.control.v1.ControlPlaneService.CallTool:output_type -> mcpd.control.v1.CallToolResponse
+	15, // 36: mcpd.control.v1.ControlPlaneService.ListResources:output_type -> mcpd.control.v1.ListResourcesResponse
+	17, // 37: mcpd.control.v1.ControlPlaneService.WatchResources:output_type -> mcpd.control.v1.ResourcesSnapshot
+	20, // 38: mcpd.control.v1.ControlPlaneService.ReadResource:output_type -> mcpd.control.v1.ReadResourceResponse
+	22, // 39: mcpd.control.v1.ControlPlaneService.ListPrompts:output_type -> mcpd.control.v1.ListPromptsResponse
+	24, // 40: mcpd.control.v1.ControlPlaneService.WatchPrompts:output_type -> mcpd.control.v1.PromptsSnapshot
+	27, // 41: mcpd.control.v1.ControlPlaneService.GetPrompt:output_type -> mcpd.control.v1.GetPromptResponse
+	29, // 42: mcpd.control.v1.ControlPlaneService.StreamLogs:output_type -> mcpd.control.v1.LogEntry
+	31, // 43: mcpd.control.v1.ControlPlaneService.WatchRuntimeStatus:output_type -> mcpd.control.v1.RuntimeStatusSnapshot
+	36, // 44: mcpd.control.v1.ControlPlaneService.WatchServerInitStatus:output_type -> mcpd.control.v1.ServerInitStatusSnapshot
+	39, // 45: mcpd.control.v1.ControlPlaneService.AutomaticMCP:output_type -> mcpd.control.v1.AutomaticMCPResponse
+	41, // 46: mcpd.control.v1.ControlPlaneService.AutomaticEval:output_type -> mcpd.control.v1.AutomaticEvalResponse
+	43, // 47: mcpd.control.v1.ControlPlaneService.IsSubAgentEnabled:output_type -> mcpd.control.v1.IsSubAgentEnabledResponse
+	30, // [30:48] is the sub-list for method output_type
+	12, // [12:30] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -2374,7 +2749,7 @@ func file_mcpd_control_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mcpd_control_v1_control_proto_rawDesc), len(file_mcpd_control_v1_control_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   37,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

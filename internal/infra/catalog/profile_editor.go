@@ -290,3 +290,37 @@ func marshalProfileDocument(doc map[string]any) ([]byte, error) {
 	}
 	return merged, nil
 }
+
+// SetProfileSubAgentEnabled updates the per-profile SubAgent enabled state.
+func SetProfileSubAgentEnabled(path string, enabled bool) (ProfileUpdate, error) {
+	if path == "" {
+		return ProfileUpdate{}, errors.New("profile path is required")
+	}
+
+	doc, err := loadProfileDocument(path)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	// Get or create subAgent section
+	var subAgentConfig map[string]any
+	if raw, ok := doc["subAgent"]; ok && raw != nil {
+		if cfg, ok := raw.(map[string]any); ok {
+			subAgentConfig = cfg
+		} else {
+			subAgentConfig = make(map[string]any)
+		}
+	} else {
+		subAgentConfig = make(map[string]any)
+	}
+
+	subAgentConfig["enabled"] = enabled
+	doc["subAgent"] = subAgentConfig
+
+	merged, err := marshalProfileDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	return ProfileUpdate{Path: path, Data: merged}, nil
+}
