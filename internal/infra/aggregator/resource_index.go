@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
@@ -16,15 +18,19 @@ import (
 )
 
 type ResourceIndex struct {
-	router      domain.Router
-	specs       map[string]domain.ServerSpec
-	specKeys    map[string]string
-	cfg         domain.RuntimeConfig
-	logger      *zap.Logger
-	health      *telemetry.HealthTracker
-	gate        *RefreshGate
-	listChanges listChangeSubscriber
-	specKeySet  map[string]struct{}
+	router               domain.Router
+	specs                map[string]domain.ServerSpec
+	specKeys             map[string]string
+	cfg                  domain.RuntimeConfig
+	metadataCache        *domain.MetadataCache
+	logger               *zap.Logger
+	health               *telemetry.HealthTracker
+	gate                 *RefreshGate
+	listChanges          listChangeSubscriber
+	specKeySet           map[string]struct{}
+	bootstrapWaiter      BootstrapWaiter
+	bootstrapWaiterMu    sync.RWMutex
+	bootstrapRefreshOnce sync.Once
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]
@@ -36,7 +42,7 @@ type resourceCache struct {
 	etag      string
 }
 
-func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ResourceIndex {
+func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ResourceIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -44,15 +50,16 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 		specKeys = map[string]string{}
 	}
 	resourceIndex := &ResourceIndex{
-		router:      rt,
-		specs:       specs,
-		specKeys:    specKeys,
-		cfg:         cfg,
-		logger:      logger.Named("resource_index"),
-		health:      health,
-		gate:        gate,
-		listChanges: listChanges,
-		specKeySet:  specKeySet(specKeys),
+		router:        rt,
+		specs:         specs,
+		specKeys:      specKeys,
+		cfg:           cfg,
+		metadataCache: metadataCache,
+		logger:        logger.Named("resource_index"),
+		health:        health,
+		gate:          gate,
+		listChanges:   listChanges,
+		specKeySet:    specKeySet(specKeys),
 	}
 	resourceIndex.index = NewGenericIndex(GenericIndexOptions[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]{
 		Name:              "resource_index",
@@ -78,6 +85,7 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 func (a *ResourceIndex) Start(ctx context.Context) {
 	a.index.Start(ctx)
 	a.startListChangeListener(ctx)
+	a.startBootstrapRefresh(ctx)
 }
 
 func (a *ResourceIndex) Stop() {
@@ -100,7 +108,32 @@ func (a *ResourceIndex) Resolve(uri string) (domain.ResourceTarget, bool) {
 	return a.index.Resolve(uri)
 }
 
+func (a *ResourceIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
+	a.bootstrapWaiterMu.Lock()
+	a.bootstrapWaiter = waiter
+	a.bootstrapWaiterMu.Unlock()
+	a.startBootstrapRefresh(context.Background())
+}
+
 func (a *ResourceIndex) ReadResource(ctx context.Context, uri string) (json.RawMessage, error) {
+	// Wait for bootstrap completion if needed
+	a.bootstrapWaiterMu.RLock()
+	waiter := a.bootstrapWaiter
+	a.bootstrapWaiterMu.RUnlock()
+
+	if waiter != nil {
+		// Create context with 60s timeout for bootstrap wait
+		waitCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+
+		if err := waiter(waitCtx); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("bootstrap timeout: %w", err)
+			}
+			return nil, fmt.Errorf("bootstrap wait failed: %w", err)
+		}
+	}
+
 	target, ok := a.Resolve(uri)
 	if !ok {
 		return nil, domain.ErrResourceNotFound
@@ -162,6 +195,30 @@ func (a *ResourceIndex) startListChangeListener(ctx context.Context) {
 	}()
 }
 
+func (a *ResourceIndex) startBootstrapRefresh(ctx context.Context) {
+	a.bootstrapWaiterMu.RLock()
+	waiter := a.bootstrapWaiter
+	a.bootstrapWaiterMu.RUnlock()
+	if waiter == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.bootstrapRefreshOnce.Do(func() {
+		go func() {
+			if err := waiter(ctx); err != nil {
+				a.logger.Warn("resource bootstrap wait failed", zap.Error(err))
+				return
+			}
+
+			if err := a.index.Refresh(context.Background()); err != nil {
+				a.logger.Warn("resource refresh after bootstrap failed", zap.Error(err))
+			}
+		}()
+	})
+}
+
 func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.ResourceSnapshot, map[string]domain.ResourceTarget) {
 	merged := make([]domain.ResourceDefinition, 0)
 	targets := make(map[string]domain.ResourceTarget)
@@ -204,9 +261,49 @@ func (a *ResourceIndex) refreshErrorDecision(_ string, err error) refreshErrorDe
 func (a *ResourceIndex) fetchServerCache(ctx context.Context, serverType string, spec domain.ServerSpec) (resourceCache, error) {
 	resources, targets, err := a.fetchServerResources(ctx, serverType, spec)
 	if err != nil {
+		if errors.Is(err, domain.ErrNoReadyInstance) {
+			if cached, ok := a.cachedServerCache(serverType, spec); ok {
+				return cached, nil
+			}
+		}
 		return resourceCache{}, err
 	}
 	return resourceCache{resources: resources, targets: targets, etag: hashResources(resources)}, nil
+}
+
+func (a *ResourceIndex) cachedServerCache(serverType string, spec domain.ServerSpec) (resourceCache, bool) {
+	if a.metadataCache == nil {
+		return resourceCache{}, false
+	}
+	specKey := a.specKeys[serverType]
+	if specKey == "" {
+		return resourceCache{}, false
+	}
+	resources, ok := a.metadataCache.GetResources(specKey)
+	if !ok {
+		return resourceCache{}, false
+	}
+
+	result := make([]domain.ResourceDefinition, 0, len(resources))
+	targets := make(map[string]domain.ResourceTarget)
+
+	for _, resource := range resources {
+		if resource.URI == "" {
+			continue
+		}
+		resourceDef := resource
+		resourceDef.SpecKey = specKey
+		resourceDef.ServerName = spec.Name
+		result = append(result, resourceDef)
+		targets[resource.URI] = domain.ResourceTarget{
+			ServerType: serverType,
+			SpecKey:    specKey,
+			URI:        resource.URI,
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool { return result[i].URI < result[j].URI })
+	return resourceCache{resources: result, targets: targets, etag: hashResources(result)}, true
 }
 
 func (a *ResourceIndex) fetchServerResources(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ResourceDefinition, map[string]domain.ResourceTarget, error) {
@@ -231,6 +328,8 @@ func (a *ResourceIndex) fetchServerResources(ctx context.Context, serverType str
 		}
 		resourceCopy := *resource
 		def := mcpcodec.ResourceFromMCP(&resourceCopy)
+		def.SpecKey = specKey
+		def.ServerName = spec.Name
 		result = append(result, def)
 		targets[resource.URI] = domain.ResourceTarget{
 			ServerType: serverType,

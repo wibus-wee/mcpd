@@ -44,6 +44,8 @@ type ResourceDefinition struct {
 	Size        int64
 	Annotations *Annotations
 	Meta        Meta
+	SpecKey     string
+	ServerName  string
 }
 
 type ResourceSnapshot struct {
@@ -68,6 +70,8 @@ type PromptDefinition struct {
 	Description string
 	Arguments   []PromptArgument
 	Meta        Meta
+	SpecKey     string
+	ServerName  string
 }
 
 type PromptSnapshot struct {
@@ -196,6 +200,10 @@ type ControlPlane interface {
 	WatchRuntimeStatusAllProfiles(ctx context.Context) (<-chan RuntimeStatusSnapshot, error)
 	WatchServerInitStatus(ctx context.Context, caller string) (<-chan ServerInitStatusSnapshot, error)
 	WatchServerInitStatusAllProfiles(ctx context.Context) (<-chan ServerInitStatusSnapshot, error)
+
+	// Bootstrap methods
+	GetBootstrapProgress(ctx context.Context) (BootstrapProgress, error)
+	WatchBootstrapProgress(ctx context.Context) (<-chan BootstrapProgress, error)
 
 	// AutomaticMCP returns filtered tool metadata based on caller profile and query.
 	// When SubAgent is enabled, uses LLM to filter tools by relevance.

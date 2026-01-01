@@ -36,6 +36,11 @@ type RuntimeConfig struct {
 	Observability              ObservabilityConfig `json:"observability"`
 	RPC                        RPCConfig           `json:"rpc"`
 	SubAgent                   SubAgentConfig      `json:"subAgent"`
+
+	// Bootstrap configuration
+	StartupStrategy         string `json:"startupStrategy"`         // "lazy" or "eager", default "lazy"
+	BootstrapConcurrency    int    `json:"bootstrapConcurrency"`    // concurrent servers during bootstrap, default 3
+	BootstrapTimeoutSeconds int    `json:"bootstrapTimeoutSeconds"` // per-server timeout, default 30
 }
 
 type ObservabilityConfig struct {
@@ -191,3 +196,43 @@ var ErrExecutableNotFound = errors.New("executable not found")
 var ErrPermissionDenied = errors.New("permission denied")
 var ErrUnsupportedProtocol = errors.New("unsupported protocol version")
 var ErrConnectionClosed = errors.New("connection closed")
+
+// StartupStrategy defines how mcpd initializes MCP servers at startup
+type StartupStrategy string
+
+const (
+	// StartupStrategyLazy starts servers temporarily during bootstrap to fetch metadata,
+	// then shuts them down. Servers are started on-demand when callers need them.
+	StartupStrategyLazy StartupStrategy = "lazy"
+
+	// StartupStrategyEager starts servers during bootstrap and keeps them running
+	// for immediate caller access with zero latency.
+	StartupStrategyEager StartupStrategy = "eager"
+)
+
+// BootstrapState represents the current state of the bootstrap process
+type BootstrapState string
+
+const (
+	BootstrapPending   BootstrapState = "pending"
+	BootstrapRunning   BootstrapState = "running"
+	BootstrapCompleted BootstrapState = "completed"
+	BootstrapFailed    BootstrapState = "failed"
+)
+
+// BootstrapProgress provides real-time status of the bootstrap process
+type BootstrapProgress struct {
+	State     BootstrapState
+	Total     int               // Total number of servers to bootstrap
+	Completed int               // Successfully bootstrapped servers
+	Failed    int               // Failed servers
+	Current   string            // Currently bootstrapping server name
+	Errors    map[string]string // specKey -> error message for failed servers
+}
+
+// Bootstrap configuration defaults
+const (
+	DefaultStartupStrategy         = "lazy"
+	DefaultBootstrapConcurrency    = 3
+	DefaultBootstrapTimeoutSeconds = 30
+)

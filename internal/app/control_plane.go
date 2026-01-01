@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/aggregator"
@@ -190,4 +191,55 @@ func (c *ControlPlane) AutomaticMCP(ctx context.Context, caller string, params d
 
 func (c *ControlPlane) AutomaticEval(ctx context.Context, caller string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
 	return c.automation.AutomaticEval(ctx, caller, params)
+}
+
+func (c *ControlPlane) GetBootstrapProgress(ctx context.Context) (domain.BootstrapProgress, error) {
+	if c.state.bootstrapManager == nil {
+		return domain.BootstrapProgress{State: domain.BootstrapCompleted}, nil
+	}
+	return c.state.bootstrapManager.GetProgress(), nil
+}
+
+func (c *ControlPlane) WatchBootstrapProgress(ctx context.Context) (<-chan domain.BootstrapProgress, error) {
+	ch := make(chan domain.BootstrapProgress, 1)
+
+	if c.state.bootstrapManager == nil {
+		close(ch)
+		return ch, nil
+	}
+
+	go func() {
+		defer close(ch)
+
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		// Send initial progress
+		select {
+		case ch <- c.state.bootstrapManager.GetProgress():
+		case <-ctx.Done():
+			return
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				progress := c.state.bootstrapManager.GetProgress()
+
+				select {
+				case ch <- progress:
+				default:
+				}
+
+				// Stop watching if bootstrap is done
+				if progress.State == domain.BootstrapCompleted || progress.State == domain.BootstrapFailed {
+					return
+				}
+			}
+		}
+	}()
+
+	return ch, nil
 }

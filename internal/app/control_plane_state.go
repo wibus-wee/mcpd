@@ -14,16 +14,17 @@ import (
 type controlPlaneState struct {
 	mu sync.RWMutex
 
-	info         domain.ControlPlaneInfo
-	profiles     map[string]*profileRuntime
-	callers      map[string]string
-	specRegistry map[string]domain.ServerSpec
-	scheduler    domain.Scheduler
-	initManager  *ServerInitializationManager
-	runtime      domain.RuntimeConfig
-	logger       *zap.Logger
-	ctx          context.Context
-	profileStore domain.ProfileStore
+	info             domain.ControlPlaneInfo
+	profiles         map[string]*profileRuntime
+	callers          map[string]string
+	specRegistry     map[string]domain.ServerSpec
+	scheduler        domain.Scheduler
+	initManager      *ServerInitializationManager
+	bootstrapManager *BootstrapManager
+	runtime          domain.RuntimeConfig
+	logger           *zap.Logger
+	ctx              context.Context
+	profileStore     domain.ProfileStore
 }
 
 func newControlPlaneState(
@@ -31,6 +32,7 @@ func newControlPlaneState(
 	profiles map[string]*profileRuntime,
 	scheduler domain.Scheduler,
 	initManager *ServerInitializationManager,
+	bootstrapManager *BootstrapManager,
 	state *domain.CatalogState,
 	logger *zap.Logger,
 ) *controlPlaneState {
@@ -48,16 +50,17 @@ func newControlPlaneState(
 	}
 
 	return &controlPlaneState{
-		info:         defaultControlPlaneInfo(),
-		profiles:     profiles,
-		callers:      callers,
-		specRegistry: summary.SpecRegistry,
-		scheduler:    scheduler,
-		initManager:  initManager,
-		runtime:      summary.DefaultRuntime,
-		profileStore: store,
-		logger:       logger.Named("control_plane"),
-		ctx:          ctx,
+		info:             defaultControlPlaneInfo(),
+		profiles:         profiles,
+		callers:          callers,
+		specRegistry:     summary.SpecRegistry,
+		scheduler:        scheduler,
+		initManager:      initManager,
+		bootstrapManager: bootstrapManager,
+		runtime:          summary.DefaultRuntime,
+		profileStore:     store,
+		logger:           logger.Named("control_plane"),
+		ctx:              ctx,
 	}
 }
 

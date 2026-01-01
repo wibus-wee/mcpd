@@ -32,6 +32,8 @@ var ReloadableAppSet = wire.NewSet(
 	CatalogProviderSet,
 	NewCatalogState,
 	NewScheduler,
+	domain.NewMetadataCache,
+	NewBootstrapManagerProvider,
 	NewServerInitializationManager,
 	NewProfileRuntimes,
 	NewControlPlaneState,

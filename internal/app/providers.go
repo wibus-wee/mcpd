@@ -74,18 +74,65 @@ func NewScheduler(
 	})
 }
 
+func NewBootstrapManagerProvider(
+	lifecycle domain.Lifecycle,
+	scheduler domain.Scheduler,
+	state *domain.CatalogState,
+	cache *domain.MetadataCache,
+	logger *zap.Logger,
+) *BootstrapManager {
+	summary := state.Summary
+	runtime := summary.DefaultRuntime
+
+	strategy := domain.StartupStrategy(runtime.StartupStrategy)
+	if strategy == "" {
+		strategy = domain.StartupStrategyLazy
+	}
+
+	concurrency := runtime.BootstrapConcurrency
+	if concurrency <= 0 {
+		concurrency = domain.DefaultBootstrapConcurrency
+	}
+
+	timeout := time.Duration(runtime.BootstrapTimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = time.Duration(domain.DefaultBootstrapTimeoutSeconds) * time.Second
+	}
+
+	// Collect all specKeys from all profiles
+	allSpecKeys := make(map[string]string)
+	for _, profile := range summary.Profiles {
+		for k, v := range profile.SpecKeys {
+			allSpecKeys[k] = v
+		}
+	}
+
+	return NewBootstrapManager(BootstrapManagerOptions{
+		Scheduler:   scheduler,
+		Lifecycle:   lifecycle,
+		Specs:       summary.SpecRegistry,
+		SpecKeys:    allSpecKeys,
+		Cache:       cache,
+		Logger:      logger,
+		Concurrency: concurrency,
+		Timeout:     timeout,
+		Strategy:    strategy,
+	})
+}
+
 func NewProfileRuntimes(
 	state *domain.CatalogState,
 	scheduler domain.Scheduler,
 	metrics domain.Metrics,
 	health *telemetry.HealthTracker,
+	metadataCache *domain.MetadataCache,
 	listChanges *notifications.ListChangeHub,
 	logger *zap.Logger,
 ) map[string]*profileRuntime {
 	summary := state.Summary
 	profiles := make(map[string]*profileRuntime, len(summary.Profiles))
 	for name, cfg := range summary.Profiles {
-		profiles[name] = buildProfileRuntime(name, cfg, scheduler, metrics, health, listChanges, logger)
+		profiles[name] = buildProfileRuntime(name, cfg, scheduler, metrics, health, metadataCache, listChanges, logger)
 	}
 	return profiles
 }
@@ -96,9 +143,30 @@ func NewControlPlaneState(
 	state *domain.CatalogState,
 	scheduler domain.Scheduler,
 	initManager *ServerInitializationManager,
+	bootstrapManager *BootstrapManager,
 	logger *zap.Logger,
 ) *controlPlaneState {
-	return newControlPlaneState(ctx, profiles, scheduler, initManager, state, logger)
+	controlState := newControlPlaneState(ctx, profiles, scheduler, initManager, bootstrapManager, state, logger)
+
+	// Configure bootstrap waiters for all profile indexes
+	if bootstrapManager != nil {
+		waiter := func(ctx context.Context) error {
+			return bootstrapManager.WaitForCompletion(ctx)
+		}
+		for _, profile := range profiles {
+			if profile.tools != nil {
+				profile.tools.SetBootstrapWaiter(waiter)
+			}
+			if profile.resources != nil {
+				profile.resources.SetBootstrapWaiter(waiter)
+			}
+			if profile.prompts != nil {
+				profile.prompts.SetBootstrapWaiter(waiter)
+			}
+		}
+	}
+
+	return controlState
 }
 
 func NewRPCServer(control domain.ControlPlane, state *domain.CatalogState, logger *zap.Logger) *rpc.Server {
@@ -111,6 +179,7 @@ func buildProfileRuntime(
 	scheduler domain.Scheduler,
 	metrics domain.Metrics,
 	health *telemetry.HealthTracker,
+	metadataCache *domain.MetadataCache,
 	listChanges *notifications.ListChangeHub,
 	logger *zap.Logger,
 ) *profileRuntime {
@@ -121,9 +190,9 @@ func buildProfileRuntime(
 		Logger:  profileLogger,
 	})
 	rt := router.NewMetricRouter(baseRouter, metrics)
-	toolIndex := aggregator.NewToolIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
-	resourceIndex := aggregator.NewResourceIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
-	promptIndex := aggregator.NewPromptIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, profileLogger, health, refreshGate, listChanges)
+	toolIndex := aggregator.NewToolIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, metadataCache, profileLogger, health, refreshGate, listChanges)
+	resourceIndex := aggregator.NewResourceIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, metadataCache, profileLogger, health, refreshGate, listChanges)
+	promptIndex := aggregator.NewPromptIndex(rt, cfg.Profile.Catalog.Specs, cfg.SpecKeys, cfg.Profile.Catalog.Runtime, metadataCache, profileLogger, health, refreshGate, listChanges)
 	return &profileRuntime{
 		name:      name,
 		specKeys:  collectSpecKeys(cfg.SpecKeys),

@@ -53,13 +53,16 @@ func NewWithBroadcaster(logger *zap.Logger, broadcaster *telemetry.LogBroadcaste
 }
 
 func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
+	a.logger.Info("core initialization started", zap.String("config", cfg.ConfigPath))
 	application, err := InitializeApplication(ctx, cfg, LoggingConfig{
 		Logger:      a.logger,
 		Broadcaster: a.logBroadcaster,
 	})
 	if err != nil {
+		a.logger.Error("core initialization failed", zap.Error(err))
 		return err
 	}
+	a.logger.Info("core initialization complete")
 	a.setReloadManager(application.reloadManager)
 	defer a.setReloadManager(nil)
 	return application.Run()

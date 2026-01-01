@@ -8,6 +8,8 @@ package app
 
 import (
 	"context"
+
+	"mcpd/internal/domain"
 )
 
 // Injectors from wire.go:
@@ -35,9 +37,11 @@ func InitializeApplication(ctx context.Context, cfg ServeConfig, logging Logging
 	if err != nil {
 		return nil, err
 	}
-	v := NewProfileRuntimes(catalogState, scheduler, metrics, healthTracker, listChangeHub, logger)
+	metadataCache := domain.NewMetadataCache()
+	v := NewProfileRuntimes(catalogState, scheduler, metrics, healthTracker, metadataCache, listChangeHub, logger)
 	serverInitializationManager := NewServerInitializationManager(scheduler, catalogState, logger)
-	appControlPlaneState := NewControlPlaneState(ctx, v, catalogState, scheduler, serverInitializationManager, logger)
+	bootstrapManager := NewBootstrapManagerProvider(lifecycle, scheduler, catalogState, metadataCache, logger)
+	appControlPlaneState := NewControlPlaneState(ctx, v, catalogState, scheduler, serverInitializationManager, bootstrapManager, logger)
 	appCallerRegistry := newCallerRegistry(appControlPlaneState)
 	appDiscoveryService := newDiscoveryService(appControlPlaneState, appCallerRegistry)
 	logBroadcaster := NewLogBroadcaster(appLogging)
@@ -45,7 +49,7 @@ func InitializeApplication(ctx context.Context, cfg ServeConfig, logging Logging
 	appAutomationService := newAutomationService(appControlPlaneState, appCallerRegistry, appDiscoveryService)
 	controlPlane := NewControlPlane(appControlPlaneState, appCallerRegistry, appDiscoveryService, appObservabilityService, appAutomationService)
 	server := NewRPCServer(controlPlane, catalogState, logger)
-	reloadManager := NewReloadManager(dynamicCatalogProvider, appControlPlaneState, appCallerRegistry, scheduler, serverInitializationManager, metrics, healthTracker, listChangeHub, logger)
-	application := NewApplication(ctx, cfg, logger, registry, metrics, healthTracker, catalogState, appControlPlaneState, scheduler, serverInitializationManager, controlPlane, server, reloadManager)
+	reloadManager := NewReloadManager(dynamicCatalogProvider, appControlPlaneState, appCallerRegistry, scheduler, serverInitializationManager, metrics, healthTracker, metadataCache, listChangeHub, logger)
+	application := NewApplication(ctx, cfg, logger, registry, metrics, healthTracker, catalogState, appControlPlaneState, scheduler, serverInitializationManager, bootstrapManager, controlPlane, server, reloadManager)
 	return application, nil
 }

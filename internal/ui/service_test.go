@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/app"
+	"mcpd/internal/domain"
 )
 
 func testLogger() *zap.Logger {
@@ -65,6 +66,26 @@ func TestWailsService_GetCoreState_WithManager(t *testing.T) {
 
 	assert.Equal(t, string(CoreStateStopped), state.State)
 	assert.Equal(t, int64(0), state.Uptime)
+}
+
+func TestWailsService_GetBootstrapProgress_NoManager(t *testing.T) {
+	svc := NewWailsService(&app.App{}, testLogger())
+
+	progress, err := svc.GetBootstrapProgress(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BootstrapPending), progress.State)
+}
+
+func TestWailsService_GetBootstrapProgress_CoreNotRunning(t *testing.T) {
+	svc := NewWailsService(&app.App{}, testLogger())
+	manager := NewManager(nil, &app.App{}, "")
+	svc.SetManager(manager)
+
+	progress, err := svc.GetBootstrapProgress(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BootstrapPending), progress.State)
 }
 
 func TestWailsService_StartCore_NoManager(t *testing.T) {

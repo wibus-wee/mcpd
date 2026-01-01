@@ -280,6 +280,16 @@ func (f *fakeControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.Se
 	return nil, nil
 }
 
+func (f *fakeControlPlane) GetBootstrapProgress(ctx context.Context) (domain.BootstrapProgress, error) {
+	return domain.BootstrapProgress{State: domain.BootstrapCompleted}, nil
+}
+
+func (f *fakeControlPlane) WatchBootstrapProgress(ctx context.Context) (<-chan domain.BootstrapProgress, error) {
+	ch := make(chan domain.BootstrapProgress)
+	close(ch)
+	return ch, nil
+}
+
 func (f *fakeControlPlane) RetryServerInit(ctx context.Context, specKey string) error {
 	return nil
 }

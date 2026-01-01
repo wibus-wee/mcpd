@@ -174,7 +174,7 @@ func newTestControlPlane(
 		Store:   store,
 		Summary: summary,
 	}
-	controlState := newControlPlaneState(ctx, profiles, scheduler, nil, state, zap.NewNop())
+	controlState := newControlPlaneState(ctx, profiles, scheduler, nil, nil, state, zap.NewNop())
 	registry := newCallerRegistry(controlState)
 	discovery := newDiscoveryService(controlState, registry)
 	observability := newObservabilityService(controlState, registry, nil)

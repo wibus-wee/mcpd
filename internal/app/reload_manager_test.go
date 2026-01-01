@@ -38,7 +38,7 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	initManager := NewServerInitializationManager(scheduler, &prevState, zap.NewNop())
-	state := newControlPlaneState(context.Background(), profiles, scheduler, initManager, &prevState, zap.NewNop())
+	state := newControlPlaneState(context.Background(), profiles, scheduler, initManager, nil, &prevState, zap.NewNop())
 	registry := newCallerRegistry(state)
 	registry.activeCallers["caller-1"] = callerState{
 		pid:           1,
@@ -46,7 +46,7 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 		lastHeartbeat: time.Now(),
 	}
 
-	manager := NewReloadManager(nil, state, registry, scheduler, initManager, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, initManager, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),
@@ -99,9 +99,9 @@ func TestReloadManager_ApplyUpdate_RemovesProfile(t *testing.T) {
 	}
 
 	scheduler := &schedulerStub{}
-	state := newControlPlaneState(context.Background(), profiles, scheduler, nil, &prevState, zap.NewNop())
+	state := newControlPlaneState(context.Background(), profiles, scheduler, nil, nil, &prevState, zap.NewNop())
 	registry := newCallerRegistry(state)
-	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),

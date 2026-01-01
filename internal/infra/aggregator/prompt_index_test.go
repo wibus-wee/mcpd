@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,13 +34,15 @@ func TestPromptIndex_NamespacedPrompt(t *testing.T) {
 		ToolRefreshSeconds:    0,
 	}
 
-	index := NewPromptIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewPromptIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 	index.Start(ctx)
 	defer index.Stop()
 
 	snapshot := index.Snapshot()
 	require.Len(t, snapshot.Prompts, 1)
 	require.Equal(t, "echo.echo", snapshot.Prompts[0].Name)
+	require.Equal(t, "spec-echo", snapshot.Prompts[0].SpecKey)
+	require.Equal(t, "echo", snapshot.Prompts[0].ServerName)
 
 	resultRaw, err := index.GetPrompt(ctx, "echo.echo", json.RawMessage(`{"name":"Pat"}`))
 	require.NoError(t, err)
@@ -50,6 +53,52 @@ func TestPromptIndex_NamespacedPrompt(t *testing.T) {
 	require.Equal(t, "ok", result.Messages[0].Content.(*mcp.TextContent).Text)
 	require.Equal(t, "prompts/get", router.lastMethod)
 	require.Equal(t, "echo", router.lastPromptName)
+}
+
+func TestPromptIndex_UsesCachedPromptsWhenNoReadyInstance(t *testing.T) {
+	ctx := context.Background()
+	cache := domain.NewMetadataCache()
+	cache.SetPrompts("spec-echo", []domain.PromptDefinition{
+		{Name: "echo", Description: "cached"},
+	}, "etag")
+
+	router := &noReadyPromptRouter{}
+	specs := map[string]domain.ServerSpec{
+		"echo": {Name: "echo"},
+	}
+	specKeys := map[string]string{
+		"echo": "spec-echo",
+	}
+	cfg := domain.RuntimeConfig{
+		ToolNamespaceStrategy: "prefix",
+		ToolRefreshSeconds:    0,
+	}
+
+	index := NewPromptIndex(router, specs, specKeys, cfg, cache, zap.NewNop(), nil, nil, nil)
+	index.Start(ctx)
+	defer index.Stop()
+
+	snapshot := index.Snapshot()
+	require.Len(t, snapshot.Prompts, 1)
+	require.Equal(t, "echo.echo", snapshot.Prompts[0].Name)
+	require.Equal(t, "spec-echo", snapshot.Prompts[0].SpecKey)
+	require.Equal(t, "echo", snapshot.Prompts[0].ServerName)
+}
+
+func TestPromptIndex_SetBootstrapWaiterDoesNotDeadlock(t *testing.T) {
+	index := NewPromptIndex(nil, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, nil, zap.NewNop(), nil, nil, nil)
+
+	done := make(chan struct{})
+	go func() {
+		index.SetBootstrapWaiter(func(context.Context) error { return nil })
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("SetBootstrapWaiter should not block")
+	}
 }
 
 type promptRouter struct {
@@ -89,5 +138,15 @@ func (r *promptRouter) Route(ctx context.Context, serverType, specKey, routingKe
 }
 
 func (r *promptRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts domain.RouteOptions) (json.RawMessage, error) {
+	return r.Route(ctx, serverType, specKey, routingKey, payload)
+}
+
+type noReadyPromptRouter struct{}
+
+func (r *noReadyPromptRouter) Route(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage) (json.RawMessage, error) {
+	return nil, domain.ErrNoReadyInstance
+}
+
+func (r *noReadyPromptRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts domain.RouteOptions) (json.RawMessage, error) {
 	return r.Route(ctx, serverType, specKey, routingKey, payload)
 }

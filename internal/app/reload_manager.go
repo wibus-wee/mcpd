@@ -13,18 +13,19 @@ import (
 )
 
 type ReloadManager struct {
-	provider    domain.CatalogProvider
-	state       *controlPlaneState
-	registry    *callerRegistry
-	scheduler   domain.Scheduler
-	initManager *ServerInitializationManager
-	metrics     domain.Metrics
-	health      *telemetry.HealthTracker
-	listChanges *notifications.ListChangeHub
-	coreLogger  *zap.Logger
-	logger      *zap.Logger
-	appliedRev  atomic.Uint64
-	started     atomic.Bool
+	provider      domain.CatalogProvider
+	state         *controlPlaneState
+	registry      *callerRegistry
+	scheduler     domain.Scheduler
+	initManager   *ServerInitializationManager
+	metrics       domain.Metrics
+	health        *telemetry.HealthTracker
+	metadataCache *domain.MetadataCache
+	listChanges   *notifications.ListChangeHub
+	coreLogger    *zap.Logger
+	logger        *zap.Logger
+	appliedRev    atomic.Uint64
+	started       atomic.Bool
 }
 
 func NewReloadManager(
@@ -35,6 +36,7 @@ func NewReloadManager(
 	initManager *ServerInitializationManager,
 	metrics domain.Metrics,
 	health *telemetry.HealthTracker,
+	metadataCache *domain.MetadataCache,
 	listChanges *notifications.ListChangeHub,
 	logger *zap.Logger,
 ) *ReloadManager {
@@ -42,16 +44,17 @@ func NewReloadManager(
 		logger = zap.NewNop()
 	}
 	return &ReloadManager{
-		provider:    provider,
-		state:       state,
-		registry:    registry,
-		scheduler:   scheduler,
-		initManager: initManager,
-		metrics:     metrics,
-		health:      health,
-		listChanges: listChanges,
-		coreLogger:  logger,
-		logger:      logger.Named("reload"),
+		provider:      provider,
+		state:         state,
+		registry:      registry,
+		scheduler:     scheduler,
+		initManager:   initManager,
+		metrics:       metrics,
+		health:        health,
+		metadataCache: metadataCache,
+		listChanges:   listChanges,
+		coreLogger:    logger,
+		logger:        logger.Named("reload"),
 	}
 }
 
@@ -123,7 +126,7 @@ func (m *ReloadManager) applyUpdate(ctx context.Context, update domain.CatalogUp
 			nextProfiles[name] = runtime
 			continue
 		}
-		nextProfiles[name] = buildProfileRuntime(name, cfg, m.scheduler, m.metrics, m.health, m.listChanges, m.coreLogger)
+		nextProfiles[name] = buildProfileRuntime(name, cfg, m.scheduler, m.metrics, m.health, m.metadataCache, m.listChanges, m.coreLogger)
 	}
 
 	var removed []string

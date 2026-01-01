@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -160,6 +161,19 @@ func boolPtr(value bool) *bool {
 // runCore executes the Core's Serve method
 func (m *Manager) runCore(cfg app.ServeConfig) {
 	m.coreStarted = time.Now()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			m.mu.Lock()
+			m.coreState = CoreStateError
+			m.coreError = fmt.Errorf("core panic: %v", recovered)
+			emitCoreState(m.wails, string(CoreStateError), m.coreError)
+			emitError(m.wails, ErrCodeCoreFailed, "Core panic", m.coreError.Error())
+			m.coreCancel = nil
+			m.coreCtx = nil
+			m.controlPlane = nil
+			m.mu.Unlock()
+		}
+	}()
 
 	err := m.coreApp.Serve(m.coreCtx, cfg)
 

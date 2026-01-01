@@ -43,7 +43,7 @@ func TestToolIndex_SnapshotPrefixedTool(t *testing.T) {
 		ToolRefreshSeconds:    0,
 	}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 	index.Start(ctx)
 	defer index.Stop()
 
@@ -52,6 +52,8 @@ func TestToolIndex_SnapshotPrefixedTool(t *testing.T) {
 	require.Equal(t, "echo.echo", snapshot.Tools[0].Name)
 	require.Equal(t, "echo input", snapshot.Tools[0].Description)
 	require.Equal(t, map[string]any{"type": "object"}, snapshot.Tools[0].InputSchema)
+	require.Equal(t, "spec-echo", snapshot.Tools[0].SpecKey)
+	require.Equal(t, "echo", snapshot.Tools[0].ServerName)
 
 	resultRaw, err := index.CallTool(ctx, "echo.echo", json.RawMessage(`{}`), "")
 	require.NoError(t, err)
@@ -86,7 +88,7 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 	index.Start(ctx)
 	defer index.Stop()
 
@@ -95,9 +97,40 @@ func TestToolIndex_RespectsExposeToolsAllowlist(t *testing.T) {
 	require.Equal(t, "echo.echo", snapshot.Tools[0].Name)
 }
 
+func TestToolIndex_UsesCachedToolsWhenNoReadyInstance(t *testing.T) {
+	ctx := context.Background()
+	cache := domain.NewMetadataCache()
+	cache.SetTools("spec-echo", []domain.ToolDefinition{
+		{Name: "echo", Description: "cached", InputSchema: map[string]any{"type": "object"}},
+	}, "etag")
+
+	router := &failingRouter{err: domain.ErrNoReadyInstance}
+	specs := map[string]domain.ServerSpec{
+		"echo": {Name: "echo"},
+	}
+	specKeys := map[string]string{
+		"echo": "spec-echo",
+	}
+	cfg := domain.RuntimeConfig{
+		ExposeTools:           true,
+		ToolNamespaceStrategy: "prefix",
+		ToolRefreshSeconds:    0,
+	}
+
+	index := NewToolIndex(router, specs, specKeys, cfg, cache, zap.NewNop(), nil, nil, nil)
+	index.Start(ctx)
+	defer index.Stop()
+
+	snapshot := index.Snapshot()
+	require.Len(t, snapshot.Tools, 1)
+	require.Equal(t, "echo.echo", snapshot.Tools[0].Name)
+	require.Equal(t, "spec-echo", snapshot.Tools[0].SpecKey)
+	require.Equal(t, "echo", snapshot.Tools[0].ServerName)
+}
+
 func TestToolIndex_CallToolNotFound(t *testing.T) {
 	ctx := context.Background()
-	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, nil, zap.NewNop(), nil, nil, nil)
 
 	_, err := index.CallTool(ctx, "missing", nil, "")
 	require.ErrorIs(t, err, domain.ErrToolNotFound)
@@ -127,7 +160,7 @@ func TestToolIndex_RefreshConcurrentFetches(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 
 	done := make(chan error, 1)
 	go func() {
@@ -157,6 +190,22 @@ func TestToolIndex_RefreshConcurrentFetches(t *testing.T) {
 	require.Len(t, snapshot.Tools, 2)
 	require.Equal(t, "fast.fast", snapshot.Tools[0].Name)
 	require.Equal(t, "slow.slow", snapshot.Tools[1].Name)
+}
+
+func TestToolIndex_SetBootstrapWaiterDoesNotDeadlock(t *testing.T) {
+	index := NewToolIndex(nil, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, nil, zap.NewNop(), nil, nil, nil)
+
+	done := make(chan struct{})
+	go func() {
+		index.SetBootstrapWaiter(func(context.Context) error { return nil })
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("SetBootstrapWaiter should not block")
+	}
 }
 
 func TestIsObjectSchema(t *testing.T) {
@@ -189,7 +238,7 @@ func TestToolIndex_FlatNamespaceConflictsFailRefresh(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "flat"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 
 	require.NoError(t, index.refresh(ctx))
 
@@ -203,7 +252,7 @@ func TestToolIndex_CallToolPropagatesRouteError(t *testing.T) {
 	ctx := context.Background()
 	index := NewToolIndex(&failingRouter{err: context.DeadlineExceeded}, nil, map[string]string{}, domain.RuntimeConfig{
 		ToolNamespaceStrategy: "prefix",
-	}, zap.NewNop(), nil, nil, nil)
+	}, nil, zap.NewNop(), nil, nil, nil)
 	index.index.state.Store(genericIndexState[domain.ToolSnapshot, domain.ToolTarget]{
 		snapshot: domain.ToolSnapshot{},
 		targets: map[string]domain.ToolTarget{
@@ -228,7 +277,7 @@ func TestToolIndex_RefreshFailureOpensCircuitBreaker(t *testing.T) {
 	}
 	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: "prefix"}
 
-	index := NewToolIndex(router, specs, specKeys, cfg, zap.NewNop(), nil, nil, nil)
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
 	require.NoError(t, index.refresh(ctx))
 
 	snapshot := index.Snapshot()

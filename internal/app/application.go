@@ -18,17 +18,18 @@ type Application struct {
 	onReady       func(domain.ControlPlane)
 	observability *ObservabilityOptions
 
-	logger        *zap.Logger
-	registry      *prometheus.Registry
-	metrics       domain.Metrics
-	health        *telemetry.HealthTracker
-	summary       domain.CatalogSummary
-	state         *controlPlaneState
-	scheduler     domain.Scheduler
-	initManager   *ServerInitializationManager
-	controlPlane  *ControlPlane
-	rpcServer     *rpc.Server
-	reloadManager *ReloadManager
+	logger           *zap.Logger
+	registry         *prometheus.Registry
+	metrics          domain.Metrics
+	health           *telemetry.HealthTracker
+	summary          domain.CatalogSummary
+	state            *controlPlaneState
+	scheduler        domain.Scheduler
+	initManager      *ServerInitializationManager
+	bootstrapManager *BootstrapManager
+	controlPlane     *ControlPlane
+	rpcServer        *rpc.Server
+	reloadManager    *ReloadManager
 }
 
 func NewApplication(
@@ -42,6 +43,7 @@ func NewApplication(
 	controlState *controlPlaneState,
 	scheduler domain.Scheduler,
 	initManager *ServerInitializationManager,
+	bootstrapManager *BootstrapManager,
 	controlPlane *ControlPlane,
 	rpcServer *rpc.Server,
 	reloadManager *ReloadManager,
@@ -51,21 +53,22 @@ func NewApplication(
 	}
 	summary := state.Summary
 	return &Application{
-		ctx:           ctx,
-		configPath:    cfg.ConfigPath,
-		onReady:       cfg.OnReady,
-		observability: cfg.Observability,
-		logger:        logger,
-		registry:      registry,
-		metrics:       metrics,
-		health:        health,
-		summary:       summary,
-		state:         controlState,
-		scheduler:     scheduler,
-		initManager:   initManager,
-		controlPlane:  controlPlane,
-		rpcServer:     rpcServer,
-		reloadManager: reloadManager,
+		ctx:              ctx,
+		configPath:       cfg.ConfigPath,
+		onReady:          cfg.OnReady,
+		observability:    cfg.Observability,
+		logger:           logger,
+		registry:         registry,
+		metrics:          metrics,
+		health:           health,
+		summary:          summary,
+		state:            controlState,
+		scheduler:        scheduler,
+		initManager:      initManager,
+		bootstrapManager: bootstrapManager,
+		controlPlane:     controlPlane,
+		rpcServer:        rpcServer,
+		reloadManager:    reloadManager,
 	}
 }
 
@@ -76,7 +79,24 @@ func (a *Application) Run() error {
 		zap.Int("servers", a.summary.TotalServers),
 	)
 
-	a.initManager.Start(a.ctx)
+	// Open UI immediately (before bootstrap)
+	if a.onReady != nil {
+		a.onReady(a.controlPlane)
+	}
+
+	// Start async bootstrap if configured
+	strategy := domain.StartupStrategy(a.summary.DefaultRuntime.StartupStrategy)
+	if strategy == "" {
+		strategy = domain.StartupStrategyLazy
+	}
+
+	if a.bootstrapManager != nil {
+		a.bootstrapManager.Bootstrap(a.ctx)
+	}
+	if a.initManager != nil {
+		a.initManager.Start(a.ctx)
+	}
+
 	if a.reloadManager != nil {
 		if err := a.reloadManager.Start(a.ctx); err != nil {
 			a.logger.Warn("reload manager start failed", zap.Error(err))
@@ -96,9 +116,6 @@ func (a *Application) Run() error {
 		}
 	}
 
-	if a.onReady != nil {
-		a.onReady(a.controlPlane)
-	}
 	a.controlPlane.StartCallerMonitor(a.ctx)
 
 	metricsEnabled := envBool("MCPD_METRICS_ENABLED")
@@ -137,7 +154,15 @@ func (a *Application) Run() error {
 				runtime.Deactivate()
 			}
 		}
-		a.initManager.Stop()
+		if a.bootstrapManager != nil {
+			// Wait for bootstrap to complete before shutdown
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = a.bootstrapManager.WaitForCompletion(ctx)
+		}
+		if a.initManager != nil {
+			a.initManager.Stop()
+		}
 		a.scheduler.StopPingManager()
 		a.scheduler.StopIdleManager()
 		a.scheduler.StopAll(context.Background())

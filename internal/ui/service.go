@@ -157,6 +157,7 @@ func (s *WailsService) StartCore(ctx context.Context) error {
 	if s.manager == nil {
 		return NewUIError(ErrCodeInternal, "Manager not initialized")
 	}
+	s.logger.Info("core start requested")
 	return s.manager.Start(ctx)
 }
 
@@ -165,6 +166,7 @@ func (s *WailsService) StartCoreWithOptions(ctx context.Context, opts StartCoreO
 	if s.manager == nil {
 		return NewUIError(ErrCodeInternal, "Manager not initialized")
 	}
+	s.logger.Info("core start requested with options", zap.Any("options", opts))
 	return s.manager.StartWithOptions(ctx, opts)
 }
 
@@ -680,6 +682,50 @@ func (s *WailsService) RetryServerInit(ctx context.Context, req RetryServerInitR
 		return MapDomainError(err)
 	}
 	return nil
+}
+
+// BootstrapProgressResponse represents bootstrap progress for the UI
+type BootstrapProgressResponse struct {
+	State     string            `json:"state"`
+	Total     int               `json:"total"`
+	Completed int               `json:"completed"`
+	Failed    int               `json:"failed"`
+	Current   string            `json:"current"`
+	Errors    map[string]string `json:"errors,omitempty"`
+}
+
+// GetBootstrapProgress returns the current bootstrap progress
+func (s *WailsService) GetBootstrapProgress(ctx context.Context) (BootstrapProgressResponse, error) {
+	if s.manager == nil {
+		return BootstrapProgressResponse{State: string(domain.BootstrapPending)}, nil
+	}
+
+	state, _, _ := s.manager.GetState()
+	if state != CoreStateRunning {
+		return BootstrapProgressResponse{State: string(domain.BootstrapPending)}, nil
+	}
+
+	cp, err := s.getControlPlane()
+	if err != nil {
+		if uiErr, ok := err.(*UIError); ok && uiErr.Code == ErrCodeCoreNotRunning {
+			return BootstrapProgressResponse{State: string(domain.BootstrapPending)}, nil
+		}
+		return BootstrapProgressResponse{}, err
+	}
+
+	progress, err := cp.GetBootstrapProgress(ctx)
+	if err != nil {
+		return BootstrapProgressResponse{}, MapDomainError(err)
+	}
+
+	return BootstrapProgressResponse{
+		State:     string(progress.State),
+		Total:     progress.Total,
+		Completed: progress.Completed,
+		Failed:    progress.Failed,
+		Current:   progress.Current,
+		Errors:    progress.Errors,
+	}, nil
 }
 
 // ListProfiles 列出所有 profiles

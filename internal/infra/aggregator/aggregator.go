@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -18,16 +19,23 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// BootstrapWaiter is a function that waits for bootstrap completion with a timeout.
+type BootstrapWaiter func(ctx context.Context) error
+
 type ToolIndex struct {
-	router      domain.Router
-	specs       map[string]domain.ServerSpec
-	specKeys    map[string]string
-	cfg         domain.RuntimeConfig
-	logger      *zap.Logger
-	health      *telemetry.HealthTracker
-	gate        *RefreshGate
-	listChanges listChangeSubscriber
-	specKeySet  map[string]struct{}
+	router               domain.Router
+	specs                map[string]domain.ServerSpec
+	specKeys             map[string]string
+	cfg                  domain.RuntimeConfig
+	metadataCache        *domain.MetadataCache
+	logger               *zap.Logger
+	health               *telemetry.HealthTracker
+	gate                 *RefreshGate
+	listChanges          listChangeSubscriber
+	specKeySet           map[string]struct{}
+	bootstrapWaiter      BootstrapWaiter
+	bootstrapWaiterMu    sync.RWMutex
+	bootstrapRefreshOnce sync.Once
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ToolSnapshot, domain.ToolTarget, serverCache]
@@ -39,7 +47,7 @@ type serverCache struct {
 	etag    string
 }
 
-func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ToolIndex {
+func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ToolIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -47,15 +55,16 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 		specKeys = map[string]string{}
 	}
 	toolIndex := &ToolIndex{
-		router:      rt,
-		specs:       specs,
-		specKeys:    specKeys,
-		cfg:         cfg,
-		logger:      logger.Named("tool_index"),
-		health:      health,
-		gate:        gate,
-		listChanges: listChanges,
-		specKeySet:  specKeySet(specKeys),
+		router:        rt,
+		specs:         specs,
+		specKeys:      specKeys,
+		cfg:           cfg,
+		metadataCache: metadataCache,
+		logger:        logger.Named("tool_index"),
+		health:        health,
+		gate:          gate,
+		listChanges:   listChanges,
+		specKeySet:    specKeySet(specKeys),
 	}
 	toolIndex.index = NewGenericIndex(GenericIndexOptions[domain.ToolSnapshot, domain.ToolTarget, serverCache]{
 		Name:              "tool_index",
@@ -81,6 +90,7 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 func (a *ToolIndex) Start(ctx context.Context) {
 	a.index.Start(ctx)
 	a.startListChangeListener(ctx)
+	a.startBootstrapRefresh(ctx)
 }
 
 func (a *ToolIndex) Stop() {
@@ -103,7 +113,32 @@ func (a *ToolIndex) Resolve(name string) (domain.ToolTarget, bool) {
 	return a.index.Resolve(name)
 }
 
+func (a *ToolIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
+	a.bootstrapWaiterMu.Lock()
+	a.bootstrapWaiter = waiter
+	a.bootstrapWaiterMu.Unlock()
+	a.startBootstrapRefresh(context.Background())
+}
+
 func (a *ToolIndex) CallTool(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
+	// Wait for bootstrap completion if needed
+	a.bootstrapWaiterMu.RLock()
+	waiter := a.bootstrapWaiter
+	a.bootstrapWaiterMu.RUnlock()
+
+	if waiter != nil {
+		// Create context with 60s timeout for bootstrap wait
+		waitCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+
+		if err := waiter(waitCtx); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("bootstrap timeout: %w", err)
+			}
+			return nil, fmt.Errorf("bootstrap wait failed: %w", err)
+		}
+	}
+
 	target, ok := a.Resolve(name)
 	if !ok {
 		return nil, domain.ErrToolNotFound
@@ -168,6 +203,30 @@ func (a *ToolIndex) startListChangeListener(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (a *ToolIndex) startBootstrapRefresh(ctx context.Context) {
+	a.bootstrapWaiterMu.RLock()
+	waiter := a.bootstrapWaiter
+	a.bootstrapWaiterMu.RUnlock()
+	if waiter == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.bootstrapRefreshOnce.Do(func() {
+		go func() {
+			if err := waiter(ctx); err != nil {
+				a.logger.Warn("tool bootstrap wait failed", zap.Error(err))
+				return
+			}
+
+			if err := a.index.Refresh(context.Background()); err != nil {
+				a.logger.Warn("tool refresh after bootstrap failed", zap.Error(err))
+			}
+		}()
+	})
 }
 
 func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnapshot, map[string]domain.ToolTarget) {
@@ -255,9 +314,65 @@ func (a *ToolIndex) refreshErrorDecision(_ string, err error) refreshErrorDecisi
 func (a *ToolIndex) fetchServerCache(ctx context.Context, serverType string, spec domain.ServerSpec) (serverCache, error) {
 	tools, targets, err := a.fetchServerTools(ctx, serverType, spec)
 	if err != nil {
+		if errors.Is(err, domain.ErrNoReadyInstance) {
+			if cached, ok := a.cachedServerCache(serverType, spec); ok {
+				return cached, nil
+			}
+		}
 		return serverCache{}, err
 	}
 	return serverCache{tools: tools, targets: targets, etag: hashTools(tools)}, nil
+}
+
+func (a *ToolIndex) cachedServerCache(serverType string, spec domain.ServerSpec) (serverCache, bool) {
+	if a.metadataCache == nil {
+		return serverCache{}, false
+	}
+	specKey := a.specKeys[serverType]
+	if specKey == "" {
+		return serverCache{}, false
+	}
+	tools, ok := a.metadataCache.GetTools(specKey)
+	if !ok {
+		return serverCache{}, false
+	}
+
+	allowed := allowedTools(spec)
+	result := make([]domain.ToolDefinition, 0, len(tools))
+	targets := make(map[string]domain.ToolTarget)
+
+	for _, tool := range tools {
+		if tool.Name == "" {
+			continue
+		}
+		if !allowed(tool.Name) {
+			continue
+		}
+		if !isObjectSchema(tool.InputSchema) {
+			a.logger.Warn("skip cached tool with invalid input schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
+			continue
+		}
+		if tool.OutputSchema != nil && !isObjectSchema(tool.OutputSchema) {
+			a.logger.Warn("skip cached tool with invalid output schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
+			continue
+		}
+
+		name := a.namespaceTool(serverType, tool.Name)
+		toolDef := tool
+		toolDef.Name = name
+		toolDef.SpecKey = specKey
+		toolDef.ServerName = spec.Name
+
+		result = append(result, toolDef)
+		targets[name] = domain.ToolTarget{
+			ServerType: serverType,
+			SpecKey:    specKey,
+			ToolName:   tool.Name,
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return serverCache{tools: result, targets: targets, etag: hashTools(result)}, true
 }
 
 func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ToolDefinition, map[string]domain.ToolTarget, error) {
