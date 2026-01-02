@@ -902,6 +902,9 @@ export class RuntimeConfigDetail {
     "serverInitRetryBaseSeconds": number;
     "serverInitRetryMaxSeconds": number;
     "serverInitMaxRetries": number;
+    "startupStrategy": string;
+    "bootstrapConcurrency": number;
+    "bootstrapTimeoutSeconds": number;
     "exposeTools": boolean;
     "toolNamespaceStrategy": string;
     "observability": ObservabilityConfigDetail;
@@ -936,6 +939,15 @@ export class RuntimeConfigDetail {
         if (!("serverInitMaxRetries" in $$source)) {
             this["serverInitMaxRetries"] = 0;
         }
+        if (!("startupStrategy" in $$source)) {
+            this["startupStrategy"] = "";
+        }
+        if (!("bootstrapConcurrency" in $$source)) {
+            this["bootstrapConcurrency"] = 0;
+        }
+        if (!("bootstrapTimeoutSeconds" in $$source)) {
+            this["bootstrapTimeoutSeconds"] = 0;
+        }
         if (!("exposeTools" in $$source)) {
             this["exposeTools"] = false;
         }
@@ -956,14 +968,14 @@ export class RuntimeConfigDetail {
      * Creates a new RuntimeConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RuntimeConfigDetail {
-        const $$createField11_0 = $$createType13;
-        const $$createField12_0 = $$createType14;
+        const $$createField14_0 = $$createType13;
+        const $$createField15_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observability" in $$parsedSource) {
-            $$parsedSource["observability"] = $$createField11_0($$parsedSource["observability"]);
+            $$parsedSource["observability"] = $$createField14_0($$parsedSource["observability"]);
         }
         if ("rpc" in $$parsedSource) {
-            $$parsedSource["rpc"] = $$createField12_0($$parsedSource["rpc"]);
+            $$parsedSource["rpc"] = $$createField15_0($$parsedSource["rpc"]);
         }
         return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
     }
@@ -1317,6 +1329,82 @@ export class UpdateProfileSubAgentRequest {
     static createFrom($$source: any = {}): UpdateProfileSubAgentRequest {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new UpdateProfileSubAgentRequest($$parsedSource as Partial<UpdateProfileSubAgentRequest>);
+    }
+}
+
+/**
+ * UpdateRuntimeConfigRequest updates runtime.yaml configuration.
+ */
+export class UpdateRuntimeConfigRequest {
+    "routeTimeoutSeconds": number;
+    "pingIntervalSeconds": number;
+    "toolRefreshSeconds": number;
+    "toolRefreshConcurrency": number;
+    "callerCheckSeconds": number;
+    "callerInactiveSeconds": number;
+    "serverInitRetryBaseSeconds": number;
+    "serverInitRetryMaxSeconds": number;
+    "serverInitMaxRetries": number;
+    "startupStrategy": string;
+    "bootstrapConcurrency": number;
+    "bootstrapTimeoutSeconds": number;
+    "exposeTools": boolean;
+    "toolNamespaceStrategy": string;
+
+    /** Creates a new UpdateRuntimeConfigRequest instance. */
+    constructor($$source: Partial<UpdateRuntimeConfigRequest> = {}) {
+        if (!("routeTimeoutSeconds" in $$source)) {
+            this["routeTimeoutSeconds"] = 0;
+        }
+        if (!("pingIntervalSeconds" in $$source)) {
+            this["pingIntervalSeconds"] = 0;
+        }
+        if (!("toolRefreshSeconds" in $$source)) {
+            this["toolRefreshSeconds"] = 0;
+        }
+        if (!("toolRefreshConcurrency" in $$source)) {
+            this["toolRefreshConcurrency"] = 0;
+        }
+        if (!("callerCheckSeconds" in $$source)) {
+            this["callerCheckSeconds"] = 0;
+        }
+        if (!("callerInactiveSeconds" in $$source)) {
+            this["callerInactiveSeconds"] = 0;
+        }
+        if (!("serverInitRetryBaseSeconds" in $$source)) {
+            this["serverInitRetryBaseSeconds"] = 0;
+        }
+        if (!("serverInitRetryMaxSeconds" in $$source)) {
+            this["serverInitRetryMaxSeconds"] = 0;
+        }
+        if (!("serverInitMaxRetries" in $$source)) {
+            this["serverInitMaxRetries"] = 0;
+        }
+        if (!("startupStrategy" in $$source)) {
+            this["startupStrategy"] = "";
+        }
+        if (!("bootstrapConcurrency" in $$source)) {
+            this["bootstrapConcurrency"] = 0;
+        }
+        if (!("bootstrapTimeoutSeconds" in $$source)) {
+            this["bootstrapTimeoutSeconds"] = 0;
+        }
+        if (!("exposeTools" in $$source)) {
+            this["exposeTools"] = false;
+        }
+        if (!("toolNamespaceStrategy" in $$source)) {
+            this["toolNamespaceStrategy"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateRuntimeConfigRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateRuntimeConfigRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateRuntimeConfigRequest($$parsedSource as Partial<UpdateRuntimeConfigRequest>);
     }
 }
 

@@ -165,7 +165,11 @@ export function ProfileContent({
 
       {/* Runtime Config & SubAgent */}
       <Accordion multiple defaultValue={['runtime']}>
-        <RuntimeSection profile={profile} />
+        <RuntimeSection
+          profile={profile}
+          canEdit={canEditServers}
+          disabledHint={serverActionHint}
+        />
         <SubAgentSection
           profile={profile}
           canEdit={canEditServers}

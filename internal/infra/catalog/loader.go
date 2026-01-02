@@ -36,6 +36,9 @@ func setRuntimeDefaults(v *viper.Viper) {
 	v.SetDefault("serverInitRetryBaseSeconds", domain.DefaultServerInitRetryBaseSeconds)
 	v.SetDefault("serverInitRetryMaxSeconds", domain.DefaultServerInitRetryMaxSeconds)
 	v.SetDefault("serverInitMaxRetries", domain.DefaultServerInitMaxRetries)
+	v.SetDefault("startupStrategy", domain.DefaultStartupStrategy)
+	v.SetDefault("bootstrapConcurrency", domain.DefaultBootstrapConcurrency)
+	v.SetDefault("bootstrapTimeoutSeconds", domain.DefaultBootstrapTimeoutSeconds)
 	v.SetDefault("exposeTools", domain.DefaultExposeTools)
 	v.SetDefault("toolNamespaceStrategy", domain.DefaultToolNamespaceStrategy)
 	v.SetDefault("observability.listenAddress", domain.DefaultObservabilityListenAddress)
@@ -83,6 +86,9 @@ type rawRuntimeConfig struct {
 	ServerInitRetryBaseSeconds int                    `mapstructure:"serverInitRetryBaseSeconds"`
 	ServerInitRetryMaxSeconds  int                    `mapstructure:"serverInitRetryMaxSeconds"`
 	ServerInitMaxRetries       int                    `mapstructure:"serverInitMaxRetries"`
+	StartupStrategy            string                 `mapstructure:"startupStrategy"`
+	BootstrapConcurrency       int                    `mapstructure:"bootstrapConcurrency"`
+	BootstrapTimeoutSeconds    int                    `mapstructure:"bootstrapTimeoutSeconds"`
 	ExposeTools                bool                   `mapstructure:"exposeTools"`
 	ToolNamespaceStrategy      string                 `mapstructure:"toolNamespaceStrategy"`
 	Observability              rawObservabilityConfig `mapstructure:"observability"`
@@ -386,6 +392,23 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		errs = append(errs, "serverInitMaxRetries must be >= 0")
 	}
 
+	startupStrategy := strings.ToLower(strings.TrimSpace(cfg.StartupStrategy))
+	if startupStrategy == "" {
+		startupStrategy = domain.DefaultStartupStrategy
+	}
+	if startupStrategy != string(domain.StartupStrategyLazy) && startupStrategy != string(domain.StartupStrategyEager) {
+		errs = append(errs, "startupStrategy must be lazy or eager")
+	}
+
+	bootstrapConcurrency := cfg.BootstrapConcurrency
+	if bootstrapConcurrency <= 0 {
+		bootstrapConcurrency = domain.DefaultBootstrapConcurrency
+	}
+	bootstrapTimeoutSeconds := cfg.BootstrapTimeoutSeconds
+	if bootstrapTimeoutSeconds <= 0 {
+		bootstrapTimeoutSeconds = domain.DefaultBootstrapTimeoutSeconds
+	}
+
 	strategy := strings.ToLower(strings.TrimSpace(cfg.ToolNamespaceStrategy))
 	if strategy == "" {
 		strategy = domain.DefaultToolNamespaceStrategy
@@ -410,6 +433,9 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		ServerInitRetryBaseSeconds: serverInitRetryBase,
 		ServerInitRetryMaxSeconds:  serverInitRetryMax,
 		ServerInitMaxRetries:       serverInitMaxRetries,
+		StartupStrategy:            startupStrategy,
+		BootstrapConcurrency:       bootstrapConcurrency,
+		BootstrapTimeoutSeconds:    bootstrapTimeoutSeconds,
 		ExposeTools:                cfg.ExposeTools,
 		ToolNamespaceStrategy:      strategy,
 		Observability:              observabilityCfg,

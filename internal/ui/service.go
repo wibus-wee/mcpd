@@ -544,6 +544,34 @@ func (s *WailsService) ReloadConfig(ctx context.Context) error {
 	return s.manager.ReloadConfig(ctx)
 }
 
+// UpdateRuntimeConfig writes runtime.yaml updates to the profile store.
+func (s *WailsService) UpdateRuntimeConfig(ctx context.Context, req UpdateRuntimeConfigRequest) error {
+	editor, err := s.catalogEditor()
+	if err != nil {
+		return err
+	}
+	update := catalog.RuntimeConfigUpdate{
+		RouteTimeoutSeconds:        req.RouteTimeoutSeconds,
+		PingIntervalSeconds:        req.PingIntervalSeconds,
+		ToolRefreshSeconds:         req.ToolRefreshSeconds,
+		ToolRefreshConcurrency:     req.ToolRefreshConcurrency,
+		CallerCheckSeconds:         req.CallerCheckSeconds,
+		CallerInactiveSeconds:      req.CallerInactiveSeconds,
+		ServerInitRetryBaseSeconds: req.ServerInitRetryBaseSeconds,
+		ServerInitRetryMaxSeconds:  req.ServerInitRetryMaxSeconds,
+		ServerInitMaxRetries:       req.ServerInitMaxRetries,
+		StartupStrategy:            req.StartupStrategy,
+		BootstrapConcurrency:       req.BootstrapConcurrency,
+		BootstrapTimeoutSeconds:    req.BootstrapTimeoutSeconds,
+		ExposeTools:                req.ExposeTools,
+		ToolNamespaceStrategy:      req.ToolNamespaceStrategy,
+	}
+	if err := editor.UpdateRuntimeConfig(ctx, update); err != nil {
+		return mapCatalogError(err)
+	}
+	return nil
+}
+
 // ImportMcpServers writes imported MCP servers into selected profiles.
 func (s *WailsService) ImportMcpServers(ctx context.Context, req ImportMcpServersRequest) error {
 	editor, err := s.catalogEditor()

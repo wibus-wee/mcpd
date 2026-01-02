@@ -364,6 +364,13 @@ export function StopLogStream(): $CancellablePromise<void> {
     return $Call.ByID(4194966221);
 }
 
+/**
+ * UpdateRuntimeConfig writes runtime.yaml updates to the profile store.
+ */
+export function UpdateRuntimeConfig(req: $models.UpdateRuntimeConfigRequest): $CancellablePromise<void> {
+    return $Call.ByID(2333320146, req);
+}
+
 // Private type creation functions
 const $$createType0 = $models.DebugSnapshotResponse.createFrom;
 const $$createType1 = $models.ActiveCaller.createFrom;

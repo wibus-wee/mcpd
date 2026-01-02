@@ -88,6 +88,9 @@ type RuntimeConfigDetail struct {
 	ServerInitRetryBaseSeconds int                       `json:"serverInitRetryBaseSeconds"`
 	ServerInitRetryMaxSeconds  int                       `json:"serverInitRetryMaxSeconds"`
 	ServerInitMaxRetries       int                       `json:"serverInitMaxRetries"`
+	StartupStrategy            string                    `json:"startupStrategy"`
+	BootstrapConcurrency       int                       `json:"bootstrapConcurrency"`
+	BootstrapTimeoutSeconds    int                       `json:"bootstrapTimeoutSeconds"`
 	ExposeTools                bool                      `json:"exposeTools"`
 	ToolNamespaceStrategy      string                    `json:"toolNamespaceStrategy"`
 	Observability              ObservabilityConfigDetail `json:"observability"`
@@ -172,6 +175,24 @@ type CreateProfileRequest struct {
 // DeleteProfileRequest removes a profile file.
 type DeleteProfileRequest struct {
 	Name string `json:"name"`
+}
+
+// UpdateRuntimeConfigRequest updates runtime.yaml configuration.
+type UpdateRuntimeConfigRequest struct {
+	RouteTimeoutSeconds        int    `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds        int    `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds         int    `json:"toolRefreshSeconds"`
+	ToolRefreshConcurrency     int    `json:"toolRefreshConcurrency"`
+	CallerCheckSeconds         int    `json:"callerCheckSeconds"`
+	CallerInactiveSeconds      int    `json:"callerInactiveSeconds"`
+	ServerInitRetryBaseSeconds int    `json:"serverInitRetryBaseSeconds"`
+	ServerInitRetryMaxSeconds  int    `json:"serverInitRetryMaxSeconds"`
+	ServerInitMaxRetries       int    `json:"serverInitMaxRetries"`
+	StartupStrategy            string `json:"startupStrategy"`
+	BootstrapConcurrency       int    `json:"bootstrapConcurrency"`
+	BootstrapTimeoutSeconds    int    `json:"bootstrapTimeoutSeconds"`
+	ExposeTools                bool   `json:"exposeTools"`
+	ToolNamespaceStrategy      string `json:"toolNamespaceStrategy"`
 }
 
 // UpdateCallerMappingRequest updates a caller to profile mapping.

@@ -42,5 +42,6 @@ export {
     ToolEntry,
     UpdateCallerMappingRequest,
     UpdateProfileSubAgentRequest,
+    UpdateRuntimeConfigRequest,
     UpdateServerStateRequest
 } from "./models.js";

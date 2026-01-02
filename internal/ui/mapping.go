@@ -170,6 +170,9 @@ func mapRuntimeConfigDetail(cfg domain.RuntimeConfig) RuntimeConfigDetail {
 		ServerInitRetryBaseSeconds: cfg.ServerInitRetryBaseSeconds,
 		ServerInitRetryMaxSeconds:  cfg.ServerInitRetryMaxSeconds,
 		ServerInitMaxRetries:       cfg.ServerInitMaxRetries,
+		StartupStrategy:            cfg.StartupStrategy,
+		BootstrapConcurrency:       cfg.BootstrapConcurrency,
+		BootstrapTimeoutSeconds:    cfg.BootstrapTimeoutSeconds,
 		ExposeTools:                cfg.ExposeTools,
 		ToolNamespaceStrategy:      cfg.ToolNamespaceStrategy,
 		Observability: ObservabilityConfigDetail{

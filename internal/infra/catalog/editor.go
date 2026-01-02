@@ -106,6 +106,28 @@ func (e *Editor) ImportServers(ctx context.Context, req ImportRequest) error {
 	return nil
 }
 
+// UpdateRuntimeConfig updates runtime.yaml in the profile store.
+func (e *Editor) UpdateRuntimeConfig(ctx context.Context, update RuntimeConfigUpdate) error {
+	storePath, err := e.storePath()
+	if err != nil {
+		return err
+	}
+
+	path, err := ResolveRuntimePath(storePath, true)
+	if err != nil {
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to resolve runtime config path", Err: err}
+	}
+
+	runtimeUpdate, err := UpdateRuntimeConfig(path, update)
+	if err != nil {
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update runtime config", Err: err}
+	}
+	if err := writeRuntimeUpdate(runtimeUpdate); err != nil {
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write runtime config", Err: err}
+	}
+	return nil
+}
+
 func (e *Editor) SetServerDisabled(ctx context.Context, profileName, serverName string, disabled bool) error {
 	profileName = strings.TrimSpace(profileName)
 	serverName = strings.TrimSpace(serverName)
