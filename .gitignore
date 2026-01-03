@@ -144,5 +144,6 @@ settings.local.json
 bin/
 profiles/
 profiles
+!frontend/src/modules/config/components/profiles/
 callers.yaml
 .gocache/
