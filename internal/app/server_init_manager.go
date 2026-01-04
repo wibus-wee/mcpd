@@ -16,6 +16,7 @@ import (
 type ServerInitializationManager struct {
 	scheduler domain.Scheduler
 	specs     map[string]domain.ServerSpec
+	runtime   domain.RuntimeConfig
 	logger    *zap.Logger
 
 	mu         sync.Mutex
@@ -49,6 +50,7 @@ func NewServerInitializationManager(
 	return &ServerInitializationManager{
 		scheduler:  scheduler,
 		specs:      specs,
+		runtime:    runtime,
 		logger:     logger.Named("server_init"),
 		statuses:   make(map[string]domain.ServerInitStatus),
 		targets:    make(map[string]int),
@@ -66,15 +68,17 @@ func (m *ServerInitializationManager) ApplyCatalogState(state *domain.CatalogSta
 	retryBase, retryMax, maxRetries := resolveServerInitRetry(runtime)
 
 	var added []string
+	var activated []string
 
 	m.mu.Lock()
 	m.specs = specs
+	m.runtime = runtime
 	m.retryBase = retryBase
 	m.retryMax = retryMax
 	m.maxRetries = maxRetries
 
 	for specKey, spec := range specs {
-		minReady := normalizeMinReady(spec.MinReady)
+		minReady := baselineMinReady(runtime, spec)
 		status, ok := m.statuses[specKey]
 		if !ok {
 			added = append(added, specKey)
@@ -90,9 +94,20 @@ func (m *ServerInitializationManager) ApplyCatalogState(state *domain.CatalogSta
 		} else {
 			status.ServerName = spec.Name
 			status.MinReady = minReady
+			if minReady == 0 {
+				status.State = domain.ServerInitPending
+				status.Ready = 0
+				status.Failed = 0
+				status.LastError = ""
+				status.RetryCount = 0
+				status.NextRetryAt = time.Time{}
+			}
 			status.UpdatedAt = time.Now()
 		}
 		m.statuses[specKey] = status
+		if m.targets[specKey] != minReady && minReady > 0 {
+			activated = append(activated, specKey)
+		}
 		m.targets[specKey] = minReady
 	}
 
@@ -109,6 +124,9 @@ func (m *ServerInitializationManager) ApplyCatalogState(state *domain.CatalogSta
 		return
 	}
 	for _, specKey := range added {
+		m.ensureWorker(specKey)
+	}
+	for _, specKey := range activated {
 		m.ensureWorker(specKey)
 	}
 }
@@ -144,7 +162,7 @@ func (m *ServerInitializationManager) Start(ctx context.Context) {
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	now := time.Now()
 	for specKey, spec := range m.specs {
-		minReady := normalizeMinReady(spec.MinReady)
+		minReady := baselineMinReady(m.runtime, spec)
 		m.targets[specKey] = minReady
 		m.statuses[specKey] = domain.ServerInitStatus{
 			SpecKey:     specKey,
@@ -187,14 +205,20 @@ func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int) 
 	switch {
 	case minReady < 0:
 		minReady = 0
-	case minReady > 0:
-		minReady = normalizeMinReady(minReady)
 	}
 
 	targetChanged := m.targets[specKey] != minReady
 	m.targets[specKey] = minReady
 	status := m.statuses[specKey]
 	status.MinReady = minReady
+	if minReady == 0 {
+		status.State = domain.ServerInitPending
+		status.Ready = 0
+		status.Failed = 0
+		status.LastError = ""
+		status.RetryCount = 0
+		status.NextRetryAt = time.Time{}
+	}
 	status.UpdatedAt = time.Now()
 	m.statuses[specKey] = status
 	m.mu.Unlock()
@@ -583,11 +607,4 @@ func isFatalInitError(err error) bool {
 		errors.Is(err, domain.ErrPermissionDenied) ||
 		errors.Is(err, domain.ErrUnsupportedProtocol) ||
 		errors.Is(err, domain.ErrUnknownSpecKey)
-}
-
-func normalizeMinReady(value int) int {
-	if value < 1 {
-		return 1
-	}
-	return value
 }

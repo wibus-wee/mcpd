@@ -22,7 +22,7 @@ func TestBootstrapManager_InitialState(t *testing.T) {
 		Logger:      zap.NewNop(),
 		Concurrency: 3,
 		Timeout:     30 * time.Second,
-		Strategy:    domain.StartupStrategyLazy,
+		Mode:        domain.BootstrapModeMetadata,
 	})
 
 	// Initial state should be pending
@@ -45,7 +45,7 @@ func TestBootstrapManager_WaitForCompletion_AlreadyCompleted(t *testing.T) {
 		Logger:      zap.NewNop(),
 		Concurrency: 1,
 		Timeout:     1 * time.Second,
-		Strategy:    domain.StartupStrategyLazy,
+		Mode:        domain.BootstrapModeMetadata,
 	})
 
 	// Bootstrap with no servers should complete immediately
@@ -70,7 +70,7 @@ func TestBootstrapManager_GetProgress_ThreadSafe(t *testing.T) {
 		Logger:      zap.NewNop(),
 		Concurrency: 1,
 		Timeout:     1 * time.Second,
-		Strategy:    domain.StartupStrategyLazy,
+		Mode:        domain.BootstrapModeMetadata,
 	})
 
 	// Start bootstrap

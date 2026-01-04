@@ -902,9 +902,10 @@ export class RuntimeConfigDetail {
     "serverInitRetryBaseSeconds": number;
     "serverInitRetryMaxSeconds": number;
     "serverInitMaxRetries": number;
-    "startupStrategy": string;
+    "bootstrapMode": string;
     "bootstrapConcurrency": number;
     "bootstrapTimeoutSeconds": number;
+    "defaultActivationMode": string;
     "exposeTools": boolean;
     "toolNamespaceStrategy": string;
     "observability": ObservabilityConfigDetail;
@@ -939,14 +940,17 @@ export class RuntimeConfigDetail {
         if (!("serverInitMaxRetries" in $$source)) {
             this["serverInitMaxRetries"] = 0;
         }
-        if (!("startupStrategy" in $$source)) {
-            this["startupStrategy"] = "";
+        if (!("bootstrapMode" in $$source)) {
+            this["bootstrapMode"] = "";
         }
         if (!("bootstrapConcurrency" in $$source)) {
             this["bootstrapConcurrency"] = 0;
         }
         if (!("bootstrapTimeoutSeconds" in $$source)) {
             this["bootstrapTimeoutSeconds"] = 0;
+        }
+        if (!("defaultActivationMode" in $$source)) {
+            this["defaultActivationMode"] = "";
         }
         if (!("exposeTools" in $$source)) {
             this["exposeTools"] = false;
@@ -968,14 +972,14 @@ export class RuntimeConfigDetail {
      * Creates a new RuntimeConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RuntimeConfigDetail {
-        const $$createField14_0 = $$createType13;
-        const $$createField15_0 = $$createType14;
+        const $$createField15_0 = $$createType13;
+        const $$createField16_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observability" in $$parsedSource) {
-            $$parsedSource["observability"] = $$createField14_0($$parsedSource["observability"]);
+            $$parsedSource["observability"] = $$createField15_0($$parsedSource["observability"]);
         }
         if ("rpc" in $$parsedSource) {
-            $$parsedSource["rpc"] = $$createField15_0($$parsedSource["rpc"]);
+            $$parsedSource["rpc"] = $$createField16_0($$parsedSource["rpc"]);
         }
         return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
     }
@@ -1099,6 +1103,7 @@ export class ServerSpecDetail {
     "sessionTTLSeconds": number;
     "disabled": boolean;
     "minReady": number;
+    "activationMode": string;
     "drainTimeoutSeconds": number;
     "protocolVersion": string;
     "exposeTools": string[];
@@ -1138,6 +1143,9 @@ export class ServerSpecDetail {
         if (!("minReady" in $$source)) {
             this["minReady"] = 0;
         }
+        if (!("activationMode" in $$source)) {
+            this["activationMode"] = "";
+        }
         if (!("drainTimeoutSeconds" in $$source)) {
             this["drainTimeoutSeconds"] = 0;
         }
@@ -1157,7 +1165,7 @@ export class ServerSpecDetail {
     static createFrom($$source: any = {}): ServerSpecDetail {
         const $$createField2_0 = $$createType1;
         const $$createField3_0 = $$createType0;
-        const $$createField13_0 = $$createType1;
+        const $$createField14_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cmd" in $$parsedSource) {
             $$parsedSource["cmd"] = $$createField2_0($$parsedSource["cmd"]);
@@ -1166,7 +1174,7 @@ export class ServerSpecDetail {
             $$parsedSource["env"] = $$createField3_0($$parsedSource["env"]);
         }
         if ("exposeTools" in $$parsedSource) {
-            $$parsedSource["exposeTools"] = $$createField13_0($$parsedSource["exposeTools"]);
+            $$parsedSource["exposeTools"] = $$createField14_0($$parsedSource["exposeTools"]);
         }
         return new ServerSpecDetail($$parsedSource as Partial<ServerSpecDetail>);
     }
@@ -1345,9 +1353,10 @@ export class UpdateRuntimeConfigRequest {
     "serverInitRetryBaseSeconds": number;
     "serverInitRetryMaxSeconds": number;
     "serverInitMaxRetries": number;
-    "startupStrategy": string;
+    "bootstrapMode": string;
     "bootstrapConcurrency": number;
     "bootstrapTimeoutSeconds": number;
+    "defaultActivationMode": string;
     "exposeTools": boolean;
     "toolNamespaceStrategy": string;
 
@@ -1380,14 +1389,17 @@ export class UpdateRuntimeConfigRequest {
         if (!("serverInitMaxRetries" in $$source)) {
             this["serverInitMaxRetries"] = 0;
         }
-        if (!("startupStrategy" in $$source)) {
-            this["startupStrategy"] = "";
+        if (!("bootstrapMode" in $$source)) {
+            this["bootstrapMode"] = "";
         }
         if (!("bootstrapConcurrency" in $$source)) {
             this["bootstrapConcurrency"] = 0;
         }
         if (!("bootstrapTimeoutSeconds" in $$source)) {
             this["bootstrapTimeoutSeconds"] = 0;
+        }
+        if (!("defaultActivationMode" in $$source)) {
+            this["defaultActivationMode"] = "";
         }
         if (!("exposeTools" in $$source)) {
             this["exposeTools"] = false;

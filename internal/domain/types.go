@@ -41,6 +41,7 @@ type ServerSpec struct {
 	SessionTTLSeconds   int               `json:"sessionTTLSeconds,omitempty"`
 	Disabled            bool              `json:"disabled,omitempty"`
 	MinReady            int               `json:"minReady"`
+	ActivationMode      ActivationMode    `json:"activationMode"`
 	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `json:"protocolVersion"`
 	ExposeTools         []string          `json:"exposeTools,omitempty"`
@@ -63,9 +64,10 @@ type RuntimeConfig struct {
 	SubAgent                   SubAgentConfig      `json:"subAgent"`
 
 	// Bootstrap configuration
-	StartupStrategy         string `json:"startupStrategy"`         // "lazy" or "eager", default "lazy"
-	BootstrapConcurrency    int    `json:"bootstrapConcurrency"`    // concurrent servers during bootstrap, default 3
-	BootstrapTimeoutSeconds int    `json:"bootstrapTimeoutSeconds"` // per-server timeout, default 30
+	BootstrapMode           BootstrapMode  `json:"bootstrapMode"`           // "metadata" or "disabled", default "metadata"
+	BootstrapConcurrency    int            `json:"bootstrapConcurrency"`    // concurrent servers during bootstrap, default 3
+	BootstrapTimeoutSeconds int            `json:"bootstrapTimeoutSeconds"` // per-server timeout, default 30
+	DefaultActivationMode   ActivationMode `json:"defaultActivationMode"`   // "on-demand" or "always-on", default "on-demand"
 }
 
 type ObservabilityConfig struct {
@@ -222,17 +224,26 @@ var ErrPermissionDenied = errors.New("permission denied")
 var ErrUnsupportedProtocol = errors.New("unsupported protocol version")
 var ErrConnectionClosed = errors.New("connection closed")
 
-// StartupStrategy defines how mcpd initializes MCP servers at startup
-type StartupStrategy string
+// BootstrapMode defines whether mcpd prefetches metadata during startup.
+type BootstrapMode string
 
 const (
-	// StartupStrategyLazy starts servers temporarily during bootstrap to fetch metadata,
-	// then shuts them down. Servers are started on-demand when callers need them.
-	StartupStrategyLazy StartupStrategy = "lazy"
+	// BootstrapModeMetadata starts servers temporarily during bootstrap to fetch metadata.
+	BootstrapModeMetadata BootstrapMode = "metadata"
 
-	// StartupStrategyEager starts servers during bootstrap and keeps them running
-	// for immediate caller access with zero latency.
-	StartupStrategyEager StartupStrategy = "eager"
+	// BootstrapModeDisabled skips bootstrap metadata collection.
+	BootstrapModeDisabled BootstrapMode = "disabled"
+)
+
+// ActivationMode defines whether a server stays running without active callers.
+type ActivationMode string
+
+const (
+	// ActivationOnDemand only runs servers when there are active callers.
+	ActivationOnDemand ActivationMode = "on-demand"
+
+	// ActivationAlwaysOn keeps servers running even without active callers.
+	ActivationAlwaysOn ActivationMode = "always-on"
 )
 
 // BootstrapState represents the current state of the bootstrap process
@@ -257,7 +268,8 @@ type BootstrapProgress struct {
 
 // Bootstrap configuration defaults
 const (
-	DefaultStartupStrategy         = "lazy"
+	DefaultBootstrapMode           = BootstrapModeMetadata
 	DefaultBootstrapConcurrency    = 3
 	DefaultBootstrapTimeoutSeconds = 30
+	DefaultActivationMode          = ActivationOnDemand
 )

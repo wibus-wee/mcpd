@@ -55,9 +55,10 @@ rpc:
 		ServerInitRetryBaseSeconds: 1,
 		ServerInitRetryMaxSeconds:  5,
 		ServerInitMaxRetries:       2,
-		StartupStrategy:            "eager",
+		BootstrapMode:              "metadata",
 		BootstrapConcurrency:       3,
 		BootstrapTimeoutSeconds:    15,
+		DefaultActivationMode:      "on-demand",
 		ExposeTools:                true,
 		ToolNamespaceStrategy:      "flat",
 	})

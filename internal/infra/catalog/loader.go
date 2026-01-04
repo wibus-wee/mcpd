@@ -36,9 +36,10 @@ func setRuntimeDefaults(v *viper.Viper) {
 	v.SetDefault("serverInitRetryBaseSeconds", domain.DefaultServerInitRetryBaseSeconds)
 	v.SetDefault("serverInitRetryMaxSeconds", domain.DefaultServerInitRetryMaxSeconds)
 	v.SetDefault("serverInitMaxRetries", domain.DefaultServerInitMaxRetries)
-	v.SetDefault("startupStrategy", domain.DefaultStartupStrategy)
+	v.SetDefault("bootstrapMode", domain.DefaultBootstrapMode)
 	v.SetDefault("bootstrapConcurrency", domain.DefaultBootstrapConcurrency)
 	v.SetDefault("bootstrapTimeoutSeconds", domain.DefaultBootstrapTimeoutSeconds)
+	v.SetDefault("defaultActivationMode", domain.DefaultActivationMode)
 	v.SetDefault("exposeTools", domain.DefaultExposeTools)
 	v.SetDefault("toolNamespaceStrategy", domain.DefaultToolNamespaceStrategy)
 	v.SetDefault("observability.listenAddress", domain.DefaultObservabilityListenAddress)
@@ -67,6 +68,7 @@ type rawServerSpec struct {
 	SessionTTLSeconds   *int              `mapstructure:"sessionTTLSeconds"`
 	Disabled            bool              `mapstructure:"disabled"`
 	MinReady            int               `mapstructure:"minReady"`
+	ActivationMode      string            `mapstructure:"activationMode"`
 	DrainTimeoutSeconds int               `mapstructure:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `mapstructure:"protocolVersion"`
 	ExposeTools         []string          `mapstructure:"exposeTools"`
@@ -86,9 +88,10 @@ type rawRuntimeConfig struct {
 	ServerInitRetryBaseSeconds int                    `mapstructure:"serverInitRetryBaseSeconds"`
 	ServerInitRetryMaxSeconds  int                    `mapstructure:"serverInitRetryMaxSeconds"`
 	ServerInitMaxRetries       int                    `mapstructure:"serverInitMaxRetries"`
-	StartupStrategy            string                 `mapstructure:"startupStrategy"`
+	BootstrapMode              string                 `mapstructure:"bootstrapMode"`
 	BootstrapConcurrency       int                    `mapstructure:"bootstrapConcurrency"`
 	BootstrapTimeoutSeconds    int                    `mapstructure:"bootstrapTimeoutSeconds"`
+	DefaultActivationMode      string                 `mapstructure:"defaultActivationMode"`
 	ExposeTools                bool                   `mapstructure:"exposeTools"`
 	ToolNamespaceStrategy      string                 `mapstructure:"toolNamespaceStrategy"`
 	Observability              rawObservabilityConfig `mapstructure:"observability"`
@@ -254,6 +257,7 @@ func normalizeServerSpec(raw rawServerSpec) domain.ServerSpec {
 	if strategy == "" {
 		strategy = domain.DefaultStrategy
 	}
+	activationMode := strings.ToLower(strings.TrimSpace(raw.ActivationMode))
 
 	spec := domain.ServerSpec{
 		Name:                raw.Name,
@@ -265,6 +269,7 @@ func normalizeServerSpec(raw rawServerSpec) domain.ServerSpec {
 		Strategy:            strategy,
 		Disabled:            raw.Disabled,
 		MinReady:            raw.MinReady,
+		ActivationMode:      domain.ActivationMode(activationMode),
 		DrainTimeoutSeconds: raw.DrainTimeoutSeconds,
 		ProtocolVersion:     raw.ProtocolVersion,
 		ExposeTools:         raw.ExposeTools,
@@ -304,6 +309,9 @@ func validateServerSpec(spec domain.ServerSpec, index int) []string {
 	}
 	if spec.MinReady < 0 {
 		errs = append(errs, fmt.Sprintf("servers[%d]: minReady must be >= 0", index))
+	}
+	if spec.ActivationMode != "" && spec.ActivationMode != domain.ActivationOnDemand && spec.ActivationMode != domain.ActivationAlwaysOn {
+		errs = append(errs, fmt.Sprintf("servers[%d]: activationMode must be on-demand or always-on", index))
 	}
 
 	// Validate strategy
@@ -392,12 +400,12 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		errs = append(errs, "serverInitMaxRetries must be >= 0")
 	}
 
-	startupStrategy := strings.ToLower(strings.TrimSpace(cfg.StartupStrategy))
-	if startupStrategy == "" {
-		startupStrategy = domain.DefaultStartupStrategy
+	bootstrapMode := strings.ToLower(strings.TrimSpace(cfg.BootstrapMode))
+	if bootstrapMode == "" {
+		bootstrapMode = string(domain.DefaultBootstrapMode)
 	}
-	if startupStrategy != string(domain.StartupStrategyLazy) && startupStrategy != string(domain.StartupStrategyEager) {
-		errs = append(errs, "startupStrategy must be lazy or eager")
+	if bootstrapMode != string(domain.BootstrapModeMetadata) && bootstrapMode != string(domain.BootstrapModeDisabled) {
+		errs = append(errs, "bootstrapMode must be metadata or disabled")
 	}
 
 	bootstrapConcurrency := cfg.BootstrapConcurrency
@@ -407,6 +415,14 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 	bootstrapTimeoutSeconds := cfg.BootstrapTimeoutSeconds
 	if bootstrapTimeoutSeconds <= 0 {
 		bootstrapTimeoutSeconds = domain.DefaultBootstrapTimeoutSeconds
+	}
+
+	defaultActivationMode := strings.ToLower(strings.TrimSpace(cfg.DefaultActivationMode))
+	if defaultActivationMode == "" {
+		defaultActivationMode = string(domain.DefaultActivationMode)
+	}
+	if defaultActivationMode != string(domain.ActivationOnDemand) && defaultActivationMode != string(domain.ActivationAlwaysOn) {
+		errs = append(errs, "defaultActivationMode must be on-demand or always-on")
 	}
 
 	strategy := strings.ToLower(strings.TrimSpace(cfg.ToolNamespaceStrategy))
@@ -433,9 +449,10 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		ServerInitRetryBaseSeconds: serverInitRetryBase,
 		ServerInitRetryMaxSeconds:  serverInitRetryMax,
 		ServerInitMaxRetries:       serverInitMaxRetries,
-		StartupStrategy:            startupStrategy,
+		BootstrapMode:              domain.BootstrapMode(bootstrapMode),
 		BootstrapConcurrency:       bootstrapConcurrency,
 		BootstrapTimeoutSeconds:    bootstrapTimeoutSeconds,
+		DefaultActivationMode:      domain.ActivationMode(defaultActivationMode),
 		ExposeTools:                cfg.ExposeTools,
 		ToolNamespaceStrategy:      strategy,
 		Observability:              observabilityCfg,

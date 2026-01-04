@@ -108,14 +108,14 @@ func TestSpecFingerprint_EnvChangeAffectsFingerprint(t *testing.T) {
 
 func TestSpecFingerprint_IgnoresSchedulerFields(t *testing.T) {
 	base := ServerSpec{
-		Name:            "svc",
-		Cmd:             []string{"./svc"},
-		Env:             map[string]string{"A": "1"},
-		ProtocolVersion: DefaultProtocolVersion,
-		IdleSeconds:     10,
-		MaxConcurrent:   1,
-		MinReady:        1,
-		ExposeTools:     []string{"tool-a"},
+		Name:                "svc",
+		Cmd:                 []string{"./svc"},
+		Env:                 map[string]string{"A": "1"},
+		ProtocolVersion:     DefaultProtocolVersion,
+		IdleSeconds:         10,
+		MaxConcurrent:       1,
+		MinReady:            1,
+		ExposeTools:         []string{"tool-a"},
 		DrainTimeoutSeconds: 5,
 	}
 	changed := base

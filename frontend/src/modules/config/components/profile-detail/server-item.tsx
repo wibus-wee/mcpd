@@ -70,6 +70,10 @@ export function ServerItem({
     sessionTTLSeconds > 0
       ? `Session TTL ${sessionTTLSeconds}s`
       : 'Session TTL Off'
+  const activationLabel = {
+    'always-on': 'Always-on',
+    'on-demand': 'On-demand',
+  }[server.activationMode] ?? (server.activationMode ? server.activationMode : 'Default')
 
   return (
     <AccordionItem
@@ -195,7 +199,7 @@ export function ServerItem({
           <Separator className="my-2" />
 
           {/* Settings Grid */}
-          <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-4 gap-3 text-xs">
             <div className="flex items-center gap-1.5">
               <ClockIcon className="size-3 text-muted-foreground" />
               <div>
@@ -211,8 +215,12 @@ export function ServerItem({
               </div>
             </div>
             <div>
-              <p className="text-muted-foreground">Min Ready</p>
+              <p className="text-muted-foreground">Warm Pool</p>
               <p className="font-mono">{server.minReady}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Activation</p>
+              <p className="font-mono">{activationLabel}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs">

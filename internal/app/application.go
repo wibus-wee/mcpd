@@ -84,12 +84,6 @@ func (a *Application) Run() error {
 		a.onReady(a.controlPlane)
 	}
 
-	// Start async bootstrap if configured
-	strategy := domain.StartupStrategy(a.summary.DefaultRuntime.StartupStrategy)
-	if strategy == "" {
-		strategy = domain.StartupStrategyLazy
-	}
-
 	if a.bootstrapManager != nil {
 		a.bootstrapManager.Bootstrap(a.ctx)
 	}

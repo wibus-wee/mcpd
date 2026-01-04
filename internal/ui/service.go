@@ -560,9 +560,10 @@ func (s *WailsService) UpdateRuntimeConfig(ctx context.Context, req UpdateRuntim
 		ServerInitRetryBaseSeconds: req.ServerInitRetryBaseSeconds,
 		ServerInitRetryMaxSeconds:  req.ServerInitRetryMaxSeconds,
 		ServerInitMaxRetries:       req.ServerInitMaxRetries,
-		StartupStrategy:            req.StartupStrategy,
+		BootstrapMode:              req.BootstrapMode,
 		BootstrapConcurrency:       req.BootstrapConcurrency,
 		BootstrapTimeoutSeconds:    req.BootstrapTimeoutSeconds,
+		DefaultActivationMode:      req.DefaultActivationMode,
 		ExposeTools:                req.ExposeTools,
 		ToolNamespaceStrategy:      req.ToolNamespaceStrategy,
 	}

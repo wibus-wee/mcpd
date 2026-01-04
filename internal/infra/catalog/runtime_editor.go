@@ -27,9 +27,10 @@ type RuntimeConfigUpdate struct {
 	ServerInitRetryBaseSeconds int
 	ServerInitRetryMaxSeconds  int
 	ServerInitMaxRetries       int
-	StartupStrategy            string
+	BootstrapMode              string
 	BootstrapConcurrency       int
 	BootstrapTimeoutSeconds    int
+	DefaultActivationMode      string
 	ExposeTools                bool
 	ToolNamespaceStrategy      string
 }
@@ -85,9 +86,10 @@ func UpdateRuntimeConfig(path string, update RuntimeConfigUpdate) (RuntimeUpdate
 	doc["serverInitRetryBaseSeconds"] = update.ServerInitRetryBaseSeconds
 	doc["serverInitRetryMaxSeconds"] = update.ServerInitRetryMaxSeconds
 	doc["serverInitMaxRetries"] = update.ServerInitMaxRetries
-	doc["startupStrategy"] = strings.TrimSpace(update.StartupStrategy)
+	doc["bootstrapMode"] = strings.TrimSpace(update.BootstrapMode)
 	doc["bootstrapConcurrency"] = update.BootstrapConcurrency
 	doc["bootstrapTimeoutSeconds"] = update.BootstrapTimeoutSeconds
+	doc["defaultActivationMode"] = strings.TrimSpace(update.DefaultActivationMode)
 	doc["exposeTools"] = update.ExposeTools
 	doc["toolNamespaceStrategy"] = strings.TrimSpace(update.ToolNamespaceStrategy)
 

@@ -6,6 +6,7 @@ servers:
       idleSeconds: 60
       maxConcurrent: 1
       minReady: 1
+      activationMode: "always-on"
       name: weather
       strategy: stateless
       protocolVersion: "2025-11-25"

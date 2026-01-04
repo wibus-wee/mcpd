@@ -310,10 +310,7 @@ func (r *callerRegistry) activateSpecs(ctx context.Context, specKeys []string) e
 		if !ok {
 			return fmt.Errorf("unknown spec key %q", specKey)
 		}
-		minReady := spec.MinReady
-		if minReady < 1 {
-			minReady = 1
-		}
+		minReady := activeMinReady(spec)
 		if r.state.initManager != nil {
 			err := r.state.initManager.SetMinReady(specKey, minReady)
 			if err == nil {
@@ -337,8 +334,13 @@ func (r *callerRegistry) deactivateSpecs(ctx context.Context, specKeys []string)
 	}
 	order := append([]string(nil), specKeys...)
 	sort.Strings(order)
+	runtime := r.state.Runtime()
 	var firstErr error
 	for _, specKey := range order {
+		spec, ok := r.state.SpecRegistry()[specKey]
+		if ok && resolveActivationMode(runtime, spec) == domain.ActivationAlwaysOn {
+			continue
+		}
 		if r.state.initManager != nil {
 			_ = r.state.initManager.SetMinReady(specKey, 0)
 		}

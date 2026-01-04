@@ -16,7 +16,7 @@ import (
 
 func TestServerInitializationManager_Ready(t *testing.T) {
 	specKey := "alpha"
-	spec := domain.ServerSpec{Name: "alpha", MinReady: 1}
+	spec := domain.ServerSpec{Name: "alpha", MinReady: 1, ActivationMode: domain.ActivationAlwaysOn}
 	scheduler := newInitSchedulerStub(map[string][]setResult{
 		specKey: {
 			{ready: 1},
@@ -36,7 +36,7 @@ func TestServerInitializationManager_Ready(t *testing.T) {
 
 func TestServerInitializationManager_DegradedThenReady(t *testing.T) {
 	specKey := "beta"
-	spec := domain.ServerSpec{Name: "beta", MinReady: 2}
+	spec := domain.ServerSpec{Name: "beta", MinReady: 2, ActivationMode: domain.ActivationAlwaysOn}
 	scheduler := newInitSchedulerStub(map[string][]setResult{
 		specKey: {
 			{ready: 1, failed: 1, err: errors.New("initialization error")},
@@ -57,7 +57,7 @@ func TestServerInitializationManager_DegradedThenReady(t *testing.T) {
 
 func TestServerInitializationManager_Cancelled(t *testing.T) {
 	specKey := "gamma"
-	spec := domain.ServerSpec{Name: "gamma", MinReady: 1}
+	spec := domain.ServerSpec{Name: "gamma", MinReady: 1, ActivationMode: domain.ActivationAlwaysOn}
 	scheduler := newInitSchedulerStub(map[string][]setResult{
 		specKey: {
 			{ready: 0, failed: 0, err: errors.New("start failed")},
@@ -76,7 +76,7 @@ func TestServerInitializationManager_Cancelled(t *testing.T) {
 
 func TestServerInitializationManager_SuspendsAfterRetries(t *testing.T) {
 	specKey := "delta"
-	spec := domain.ServerSpec{Name: "delta", MinReady: 1}
+	spec := domain.ServerSpec{Name: "delta", MinReady: 1, ActivationMode: domain.ActivationAlwaysOn}
 	scheduler := newInitSchedulerStub(map[string][]setResult{
 		specKey: {
 			{ready: 0, failed: 0, err: errors.New("start failed")},
@@ -97,7 +97,7 @@ func TestServerInitializationManager_SuspendsAfterRetries(t *testing.T) {
 
 func TestServerInitializationManager_RetrySpecResets(t *testing.T) {
 	specKey := "epsilon"
-	spec := domain.ServerSpec{Name: "epsilon", MinReady: 1}
+	spec := domain.ServerSpec{Name: "epsilon", MinReady: 1, ActivationMode: domain.ActivationAlwaysOn}
 	scheduler := newInitSchedulerStub(map[string][]setResult{
 		specKey: {
 			{ready: 0, failed: 0, err: errors.New("start failed")},
@@ -145,6 +145,7 @@ func initRuntimeConfig(maxRetries int) domain.RuntimeConfig {
 		ServerInitRetryBaseSeconds: 1,
 		ServerInitRetryMaxSeconds:  1,
 		ServerInitMaxRetries:       maxRetries,
+		DefaultActivationMode:      domain.ActivationAlwaysOn,
 	}
 }
 
@@ -171,6 +172,7 @@ type initSchedulerStub struct {
 	mu     sync.Mutex
 	ready  map[string]int
 	failed map[string]int
+	min    map[string]int
 }
 
 func newInitSchedulerStub(results map[string][]setResult) *initSchedulerStub {
@@ -178,6 +180,7 @@ func newInitSchedulerStub(results map[string][]setResult) *initSchedulerStub {
 		results: results,
 		ready:   make(map[string]int),
 		failed:  make(map[string]int),
+		min:     make(map[string]int),
 	}
 }
 
@@ -212,6 +215,7 @@ func (s *initSchedulerStub) SetDesiredMinReady(ctx context.Context, specKey stri
 
 	s.ready[specKey] = result.ready
 	s.failed[specKey] = result.failed
+	s.min[specKey] = minReady
 	return result.err
 }
 
@@ -236,6 +240,7 @@ func (s *initSchedulerStub) GetPoolStatus(ctx context.Context) ([]domain.PoolInf
 	pools := make([]domain.PoolInfo, 0, len(s.ready))
 	for specKey, ready := range s.ready {
 		failed := s.failed[specKey]
+		minReady := s.min[specKey]
 		instances := make([]domain.InstanceInfo, 0, ready+failed)
 		for i := 0; i < ready; i++ {
 			instances = append(instances, domain.InstanceInfo{
@@ -252,7 +257,7 @@ func (s *initSchedulerStub) GetPoolStatus(ctx context.Context) ([]domain.PoolInf
 		pools = append(pools, domain.PoolInfo{
 			SpecKey:    specKey,
 			ServerName: specKey,
-			MinReady:   ready,
+			MinReady:   minReady,
 			Instances:  instances,
 		})
 	}

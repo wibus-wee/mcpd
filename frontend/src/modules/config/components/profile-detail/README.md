@@ -23,7 +23,7 @@ profile-detail/
 - **index.tsx**: Main `ProfileDetailPanel` component - orchestrates data fetching and state
 - **profile-content.tsx**: Presentational component rendering profile details
 - **subagent-section.tsx**: SubAgent toggle with local state management
-- **server-item.tsx**: Individual server display with actions (toggle, delete)
+- **server-item.tsx**: Individual server display with activation and warm pool details
 - **detail-row.tsx**: Reusable key-value row component
 - **use-profile-actions.ts**: Custom hook for profile/server actions with notifications
 

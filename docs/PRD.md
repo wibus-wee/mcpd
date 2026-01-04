@@ -13,8 +13,8 @@
 三、范围（MVP）
 - 支持 stdio transport 启动 MCP server（子进程）。
 - 请求路由：单入口接受 JSON-RPC payload，指定 serverType，选择实例，转发请求并返回响应。
-- 弹性策略：按需启动，无流量/空闲超时自动回收；支持 strategy（stateless/stateful/persistent/singleton），stateful 通过 sessionTTLSeconds 控制绑定有效期，persistent/singleton 跳过回收；支持 MinReady 保温。
-- Catalog 配置：声明 server types（命令、env、cwd、idleSeconds、maxConcurrent、strategy、sessionTTLSeconds、minReady、protocolVersion），启动时加载并校验。
+- 弹性策略：按需启动，无流量/空闲超时自动回收；支持 strategy（stateless/stateful/persistent/singleton），stateful 通过 sessionTTLSeconds 控制绑定有效期，persistent/singleton 跳过回收；`minReady` 作为激活态 warm pool，`activationMode` 控制无 caller 是否常驻。
+- Catalog 配置：声明 server types（命令、env、cwd、idleSeconds、maxConcurrent、strategy、sessionTTLSeconds、minReady、activationMode、protocolVersion），启动时加载并校验。
 - 健康与握手：启动后执行 initialize 协商，校验 protocolVersion；支持 ping 探活。
 - 观测：结构化日志；基础 metrics（启动耗时、启动失败计数、活跃实例、回收计数、请求延迟/失败率）。
 - CLI：`mcpd serve`（运行）、`mcpd validate`（校验配置）；输出 JSON 结构化日志。
@@ -30,7 +30,7 @@
 五、功能需求（详细）
 1) Catalog
 - 输入：YAML/JSON 文件，支持环境变量覆盖。
-- 字段：name, cmd[], env{key:val}, cwd, idleSeconds, maxConcurrent, strategy, sessionTTLSeconds, minReady, protocolVersion (预期版本)。
+- 字段：name, cmd[], env{key:val}, cwd, idleSeconds, maxConcurrent, strategy, sessionTTLSeconds, minReady, activationMode, protocolVersion (预期版本)。
 - 校验：必填 name/cmd；数值非负；protocolVersion 必须与 MCP 规范列表匹配（至少检查非空+格式）；maxConcurrent >=1。
 - 运行时：加载一次，失败即退出；可选热加载（非 MVP）。
 
@@ -48,7 +48,7 @@
 
 4) 弹性缩容
 - IdleManager：周期扫描实例表，若非 persistent/singleton 且 lastActive 超过 idleSeconds → Draining → StopInstance；stateful 需无有效绑定才可回收。
-- MinReady：保持至少 minReady 个 Ready 实例（不回收）。
+- MinReady：激活时维持最少 Ready 实例数（目标为 max(1, minReady)）；配合 activationMode=always-on 可实现无 caller 常驻。
 
 5) 健康检查
 - Probe：对 Ready/Busy 实例定期 ping；失败标记 Failed → 可尝试重建（MVP 可简单停止）。
@@ -100,6 +100,8 @@ toolRefreshSeconds: 60
 toolRefreshConcurrency: 4
 callerCheckSeconds: 5
 callerInactiveSeconds: 300
+bootstrapMode: "metadata"
+defaultActivationMode: "on-demand"
 exposeTools: true
 toolNamespaceStrategy: "prefix"
 observability:
@@ -138,6 +140,7 @@ servers:
     maxConcurrent: 4
     strategy: stateless
     minReady: 0
+    activationMode: "on-demand"
     protocolVersion: "2025-11-25"
 
   - name: vector-store
@@ -147,6 +150,7 @@ servers:
     strategy: stateful
     sessionTTLSeconds: 0
     minReady: 1
+    activationMode: "always-on"
     protocolVersion: "2025-11-25"
 ```
 
@@ -178,7 +182,7 @@ servers:
 - M5（后续）：HTTP transport + auth + Wails UI 适配。
 
 十四、风险与缓解
-- 冷启动慢：提供 minReady/idleSeconds 配置；允许 prewarm。
+- 冷启动慢：提供 minReady/idleSeconds/activationMode 配置；允许 prewarm。
 - 状态粘性：stateful 通过 routingKey 绑定实例，并受 sessionTTLSeconds 约束；默认 stateless。
 - 配置错误：启动前校验并阻断；错误信息清晰。
 - 进程泄漏：StopFn 实现需优雅终止，超时强杀；注册退出钩子。

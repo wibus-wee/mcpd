@@ -88,9 +88,10 @@ type RuntimeConfigDetail struct {
 	ServerInitRetryBaseSeconds int                       `json:"serverInitRetryBaseSeconds"`
 	ServerInitRetryMaxSeconds  int                       `json:"serverInitRetryMaxSeconds"`
 	ServerInitMaxRetries       int                       `json:"serverInitMaxRetries"`
-	StartupStrategy            string                    `json:"startupStrategy"`
+	BootstrapMode              string                    `json:"bootstrapMode"`
 	BootstrapConcurrency       int                       `json:"bootstrapConcurrency"`
 	BootstrapTimeoutSeconds    int                       `json:"bootstrapTimeoutSeconds"`
+	DefaultActivationMode      string                    `json:"defaultActivationMode"`
 	ExposeTools                bool                      `json:"exposeTools"`
 	ToolNamespaceStrategy      string                    `json:"toolNamespaceStrategy"`
 	Observability              ObservabilityConfigDetail `json:"observability"`
@@ -135,6 +136,7 @@ type ServerSpecDetail struct {
 	SessionTTLSeconds   int               `json:"sessionTTLSeconds"`
 	Disabled            bool              `json:"disabled"`
 	MinReady            int               `json:"minReady"`
+	ActivationMode      string            `json:"activationMode"`
 	DrainTimeoutSeconds int               `json:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `json:"protocolVersion"`
 	ExposeTools         []string          `json:"exposeTools"`
@@ -188,9 +190,10 @@ type UpdateRuntimeConfigRequest struct {
 	ServerInitRetryBaseSeconds int    `json:"serverInitRetryBaseSeconds"`
 	ServerInitRetryMaxSeconds  int    `json:"serverInitRetryMaxSeconds"`
 	ServerInitMaxRetries       int    `json:"serverInitMaxRetries"`
-	StartupStrategy            string `json:"startupStrategy"`
+	BootstrapMode              string `json:"bootstrapMode"`
 	BootstrapConcurrency       int    `json:"bootstrapConcurrency"`
 	BootstrapTimeoutSeconds    int    `json:"bootstrapTimeoutSeconds"`
+	DefaultActivationMode      string `json:"defaultActivationMode"`
 	ExposeTools                bool   `json:"exposeTools"`
 	ToolNamespaceStrategy      string `json:"toolNamespaceStrategy"`
 }

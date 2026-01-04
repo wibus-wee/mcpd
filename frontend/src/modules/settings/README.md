@@ -8,4 +8,4 @@
 
 ## Files
 
-- **settings-page.tsx**: 运行时配置的设置页面与保存操作
+- **settings-page.tsx**: 运行时配置设置页面，包含 bootstrap/activation 默认值的编辑与保存

@@ -65,9 +65,14 @@ import { cn } from '@/lib/utils'
 import { useConfigMode } from '@/modules/config/hooks'
 import { reloadConfig } from '@/modules/config/lib/reload-config'
 
-const STARTUP_STRATEGY_OPTIONS = [
-  { value: 'lazy', label: 'Lazy' },
-  { value: 'eager', label: 'Eager' },
+const BOOTSTRAP_MODE_OPTIONS = [
+  { value: 'metadata', label: 'Metadata' },
+  { value: 'disabled', label: 'Disabled' },
+] as const
+
+const ACTIVATION_MODE_OPTIONS = [
+  { value: 'on-demand', label: 'On-demand' },
+  { value: 'always-on', label: 'Always-on' },
 ] as const
 
 const NAMESPACE_STRATEGY_OPTIONS = [
@@ -75,9 +80,14 @@ const NAMESPACE_STRATEGY_OPTIONS = [
   { value: 'flat', label: 'Flat' },
 ] as const
 
-const STARTUP_STRATEGY_LABELS: Record<string, string> = {
-  lazy: 'Lazy',
-  eager: 'Eager',
+const BOOTSTRAP_MODE_LABELS: Record<string, string> = {
+  metadata: 'Metadata',
+  disabled: 'Disabled',
+}
+
+const ACTIVATION_MODE_LABELS: Record<string, string> = {
+  'on-demand': 'On-demand',
+  'always-on': 'Always-on',
 }
 
 const NAMESPACE_STRATEGY_LABELS: Record<string, string> = {
@@ -95,9 +105,10 @@ type RuntimeFormState = {
   serverInitRetryBaseSeconds: number
   serverInitRetryMaxSeconds: number
   serverInitMaxRetries: number
-  startupStrategy: string
+  bootstrapMode: string
   bootstrapConcurrency: number
   bootstrapTimeoutSeconds: number
+  defaultActivationMode: string
   exposeTools: boolean
   toolNamespaceStrategy: string
 }
@@ -112,9 +123,10 @@ const DEFAULT_RUNTIME_FORM: RuntimeFormState = {
   serverInitRetryBaseSeconds: 0,
   serverInitRetryMaxSeconds: 0,
   serverInitMaxRetries: 0,
-  startupStrategy: 'lazy',
+  bootstrapMode: 'metadata',
   bootstrapConcurrency: 0,
   bootstrapTimeoutSeconds: 0,
+  defaultActivationMode: 'on-demand',
   exposeTools: false,
   toolNamespaceStrategy: 'prefix',
 }
@@ -129,9 +141,10 @@ const toRuntimeFormState = (runtime: RuntimeConfigDetail): RuntimeFormState => (
   serverInitRetryBaseSeconds: runtime.serverInitRetryBaseSeconds,
   serverInitRetryMaxSeconds: runtime.serverInitRetryMaxSeconds,
   serverInitMaxRetries: runtime.serverInitMaxRetries,
-  startupStrategy: runtime.startupStrategy || 'lazy',
+  bootstrapMode: runtime.bootstrapMode || 'metadata',
   bootstrapConcurrency: runtime.bootstrapConcurrency,
   bootstrapTimeoutSeconds: runtime.bootstrapTimeoutSeconds,
+  defaultActivationMode: runtime.defaultActivationMode || 'on-demand',
   exposeTools: runtime.exposeTools,
   toolNamespaceStrategy: runtime.toolNamespaceStrategy || 'prefix',
 })
@@ -461,30 +474,64 @@ export const SettingsPage = () => {
                       </div>
                       <div className="divide-y divide-border">
                         <RuntimeFieldRow
-                          label="Startup Strategy"
-                          description="How servers are initialized when the core starts"
-                          htmlFor="runtime-startup-strategy"
+                          label="Bootstrap Mode"
+                          description="How metadata is collected during startup"
+                          htmlFor="runtime-bootstrap-mode"
                         >
                           <Controller
                             control={control}
-                            name="startupStrategy"
+                            name="bootstrapMode"
                             render={({ field }) => (
                               <Select
                                 value={field.value}
                                 onValueChange={field.onChange}
                                 disabled={!canEdit || isSaving}
                               >
-                                <SelectTrigger id="runtime-startup-strategy">
+                                <SelectTrigger id="runtime-bootstrap-mode">
                                   <SelectValue>
                                     {value =>
                                       value
-                                        ? STARTUP_STRATEGY_LABELS[String(value)]
+                                        ? BOOTSTRAP_MODE_LABELS[String(value)]
                                         ?? String(value)
-                                        : 'Select strategy'}
+                                        : 'Select mode'}
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {STARTUP_STRATEGY_OPTIONS.map(option => (
+                                  {BOOTSTRAP_MODE_OPTIONS.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </RuntimeFieldRow>
+                        <RuntimeFieldRow
+                          label="Default Activation Mode"
+                          description="Applied when a server does not specify activationMode"
+                          htmlFor="runtime-default-activation-mode"
+                        >
+                          <Controller
+                            control={control}
+                            name="defaultActivationMode"
+                            render={({ field }) => (
+                              <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={!canEdit || isSaving}
+                              >
+                                <SelectTrigger id="runtime-default-activation-mode">
+                                  <SelectValue>
+                                    {value =>
+                                      value
+                                        ? ACTIVATION_MODE_LABELS[String(value)]
+                                        ?? String(value)
+                                        : 'Select mode'}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ACTIVATION_MODE_OPTIONS.map(option => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>

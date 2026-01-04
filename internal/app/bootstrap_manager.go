@@ -18,8 +18,8 @@ import (
 )
 
 // BootstrapManager handles the asynchronous bootstrap process for MCP servers.
-// It starts servers temporarily to fetch their metadata (tools, resources, prompts),
-// caches the metadata, and optionally shuts down servers based on the startup strategy.
+// It starts servers temporarily to fetch their metadata (tools, resources, prompts)
+// and caches the metadata based on the bootstrap mode.
 type BootstrapManager struct {
 	scheduler domain.Scheduler
 	lifecycle domain.Lifecycle
@@ -30,7 +30,7 @@ type BootstrapManager struct {
 
 	concurrency int
 	timeout     time.Duration
-	strategy    domain.StartupStrategy
+	mode        domain.BootstrapMode
 
 	mu        sync.RWMutex
 	state     domain.BootstrapState
@@ -54,7 +54,7 @@ type BootstrapManagerOptions struct {
 	Logger      *zap.Logger
 	Concurrency int
 	Timeout     time.Duration
-	Strategy    domain.StartupStrategy
+	Mode        domain.BootstrapMode
 }
 
 // NewBootstrapManager creates a new BootstrapManager.
@@ -74,9 +74,9 @@ func NewBootstrapManager(opts BootstrapManagerOptions) *BootstrapManager {
 		timeout = time.Duration(domain.DefaultBootstrapTimeoutSeconds) * time.Second
 	}
 
-	strategy := opts.Strategy
-	if strategy == "" {
-		strategy = domain.StartupStrategyLazy
+	mode := opts.Mode
+	if mode == "" {
+		mode = domain.DefaultBootstrapMode
 	}
 
 	return &BootstrapManager{
@@ -88,7 +88,7 @@ func NewBootstrapManager(opts BootstrapManagerOptions) *BootstrapManager {
 		logger:      logger.Named("bootstrap"),
 		concurrency: concurrency,
 		timeout:     timeout,
-		strategy:    strategy,
+		mode:        mode,
 		state:       domain.BootstrapPending,
 		progress: domain.BootstrapProgress{
 			State:  domain.BootstrapPending,
@@ -101,6 +101,11 @@ func NewBootstrapManager(opts BootstrapManagerOptions) *BootstrapManager {
 // Bootstrap starts the async bootstrap process. Returns immediately.
 // Call WaitForCompletion() to block until done.
 func (m *BootstrapManager) Bootstrap(ctx context.Context) {
+	if m.mode == domain.BootstrapModeDisabled {
+		m.completeBootstrap(true)
+		return
+	}
+
 	targets := m.bootstrapTargets()
 
 	m.mu.Lock()
@@ -116,7 +121,7 @@ func (m *BootstrapManager) Bootstrap(ctx context.Context) {
 
 	m.logger.Info("bootstrap started",
 		zap.Int("total", len(targets)),
-		zap.String("strategy", string(m.strategy)),
+		zap.String("mode", string(m.mode)),
 		zap.Int("concurrency", m.concurrency),
 	)
 
@@ -218,19 +223,6 @@ func (m *BootstrapManager) run(ctx context.Context, targets []bootstrapTarget) {
 		}
 	}
 
-	// If lazy strategy, stop all servers
-	if m.strategy == domain.StartupStrategyLazy {
-		m.logger.Info("stopping servers (lazy strategy)")
-		for _, target := range targets {
-			if err := m.scheduler.StopSpec(context.Background(), target.specKey, "bootstrap complete (lazy)"); err != nil {
-				m.logger.Warn("failed to stop server after bootstrap",
-					zap.String("specKey", target.specKey),
-					zap.Error(err),
-				)
-			}
-		}
-	}
-
 	m.mu.RLock()
 	succeeded := m.progress.Completed
 	failed := m.progress.Failed
@@ -250,21 +242,13 @@ func (m *BootstrapManager) bootstrapOne(ctx context.Context, specKey string, spe
 	ctx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
 
-	// Start one instance
-	minReady := 1
-	if m.strategy == domain.StartupStrategyEager {
-		minReady = normalizeMinReady(spec.MinReady)
-	}
-	err := m.scheduler.SetDesiredMinReady(ctx, specKey, minReady)
+	instance, err := m.scheduler.Acquire(ctx, specKey, "")
 	if err != nil {
-		return fmt.Errorf("set min ready: %w", err)
+		return fmt.Errorf("acquire instance: %w", err)
 	}
-
-	// Wait for instance to be ready
-	instance, err := m.waitForReady(ctx, specKey)
-	if err != nil {
-		return fmt.Errorf("wait for ready: %w", err)
-	}
+	defer func() {
+		_ = m.scheduler.Release(ctx, instance)
+	}()
 
 	// Fetch metadata
 	if err := m.fetchAndCacheMetadata(ctx, specKey, spec, instance); err != nil {
@@ -274,42 +258,16 @@ func (m *BootstrapManager) bootstrapOne(ctx context.Context, specKey string, spe
 	return nil
 }
 
-func (m *BootstrapManager) waitForReady(ctx context.Context, specKey string) (*domain.Instance, error) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-			// Try to acquire a ready instance
-			instance, err := m.scheduler.AcquireReady(ctx, specKey, "")
-			if err == nil && instance != nil {
-				// Release immediately - we just want to verify it's ready
-				_ = m.scheduler.Release(ctx, instance)
-				return instance, nil
-			}
-			if err != nil && !errors.Is(err, domain.ErrNoReadyInstance) {
-				return nil, err
-			}
-			// Continue polling
-		}
-	}
-}
-
 func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey string, spec domain.ServerSpec, instance *domain.Instance) error {
-	// Acquire instance for the metadata fetch calls
-	inst, err := m.scheduler.Acquire(ctx, specKey, "")
-	if err != nil {
-		return fmt.Errorf("acquire instance: %w", err)
+	if instance == nil {
+		return errors.New("instance is nil")
 	}
-	defer func() {
-		_ = m.scheduler.Release(ctx, inst)
-	}()
+	if instance.Conn == nil {
+		return errors.New("instance has no connection")
+	}
 
 	// Fetch tools if exposed
-	tools, err := m.fetchTools(ctx, inst)
+	tools, err := m.fetchTools(ctx, instance)
 	if err != nil {
 		m.logger.Warn("failed to fetch tools", zap.String("specKey", specKey), zap.Error(err))
 	} else if len(tools) > 0 {
@@ -321,7 +279,7 @@ func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey st
 	}
 
 	// Fetch resources
-	resources, err := m.fetchResources(ctx, inst)
+	resources, err := m.fetchResources(ctx, instance)
 	if err != nil {
 		m.logger.Warn("failed to fetch resources", zap.String("specKey", specKey), zap.Error(err))
 	} else if len(resources) > 0 {
@@ -332,7 +290,7 @@ func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey st
 	}
 
 	// Fetch prompts
-	prompts, err := m.fetchPrompts(ctx, inst)
+	prompts, err := m.fetchPrompts(ctx, instance)
 	if err != nil {
 		m.logger.Warn("failed to fetch prompts", zap.String("specKey", specKey), zap.Error(err))
 	} else if len(prompts) > 0 {

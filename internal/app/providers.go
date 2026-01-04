@@ -84,9 +84,12 @@ func NewBootstrapManagerProvider(
 	summary := state.Summary
 	runtime := summary.DefaultRuntime
 
-	strategy := domain.StartupStrategy(runtime.StartupStrategy)
-	if strategy == "" {
-		strategy = domain.StartupStrategyLazy
+	mode := runtime.BootstrapMode
+	if mode == "" {
+		mode = domain.DefaultBootstrapMode
+	}
+	if mode == domain.BootstrapModeDisabled {
+		return nil
 	}
 
 	concurrency := runtime.BootstrapConcurrency
@@ -116,7 +119,7 @@ func NewBootstrapManagerProvider(
 		Logger:      logger,
 		Concurrency: concurrency,
 		Timeout:     timeout,
-		Strategy:    strategy,
+		Mode:        mode,
 	})
 }
 

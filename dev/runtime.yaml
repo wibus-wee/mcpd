@@ -7,9 +7,10 @@ callerInactiveSeconds: 300
 serverInitRetryBaseSeconds: 1
 serverInitRetryMaxSeconds: 30
 serverInitMaxRetries: 5
-startupStrategy: "lazy"
+bootstrapMode: "metadata"
 bootstrapConcurrency: 3
 bootstrapTimeoutSeconds: 30
+defaultActivationMode: "on-demand"
 exposeTools: true
 toolNamespaceStrategy: "prefix"
 observability:

@@ -107,16 +107,17 @@ pingIntervalSeconds: 20
 toolRefreshSeconds: 45
 callerCheckSeconds: 7
 callerInactiveSeconds: 120
-	serverInitRetryBaseSeconds: 2
-	serverInitRetryMaxSeconds: 10
-	serverInitMaxRetries: 7
-startupStrategy: eager
+serverInitRetryBaseSeconds: 2
+serverInitRetryMaxSeconds: 10
+serverInitMaxRetries: 7
+bootstrapMode: metadata
 bootstrapConcurrency: 5
 bootstrapTimeoutSeconds: 12
-	exposeTools: false
-	toolNamespaceStrategy: flat
-	observability:
-	  listenAddress: "0.0.0.0:1111"
+defaultActivationMode: always-on
+exposeTools: false
+toolNamespaceStrategy: flat
+observability:
+  listenAddress: "0.0.0.0:1111"
 rpc:
   listenAddress: "unix:///tmp/test.sock"
   maxRecvMsgSize: 256
@@ -141,9 +142,10 @@ rpc:
 		require.Equal(t, 2, profile.Catalog.Runtime.ServerInitRetryBaseSeconds, "profile %s", name)
 		require.Equal(t, 10, profile.Catalog.Runtime.ServerInitRetryMaxSeconds, "profile %s", name)
 		require.Equal(t, 7, profile.Catalog.Runtime.ServerInitMaxRetries, "profile %s", name)
-		require.Equal(t, "eager", profile.Catalog.Runtime.StartupStrategy, "profile %s", name)
+		require.Equal(t, domain.BootstrapModeMetadata, profile.Catalog.Runtime.BootstrapMode, "profile %s", name)
 		require.Equal(t, 5, profile.Catalog.Runtime.BootstrapConcurrency, "profile %s", name)
 		require.Equal(t, 12, profile.Catalog.Runtime.BootstrapTimeoutSeconds, "profile %s", name)
+		require.Equal(t, domain.ActivationAlwaysOn, profile.Catalog.Runtime.DefaultActivationMode, "profile %s", name)
 		require.False(t, profile.Catalog.Runtime.ExposeTools, "profile %s", name)
 		require.Equal(t, "flat", profile.Catalog.Runtime.ToolNamespaceStrategy, "profile %s", name)
 		require.Equal(t, "unix:///tmp/test.sock", profile.Catalog.Runtime.RPC.ListenAddress, "profile %s", name)

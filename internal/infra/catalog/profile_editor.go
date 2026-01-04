@@ -28,6 +28,7 @@ type serverSpecYAML struct {
 	SessionTTLSeconds   int               `yaml:"sessionTTLSeconds,omitempty"`
 	Disabled            bool              `yaml:"disabled,omitempty"`
 	MinReady            int               `yaml:"minReady"`
+	ActivationMode      string            `yaml:"activationMode,omitempty"`
 	DrainTimeoutSeconds int               `yaml:"drainTimeoutSeconds"`
 	ProtocolVersion     string            `yaml:"protocolVersion"`
 	ExposeTools         []string          `yaml:"exposeTools,omitempty"`
@@ -250,6 +251,7 @@ func toServerSpecYAML(spec domain.ServerSpec) serverSpecYAML {
 		SessionTTLSeconds:   spec.SessionTTLSeconds,
 		Disabled:            spec.Disabled,
 		MinReady:            spec.MinReady,
+		ActivationMode:      string(spec.ActivationMode),
 		DrainTimeoutSeconds: spec.DrainTimeoutSeconds,
 		ProtocolVersion:     spec.ProtocolVersion,
 		ExposeTools:         exposeTools,
