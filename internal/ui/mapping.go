@@ -47,6 +47,30 @@ func mapRuntimeStatuses(pools []domain.PoolInfo) []ServerRuntimeStatus {
 	return mapping.MapSlice(pools, mapPoolInfo)
 }
 
+func mapStartCause(cause *domain.StartCause) *StartCause {
+	if cause == nil {
+		return nil
+	}
+	timestamp := ""
+	if !cause.Timestamp.IsZero() {
+		timestamp = cause.Timestamp.UTC().Format(time.RFC3339Nano)
+	}
+	mapped := &StartCause{
+		Reason:    string(cause.Reason),
+		Caller:    cause.Caller,
+		ToolName:  cause.ToolName,
+		Profile:   cause.Profile,
+		Timestamp: timestamp,
+	}
+	if cause.Policy != nil {
+		mapped.Policy = &StartCausePolicy{
+			ActivationMode: string(cause.Policy.ActivationMode),
+			MinReady:       cause.Policy.MinReady,
+		}
+	}
+	return mapped
+}
+
 func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 	instances := make([]InstanceStatus, 0, len(pool.Instances))
 	stats := PoolStats{}
@@ -69,6 +93,7 @@ func mapPoolInfo(pool domain.PoolInfo) ServerRuntimeStatus {
 			SpawnedAt:       inst.SpawnedAt.Format("2006-01-02T15:04:05Z07:00"),
 			HandshakedAt:    inst.HandshakedAt.Format("2006-01-02T15:04:05Z07:00"),
 			LastHeartbeatAt: inst.LastHeartbeatAt.Format("2006-01-02T15:04:05Z07:00"),
+			LastStartCause:  mapStartCause(inst.LastStartCause),
 		})
 
 		stats.Total++

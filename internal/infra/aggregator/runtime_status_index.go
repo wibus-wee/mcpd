@@ -95,6 +95,7 @@ func (idx *RuntimeStatusIndex) Refresh(ctx context.Context) error {
 				SpawnedAt:       inst.SpawnedAt,
 				HandshakedAt:    inst.HandshakedAt,
 				LastHeartbeatAt: inst.LastHeartbeatAt,
+				LastStartCause:  domain.CloneStartCause(inst.LastStartCause),
 			})
 		}
 

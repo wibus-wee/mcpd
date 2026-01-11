@@ -150,6 +150,7 @@ type Instance struct {
 	StickyKey        string
 	Conn             Conn
 	Capabilities     ServerCapabilities
+	LastStartCause   *StartCause
 	callCount        int64
 	errorCount       int64
 	totalDurationNs  int64
@@ -165,6 +166,7 @@ type InstanceInfo struct {
 	SpawnedAt       time.Time
 	HandshakedAt    time.Time
 	LastHeartbeatAt time.Time
+	LastStartCause  *StartCause
 }
 
 // PoolInfo provides a read-only snapshot of a pool's state for status queries

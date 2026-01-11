@@ -25,6 +25,7 @@ type BootstrapManager struct {
 	lifecycle domain.Lifecycle
 	specs     map[string]domain.ServerSpec
 	specKeys  map[string]string // serverType -> specKey
+	runtime   domain.RuntimeConfig
 	cache     *domain.MetadataCache
 	logger    *zap.Logger
 
@@ -50,6 +51,7 @@ type BootstrapManagerOptions struct {
 	Lifecycle   domain.Lifecycle
 	Specs       map[string]domain.ServerSpec
 	SpecKeys    map[string]string
+	Runtime     domain.RuntimeConfig
 	Cache       *domain.MetadataCache
 	Logger      *zap.Logger
 	Concurrency int
@@ -84,6 +86,7 @@ func NewBootstrapManager(opts BootstrapManagerOptions) *BootstrapManager {
 		lifecycle:   opts.Lifecycle,
 		specs:       opts.Specs,
 		specKeys:    opts.SpecKeys,
+		runtime:     opts.Runtime,
 		cache:       opts.Cache,
 		logger:      logger.Named("bootstrap"),
 		concurrency: concurrency,
@@ -242,9 +245,31 @@ func (m *BootstrapManager) bootstrapOne(ctx context.Context, specKey string, spe
 	ctx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
 
-	instance, err := m.scheduler.Acquire(ctx, specKey, "")
+	instance, err := m.scheduler.AcquireReady(ctx, specKey, "")
 	if err != nil {
-		return fmt.Errorf("acquire instance: %w", err)
+		if !errors.Is(err, domain.ErrNoReadyInstance) {
+			return fmt.Errorf("acquire ready instance: %w", err)
+		}
+		if m.shouldWaitForReady(spec) {
+			waitCtx := ctx
+			waitCancel := func() {}
+			if !m.poolHasInstances(ctx, specKey) {
+				waitCtx, waitCancel = context.WithTimeout(ctx, m.waitBudget())
+			}
+			waited, waitErr := m.waitForReadyInstance(waitCtx, specKey)
+			waitCancel()
+			if waitErr == nil {
+				instance = waited
+				err = nil
+			}
+		}
+		if err != nil {
+			causeCtx := domain.WithStartCause(ctx, domain.StartCause{Reason: domain.StartCauseBootstrap})
+			instance, err = m.scheduler.Acquire(causeCtx, specKey, "")
+			if err != nil {
+				return fmt.Errorf("acquire instance: %w", err)
+			}
+		}
 	}
 	defer func() {
 		_ = m.scheduler.Release(ctx, instance)
@@ -256,6 +281,60 @@ func (m *BootstrapManager) bootstrapOne(ctx context.Context, specKey string, spe
 	}
 
 	return nil
+}
+
+func (m *BootstrapManager) shouldWaitForReady(spec domain.ServerSpec) bool {
+	mode := resolveActivationMode(m.runtime, spec)
+	if mode == domain.ActivationAlwaysOn {
+		return true
+	}
+	return spec.MinReady > 0
+}
+
+func (m *BootstrapManager) waitBudget() time.Duration {
+	budget := 2 * time.Second
+	if m.timeout > 0 {
+		if m.timeout/4 < budget {
+			budget = m.timeout / 4
+		}
+	}
+	if budget < 200*time.Millisecond {
+		budget = 200 * time.Millisecond
+	}
+	return budget
+}
+
+func (m *BootstrapManager) waitForReadyInstance(ctx context.Context, specKey string) (*domain.Instance, error) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		inst, err := m.scheduler.AcquireReady(ctx, specKey, "")
+		if err == nil {
+			return inst, nil
+		}
+		if !errors.Is(err, domain.ErrNoReadyInstance) {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (m *BootstrapManager) poolHasInstances(ctx context.Context, specKey string) bool {
+	pools, err := m.scheduler.GetPoolStatus(ctx)
+	if err != nil {
+		return false
+	}
+	for _, pool := range pools {
+		if pool.SpecKey == specKey {
+			return len(pool.Instances) > 0
+		}
+	}
+	return false
 }
 
 func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey string, spec domain.ServerSpec, instance *domain.Instance) error {

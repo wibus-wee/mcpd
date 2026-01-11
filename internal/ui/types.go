@@ -240,6 +240,20 @@ type RetryServerInitRequest struct {
 // Runtime Status Types
 // =============================================================================
 
+type StartCausePolicy struct {
+	ActivationMode string `json:"activationMode"`
+	MinReady       int    `json:"minReady"`
+}
+
+type StartCause struct {
+	Reason    string            `json:"reason"`
+	Caller    string            `json:"caller,omitempty"`
+	ToolName  string            `json:"toolName,omitempty"`
+	Profile   string            `json:"profile,omitempty"`
+	Policy    *StartCausePolicy `json:"policy,omitempty"`
+	Timestamp string            `json:"timestamp"`
+}
+
 // ServerRuntimeStatus contains the runtime status of a server and its instances
 type ServerRuntimeStatus struct {
 	SpecKey    string           `json:"specKey"`
@@ -251,13 +265,14 @@ type ServerRuntimeStatus struct {
 
 // InstanceStatus represents the status of a single server instance
 type InstanceStatus struct {
-	ID              string `json:"id"`
-	State           string `json:"state"`
-	BusyCount       int    `json:"busyCount"`
-	LastActive      string `json:"lastActive"`
-	SpawnedAt       string `json:"spawnedAt"`
-	HandshakedAt    string `json:"handshakedAt"`
-	LastHeartbeatAt string `json:"lastHeartbeatAt"`
+	ID              string      `json:"id"`
+	State           string      `json:"state"`
+	BusyCount       int         `json:"busyCount"`
+	LastActive      string      `json:"lastActive"`
+	SpawnedAt       string      `json:"spawnedAt"`
+	HandshakedAt    string      `json:"handshakedAt"`
+	LastHeartbeatAt string      `json:"lastHeartbeatAt"`
+	LastStartCause  *StartCause `json:"lastStartCause,omitempty"`
 }
 
 // PoolStats contains aggregated statistics for a server pool

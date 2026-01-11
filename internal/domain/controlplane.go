@@ -149,6 +149,7 @@ type InstanceStatusInfo struct {
 	SpawnedAt       time.Time
 	HandshakedAt    time.Time
 	LastHeartbeatAt time.Time
+	LastStartCause  *StartCause
 }
 
 // PoolStats contains aggregated statistics for a server pool

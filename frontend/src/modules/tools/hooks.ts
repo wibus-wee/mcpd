@@ -1,11 +1,13 @@
 // Input: WailsService bindings, SWR, runtime status hook
+// Input: Wails bindings, SWR, profile/runtime hooks
 // Output: useToolsByServer hook for grouping tools by server
 // Position: Data layer for tools module
 
 import { useMemo } from "react";
 import useSWR from "swr";
 
-import { WailsService, type ToolEntry } from "@bindings/mcpd/internal/ui";
+import type { ServerSpecDetail, ToolEntry } from "@bindings/mcpd/internal/ui";
+import { WailsService } from "@bindings/mcpd/internal/ui";
 
 import {
   useProfiles,
@@ -20,6 +22,7 @@ export interface ServerGroup {
   tools: ToolEntry[];
   profileNames: string[];
   hasToolData: boolean;
+  specDetail?: ServerSpecDetail;
 }
 
 export function useToolsByServer() {
@@ -66,7 +69,7 @@ export function useToolsByServer() {
   const serversFromProfiles = useMemo(() => {
     const map = new Map<
       string,
-      { serverName: string; profiles: Set<string> }
+      { serverName: string; profiles: Set<string>; specDetail?: ServerSpecDetail }
     >();
     if (!profileDetails) return map;
 
@@ -77,9 +80,13 @@ export function useToolsByServer() {
           map.get(server.specKey) ?? {
             serverName: server.name,
             profiles: new Set<string>(),
+            specDetail: server,
           };
         if (!entry.serverName && server.name) {
           entry.serverName = server.name;
+        }
+        if (!entry.specDetail) {
+          entry.specDetail = server;
         }
         entry.profiles.add(profile.name);
         map.set(server.specKey, entry);
@@ -92,12 +99,19 @@ export function useToolsByServer() {
   const serverMap = useMemo(() => {
     const map = new Map<string, ServerGroup>();
 
-    const ensureServer = (specKey: string, serverName?: string) => {
+    const ensureServer = (
+      specKey: string,
+      serverName?: string,
+      specDetail?: ServerSpecDetail,
+    ) => {
       if (!specKey) return null;
       const existing = map.get(specKey);
       if (existing) {
         if (!existing.serverName && serverName) {
           existing.serverName = serverName;
+        }
+        if (!existing.specDetail && specDetail) {
+          existing.specDetail = specDetail;
         }
         return existing;
       }
@@ -108,13 +122,14 @@ export function useToolsByServer() {
         tools: [],
         profileNames: [],
         hasToolData: false,
+        specDetail,
       };
       map.set(specKey, entry);
       return entry;
     };
 
     serversFromProfiles.forEach((info, specKey) => {
-      const entry = ensureServer(specKey, info.serverName);
+      const entry = ensureServer(specKey, info.serverName, info.specDetail);
       if (entry) {
         entry.profileNames = Array.from(info.profiles);
       }

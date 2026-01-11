@@ -152,6 +152,9 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		started := time.Now()
 		newInst, err := s.lifecycle.StartInstance(startCtx, specKey, state.spec)
 		s.observeInstanceStart(state.spec.Name, started, err)
+		if err == nil {
+			s.applyStartCause(ctx, newInst, started)
+		}
 
 		state.mu.Lock()
 		waitCh := state.startCh
@@ -286,8 +289,12 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 	}
 
 	state := s.getPool(specKey, spec)
+	cause, hasCause := domain.StartCauseFromContext(ctx)
 	state.mu.Lock()
 	state.minReady = minReady
+	if hasCause {
+		s.applyStartCauseLocked(state, cause, time.Now())
+	}
 	active := len(state.instances) + state.starting
 	toStart := minReady - active
 	if toStart <= 0 {
@@ -306,6 +313,9 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 		started := time.Now()
 		inst, err := s.lifecycle.StartInstance(ctx, specKey, state.spec)
 		s.observeInstanceStart(state.spec.Name, started, err)
+		if err == nil {
+			s.applyStartCause(ctx, inst, started)
+		}
 		state.mu.Lock()
 		state.starting--
 		if err == nil {
@@ -935,6 +945,7 @@ func (s *BasicScheduler) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, 
 				SpawnedAt:       inst.instance.SpawnedAt,
 				HandshakedAt:    inst.instance.HandshakedAt,
 				LastHeartbeatAt: inst.instance.LastHeartbeatAt,
+				LastStartCause:  domain.CloneStartCause(inst.instance.LastStartCause),
 			})
 			stats := inst.instance.CallStats()
 			metrics.TotalCalls += stats.TotalCalls
@@ -955,6 +966,7 @@ func (s *BasicScheduler) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, 
 				SpawnedAt:       inst.instance.SpawnedAt,
 				HandshakedAt:    inst.instance.HandshakedAt,
 				LastHeartbeatAt: inst.instance.LastHeartbeatAt,
+				LastStartCause:  domain.CloneStartCause(inst.instance.LastStartCause),
 			})
 			stats := inst.instance.CallStats()
 			metrics.TotalCalls += stats.TotalCalls
@@ -1113,6 +1125,55 @@ func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeo
 			}
 		}
 	})
+}
+
+func (s *BasicScheduler) applyStartCause(ctx context.Context, inst *domain.Instance, started time.Time) {
+	if inst == nil {
+		return
+	}
+	cause, ok := domain.StartCauseFromContext(ctx)
+	if !ok {
+		return
+	}
+	if cause.Timestamp.IsZero() {
+		cause.Timestamp = started
+	}
+	if !shouldOverrideCause(inst.LastStartCause, cause) {
+		return
+	}
+	inst.LastStartCause = domain.CloneStartCause(&cause)
+}
+
+func (s *BasicScheduler) applyStartCauseLocked(state *poolState, cause domain.StartCause, started time.Time) {
+	if cause.Timestamp.IsZero() {
+		cause.Timestamp = started
+	}
+	for _, inst := range state.instances {
+		s.updateInstanceCauseLocked(inst.instance, cause)
+	}
+	for _, inst := range state.draining {
+		s.updateInstanceCauseLocked(inst.instance, cause)
+	}
+}
+
+func (s *BasicScheduler) updateInstanceCauseLocked(inst *domain.Instance, cause domain.StartCause) {
+	if inst == nil {
+		return
+	}
+	if !shouldOverrideCause(inst.LastStartCause, cause) {
+		return
+	}
+	inst.LastStartCause = domain.CloneStartCause(&cause)
+}
+
+func shouldOverrideCause(existing *domain.StartCause, next domain.StartCause) bool {
+	if existing == nil {
+		return true
+	}
+	if existing.Reason == domain.StartCauseBootstrap && next.Reason != domain.StartCauseBootstrap {
+		return true
+	}
+	return false
 }
 
 func (s *BasicScheduler) observeInstanceStart(serverType string, start time.Time, err error) {

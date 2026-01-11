@@ -34,3 +34,32 @@ export const getElapsedMs = (timestamp?: string | null): number | null => {
   if (Number.isNaN(parsed)) return null
   return Math.max(0, Date.now() - parsed)
 }
+
+
+export function formatRelativeTime(timestamp?: string): string {
+  if (!timestamp) {
+    return '—'
+  }
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  const diffMs = Date.now() - date.getTime()
+  if (diffMs < 0) {
+    return 'just now'
+  }
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) {
+    return `${seconds}s ago`
+  }
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) {
+    return `${minutes} minutes ago`
+  }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours} hours ago`
+  }
+  const days = Math.floor(hours / 24)
+  return `${days} days ago`
+}

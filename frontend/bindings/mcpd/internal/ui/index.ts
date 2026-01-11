@@ -37,6 +37,8 @@ export {
     ServerInitStatus,
     ServerRuntimeStatus,
     ServerSpecDetail,
+    StartCause,
+    StartCausePolicy,
     StartCoreOptions,
     SubAgentConfigDetail,
     ToolEntry,

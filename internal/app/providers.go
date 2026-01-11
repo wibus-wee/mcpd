@@ -115,6 +115,7 @@ func NewBootstrapManagerProvider(
 		Lifecycle:   lifecycle,
 		Specs:       summary.SpecRegistry,
 		SpecKeys:    allSpecKeys,
+		Runtime:     runtime,
 		Cache:       cache,
 		Logger:      logger,
 		Concurrency: concurrency,

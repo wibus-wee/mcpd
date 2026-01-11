@@ -107,7 +107,7 @@ export function ToolsGrid({
       animate={{ opacity: 1 }}
       transition={Spring.smooth(0.3)}
       className={cn(
-        'flex flex-1 overflow-hidden bg-background border-t',
+        'flex flex-1 overflow-hidden bg-background border-t w-full',
         className
       )}
     >
@@ -117,7 +117,7 @@ export function ToolsGrid({
         selectedServerId={selectedServerId ?? null}
         onSelectServer={handleSelectServer}
         onSelectTool={handleSelectTool}
-        className="w-72 shrink-0"
+        className="w-86 shrink-0"
       />
       {selectedTool ? (
         <ToolDetailPanel
@@ -130,7 +130,7 @@ export function ToolsGrid({
           server={selectedServer}
           requestedServerId={requestedServerId}
           onSelectTool={handleSelectTool}
-          className="flex-1"
+          className="flex-1 w-[calc(100%-344px)]"
         />
       )}
     </m.div>

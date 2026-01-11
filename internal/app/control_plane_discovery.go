@@ -101,6 +101,12 @@ func (d *discoveryService) CallTool(ctx context.Context, caller, name string, ar
 		return nil, err
 	}
 	ctx = domain.WithRouteContext(ctx, domain.RouteContext{Caller: caller, Profile: profile.name})
+	ctx = domain.WithStartCause(ctx, domain.StartCause{
+		Reason:   domain.StartCauseToolCall,
+		Caller:   caller,
+		ToolName: name,
+		Profile:  profile.name,
+	})
 	if profile.tools == nil {
 		return nil, domain.ErrToolNotFound
 	}
@@ -108,6 +114,10 @@ func (d *discoveryService) CallTool(ctx context.Context, caller, name string, ar
 }
 
 func (d *discoveryService) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error) {
+	ctx = domain.WithStartCause(ctx, domain.StartCause{
+		Reason:   domain.StartCauseToolCall,
+		ToolName: name,
+	})
 	profileNames := d.registry.activeProfileNames()
 	for _, profileName := range profileNames {
 		runtime, ok := d.state.Profile(profileName)

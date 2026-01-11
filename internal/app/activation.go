@@ -26,3 +26,26 @@ func baselineMinReady(runtime domain.RuntimeConfig, spec domain.ServerSpec) int 
 	}
 	return activeMinReady(spec)
 }
+
+func policyStartCause(runtime domain.RuntimeConfig, spec domain.ServerSpec, minReady int) domain.StartCause {
+	mode := resolveActivationMode(runtime, spec)
+	reason := domain.StartCausePolicyMinReady
+	if mode == domain.ActivationAlwaysOn && minReady <= 1 {
+		reason = domain.StartCausePolicyAlwaysOn
+	}
+	return domain.StartCause{
+		Reason: reason,
+		Policy: &domain.StartCausePolicy{
+			ActivationMode: mode,
+			MinReady:       minReady,
+		},
+	}
+}
+
+func callerStartCause(runtime domain.RuntimeConfig, spec domain.ServerSpec, caller, profile string, minReady int) domain.StartCause {
+	cause := policyStartCause(runtime, spec, minReady)
+	cause.Reason = domain.StartCauseCallerActivate
+	cause.Caller = caller
+	cause.Profile = profile
+	return cause
+}

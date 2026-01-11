@@ -21,6 +21,7 @@ type ServerInitializationManager struct {
 
 	mu         sync.Mutex
 	statuses   map[string]domain.ServerInitStatus
+	causes     map[string]domain.StartCause
 	targets    map[string]int
 	running    map[string]struct{}
 	retryBase  time.Duration
@@ -53,6 +54,7 @@ func NewServerInitializationManager(
 		runtime:    runtime,
 		logger:     logger.Named("server_init"),
 		statuses:   make(map[string]domain.ServerInitStatus),
+		causes:     make(map[string]domain.StartCause),
 		targets:    make(map[string]int),
 		running:    make(map[string]struct{}),
 		retryBase:  retryBase,
@@ -109,12 +111,18 @@ func (m *ServerInitializationManager) ApplyCatalogState(state *domain.CatalogSta
 			activated = append(activated, specKey)
 		}
 		m.targets[specKey] = minReady
+		if minReady > 0 {
+			m.causes[specKey] = policyStartCause(runtime, spec, minReady)
+		} else {
+			delete(m.causes, specKey)
+		}
 	}
 
 	for specKey := range m.statuses {
 		if _, ok := specs[specKey]; !ok {
 			delete(m.statuses, specKey)
 			delete(m.targets, specKey)
+			delete(m.causes, specKey)
 		}
 	}
 	started := m.started
@@ -192,7 +200,7 @@ func (m *ServerInitializationManager) Stop() {
 	}
 }
 
-func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int) error {
+func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int, cause domain.StartCause) error {
 	m.mu.Lock()
 	if !m.started {
 		m.mu.Unlock()
@@ -209,6 +217,16 @@ func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int) 
 
 	targetChanged := m.targets[specKey] != minReady
 	m.targets[specKey] = minReady
+	if minReady > 0 {
+		if cause.Reason == "" {
+			if spec, ok := m.specs[specKey]; ok {
+				cause = policyStartCause(m.runtime, spec, minReady)
+			}
+		}
+		m.causes[specKey] = cause
+	} else {
+		delete(m.causes, specKey)
+	}
 	status := m.statuses[specKey]
 	status.MinReady = minReady
 	if minReady == 0 {
@@ -379,7 +397,11 @@ func (m *ServerInitializationManager) runSpec(ctx context.Context, specKey strin
 			status.UpdatedAt = time.Now()
 		})
 
-		err := m.scheduler.SetDesiredMinReady(ctx, specKey, target)
+		causeCtx := ctx
+		if cause, ok := m.startCause(specKey); ok {
+			causeCtx = domain.WithStartCause(ctx, cause)
+		}
+		err := m.scheduler.SetDesiredMinReady(causeCtx, specKey, target)
 		ready, failed := m.snapshot(ctx, specKey)
 		m.applyResult(specKey, target, ready, failed, err)
 
@@ -561,6 +583,13 @@ func (m *ServerInitializationManager) target(specKey string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.targets[specKey]
+}
+
+func (m *ServerInitializationManager) startCause(specKey string) (domain.StartCause, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cause, ok := m.causes[specKey]
+	return cause, ok
 }
 
 func (m *ServerInitializationManager) nextRetryCount(prev domain.ServerInitStatus, ready, failed int, err error) int {

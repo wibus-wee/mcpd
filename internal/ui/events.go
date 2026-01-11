@@ -221,6 +221,7 @@ func emitRuntimeStatusUpdated(app *application.App, snapshot domain.RuntimeStatu
 				SpawnedAt:       inst.SpawnedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 				HandshakedAt:    inst.HandshakedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 				LastHeartbeatAt: inst.LastHeartbeatAt.Format("2006-01-02T15:04:05.000Z07:00"),
+				LastStartCause:  mapStartCause(inst.LastStartCause),
 			})
 		}
 		statuses = append(statuses, ServerRuntimeStatus{

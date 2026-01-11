@@ -121,7 +121,7 @@ func (r *callerRegistry) RegisterCaller(ctx context.Context, caller string, pid 
 
 	toActivateSpecs, toDeactivateSpecs = filterOverlap(toActivateSpecs, toDeactivateSpecs)
 
-	if err := r.activateSpecs(ctx, toActivateSpecs); err != nil {
+	if err := r.activateSpecs(ctx, toActivateSpecs, caller, profileName); err != nil {
 		_ = r.UnregisterCaller(ctx, caller)
 		return "", err
 	}
@@ -298,12 +298,13 @@ func (r *callerRegistry) removeProfileLocked(profile string, profileStops *[]str
 	}
 }
 
-func (r *callerRegistry) activateSpecs(ctx context.Context, specKeys []string) error {
+func (r *callerRegistry) activateSpecs(ctx context.Context, specKeys []string, caller, profile string) error {
 	if len(specKeys) == 0 {
 		return nil
 	}
 	order := append([]string(nil), specKeys...)
 	sort.Strings(order)
+	runtime := r.state.Runtime()
 	registry := r.state.SpecRegistry()
 	for _, specKey := range order {
 		spec, ok := registry[specKey]
@@ -311,8 +312,13 @@ func (r *callerRegistry) activateSpecs(ctx context.Context, specKeys []string) e
 			return fmt.Errorf("unknown spec key %q", specKey)
 		}
 		minReady := activeMinReady(spec)
+		cause := callerStartCause(runtime, spec, caller, profile, minReady)
+		if caller == "" && profile == "" {
+			cause = policyStartCause(runtime, spec, minReady)
+		}
+		causeCtx := domain.WithStartCause(ctx, cause)
 		if r.state.initManager != nil {
-			err := r.state.initManager.SetMinReady(specKey, minReady)
+			err := r.state.initManager.SetMinReady(specKey, minReady, cause)
 			if err == nil {
 				continue
 			}
@@ -321,7 +327,7 @@ func (r *callerRegistry) activateSpecs(ctx context.Context, specKeys []string) e
 		if r.state.scheduler == nil {
 			return errors.New("scheduler not configured")
 		}
-		if err := r.state.scheduler.SetDesiredMinReady(ctx, specKey, minReady); err != nil {
+		if err := r.state.scheduler.SetDesiredMinReady(causeCtx, specKey, minReady); err != nil {
 			return err
 		}
 	}
@@ -342,7 +348,7 @@ func (r *callerRegistry) deactivateSpecs(ctx context.Context, specKeys []string)
 			continue
 		}
 		if r.state.initManager != nil {
-			_ = r.state.initManager.SetMinReady(specKey, 0)
+			_ = r.state.initManager.SetMinReady(specKey, 0, domain.StartCause{})
 		}
 		if r.state.scheduler == nil {
 			if firstErr == nil {
@@ -464,7 +470,7 @@ func (r *callerRegistry) ApplyCatalogUpdate(ctx context.Context, update domain.C
 	specsToStart, specsToStop := diffCounts(oldSpecCounts, newSpecCounts)
 	specsToStart, specsToStop = filterOverlap(specsToStart, specsToStop)
 
-	if err := r.activateSpecs(ctx, specsToStart); err != nil {
+	if err := r.activateSpecs(ctx, specsToStart, "", ""); err != nil {
 		return err
 	}
 	if err := r.deactivateSpecs(ctx, specsToStop); err != nil {
