@@ -225,7 +225,13 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 	validationErrors = append(validationErrors, runtimeErrs...)
 
 	for i, spec := range cfg.Servers {
-		normalized := normalizeServerSpec(spec)
+		normalized, implicitHTTP := normalizeServerSpec(spec)
+		if implicitHTTP {
+			l.logger.Warn("server transport inferred from http config; consider setting transport explicitly",
+				zap.String("server", normalized.Name),
+				zap.Int("index", i),
+			)
+		}
 		if _, exists := nameSeen[normalized.Name]; exists {
 			validationErrors = append(validationErrors, fmt.Sprintf("servers[%d]: duplicate name %q", i, normalized.Name))
 		} else if normalized.Name != "" {
@@ -263,16 +269,18 @@ func decodeRuntimeConfig(expanded string) (rawRuntimeConfig, error) {
 	return cfg, nil
 }
 
-func normalizeServerSpec(raw rawServerSpec) domain.ServerSpec {
+func normalizeServerSpec(raw rawServerSpec) (domain.ServerSpec, bool) {
 	strategy := domain.InstanceStrategy(raw.Strategy)
 	if strategy == "" {
 		strategy = domain.DefaultStrategy
 	}
 	activationMode := strings.ToLower(strings.TrimSpace(raw.ActivationMode))
 	transport := domain.NormalizeTransport(domain.TransportKind(raw.Transport))
+	implicitHTTP := false
 	if transport == domain.TransportStdio && strings.TrimSpace(raw.Transport) == "" {
 		if strings.TrimSpace(raw.HTTP.Endpoint) != "" || len(raw.HTTP.Headers) > 0 || raw.HTTP.MaxRetries != nil {
 			transport = domain.TransportStreamableHTTP
+			implicitHTTP = true
 		}
 	}
 	httpConfig := normalizeStreamableHTTPConfig(raw.HTTP, transport)
@@ -313,7 +321,7 @@ func normalizeServerSpec(raw rawServerSpec) domain.ServerSpec {
 	if spec.Strategy == domain.StrategyStateful && raw.SessionTTLSeconds == nil {
 		spec.SessionTTLSeconds = domain.DefaultSessionTTLSeconds
 	}
-	return spec
+	return spec, implicitHTTP
 }
 
 func normalizeStreamableHTTPConfig(raw rawStreamableHTTPConfig, transport domain.TransportKind) *domain.StreamableHTTPConfig {
@@ -349,10 +357,11 @@ func normalizeHTTPHeaders(headers map[string]string) map[string]string {
 	normalized := make(map[string]string, len(headers))
 	for _, key := range keys {
 		trimmedKey := strings.TrimSpace(key)
+		value := strings.TrimSpace(headers[key])
 		if trimmedKey == "" {
+			normalized[""] = value
 			continue
 		}
-		value := strings.TrimSpace(headers[key])
 		normalized[http.CanonicalHeaderKey(trimmedKey)] = value
 	}
 	if len(normalized) == 0 {
@@ -375,13 +384,13 @@ func validateServerSpec(spec domain.ServerSpec, index int) []string {
 		}
 	case domain.TransportStreamableHTTP:
 		if len(spec.Cmd) > 0 {
-			errs = append(errs, fmt.Sprintf("servers[%d]: cmd must be empty for streamable_http transport", index))
+			errs = append(errs, fmt.Sprintf("servers[%d]: cmd must be empty for streamable_http transport (external connection)", index))
 		}
 		if spec.Cwd != "" {
-			errs = append(errs, fmt.Sprintf("servers[%d]: cwd must be empty for streamable_http transport", index))
+			errs = append(errs, fmt.Sprintf("servers[%d]: cwd must be empty for streamable_http transport (external connection)", index))
 		}
 		if len(spec.Env) > 0 {
-			errs = append(errs, fmt.Sprintf("servers[%d]: env must be empty for streamable_http transport", index))
+			errs = append(errs, fmt.Sprintf("servers[%d]: env must be empty for streamable_http transport (external connection)", index))
 		}
 	default:
 		errs = append(errs, fmt.Sprintf("servers[%d]: transport must be stdio or streamable_http", index))
@@ -451,13 +460,15 @@ func validateStreamableHTTPSpec(spec domain.ServerSpec, index int) []string {
 	if endpoint == "" {
 		errs = append(errs, fmt.Sprintf("servers[%d]: http.endpoint is required for streamable_http transport", index))
 	} else {
-		if parsed, err := url.Parse(endpoint); err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		if strings.Contains(endpoint, " ") {
+			errs = append(errs, fmt.Sprintf("servers[%d]: http.endpoint must be a valid http(s) URL", index))
+		} else if parsed, err := url.ParseRequestURI(endpoint); err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 			errs = append(errs, fmt.Sprintf("servers[%d]: http.endpoint must be a valid http(s) URL", index))
 		}
 	}
 
 	if spec.HTTP.MaxRetries < -1 {
-		errs = append(errs, fmt.Sprintf("servers[%d]: http.maxRetries must be >= -1", index))
+		errs = append(errs, fmt.Sprintf("servers[%d]: http.maxRetries must be >= -1 (-1 disables retries)", index))
 	}
 
 	for key, value := range spec.HTTP.Headers {
@@ -467,7 +478,7 @@ func validateStreamableHTTPSpec(spec domain.ServerSpec, index int) []string {
 			continue
 		}
 		if isReservedHTTPHeader(name) {
-			errs = append(errs, fmt.Sprintf("servers[%d]: http.headers.%s is reserved and cannot be set", index, name))
+			errs = append(errs, fmt.Sprintf("servers[%d]: http.headers.%s is reserved and managed by transport", index, name))
 		}
 		if strings.TrimSpace(value) == "" {
 			errs = append(errs, fmt.Sprintf("servers[%d]: http.headers.%s must not be empty", index, name))
@@ -479,7 +490,8 @@ func validateStreamableHTTPSpec(spec domain.ServerSpec, index int) []string {
 
 func isReservedHTTPHeader(header string) bool {
 	switch strings.ToLower(strings.TrimSpace(header)) {
-	case "content-type", "accept", "mcp-protocol-version", "mcp-session-id", "last-event-id":
+	case "content-type", "accept", "mcp-protocol-version", "mcp-session-id", "last-event-id",
+		"host", "content-length", "transfer-encoding", "connection":
 		return true
 	default:
 		return false

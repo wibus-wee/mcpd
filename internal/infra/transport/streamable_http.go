@@ -36,11 +36,11 @@ func NewStreamableHTTPTransport(opts StreamableHTTPTransportOptions) *Streamable
 
 func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, spec domain.ServerSpec, streams domain.IOStreams) (domain.Conn, error) {
 	if spec.HTTP == nil {
-		return nil, errors.New("streamable http config is required")
+		return nil, fmt.Errorf("server %s: streamable http config is required", spec.Name)
 	}
 	endpoint := strings.TrimSpace(spec.HTTP.Endpoint)
 	if endpoint == "" {
-		return nil, errors.New("streamable http endpoint is required")
+		return nil, fmt.Errorf("server %s: streamable http endpoint is required", spec.Name)
 	}
 
 	headerTransport, err := buildStreamableHTTPTransport(spec)
@@ -52,10 +52,8 @@ func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, s
 		Transport: headerTransport,
 	}
 
-	maxRetries := spec.HTTP.MaxRetries
-	if maxRetries == 0 {
-		maxRetries = domain.DefaultStreamableHTTPMaxRetries
-	}
+	// Loader defaults MaxRetries, but keep a defensive fallback for unnormalized specs.
+	maxRetries := effectiveMaxRetries(spec.HTTP.MaxRetries)
 	transport := &mcp.StreamableClientTransport{
 		Endpoint:   endpoint,
 		HTTPClient: client,
@@ -66,6 +64,11 @@ func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, s
 		return nil, fmt.Errorf("connect streamable http: %w", err)
 	}
 
+	if streams.Reader != nil || streams.Writer != nil {
+		t.logger.Warn("streamable http transport ignores IO streams",
+			zap.String("server", spec.Name),
+		)
+	}
 	if streams.Reader != nil {
 		_ = streams.Reader.Close()
 	}
@@ -89,7 +92,7 @@ func buildStreamableHTTPTransport(spec domain.ServerSpec) (http.RoundTripper, er
 	for key, value := range spec.HTTP.Headers {
 		name := http.CanonicalHeaderKey(strings.TrimSpace(key))
 		if name == "" {
-			return nil, errors.New("http headers contain empty key")
+			return nil, fmt.Errorf("server %s: http headers contain empty key", spec.Name)
 		}
 		headers.Set(name, value)
 	}
@@ -111,6 +114,7 @@ type headerRoundTripper struct {
 }
 
 func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Explicitly overwrite any existing values with configured headers.
 	for key, values := range h.headers {
 		req.Header.Del(key)
 		for _, value := range values {
@@ -118,4 +122,11 @@ func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		}
 	}
 	return h.base.RoundTrip(req)
+}
+
+func effectiveMaxRetries(value int) int {
+	if value == 0 {
+		return domain.DefaultStreamableHTTPMaxRetries
+	}
+	return value
 }

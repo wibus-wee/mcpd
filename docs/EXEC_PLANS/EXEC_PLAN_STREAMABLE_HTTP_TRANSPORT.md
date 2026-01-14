@@ -8,10 +8,10 @@
 
 ## Progress
 
-- [ ] (pending) 添加 transport/config 模型与 schema/loader 校验，支持 streamable_http。
-- [ ] (pending) 实现 streamable HTTP transport 与复合 transport，调整 lifecycle 启动与握手。
-- [ ] (pending) 更新指纹、导入/编辑流程与必要文档说明。
-- [ ] (pending) 添加测试并运行 `make test`。
+- [x] (done) 添加 transport/config 模型与 schema/loader 校验，支持 streamable_http。
+- [x] (done) 实现 streamable HTTP transport 与复合 transport，调整 lifecycle 启动与握手。
+- [x] (done) 更新指纹、导入/编辑流程与必要文档说明。
+- [x] (done) 添加测试并运行 `go test ./internal/...`（`make test` 需先生成 frontend/dist）。
 
 ## Surprises & Discoveries
 
@@ -30,7 +30,9 @@
 
 ## Outcomes & Retrospective
 
-- 待实现。
+- 实现完成。已运行 `go test ./internal/...`，`make test` 仍需 frontend/dist。
+- go-sdk 的 StreamableClientTransport 需要 MCP-Protocol-Version 头，已通过 headerRoundTripper 注入。
+- 隐式 transport 检测（当 http 配置存在但 transport 未指定时）已添加警告日志。
 
 ## Context and Orientation
 
@@ -74,4 +76,3 @@ mcpd 的核心启动流程位于 `internal/infra/lifecycle/manager.go`，通过 
 - 新增 transport：`internal/infra/transport.StreamableHTTPTransport`。
 - 复合 transport：`internal/infra/transport.CompositeTransport`。
 - 外部依赖：`github.com/modelcontextprotocol/go-sdk` 已在 go.mod 中存在。
-

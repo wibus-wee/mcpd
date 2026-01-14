@@ -130,6 +130,9 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		if stop == nil {
 			stop = func(context.Context) error { return nil }
 		}
+	} else {
+		// Streamable HTTP connects to external servers and does not use IO streams.
+		streams = domain.IOStreams{}
 	}
 	spawnedAt = time.Now()
 
