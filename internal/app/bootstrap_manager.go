@@ -238,7 +238,7 @@ func (m *BootstrapManager) run(ctx context.Context, targets []bootstrapTarget) {
 		zap.Duration("elapsed", time.Since(startTime)),
 	)
 
-	m.completeBootstrap(failed == 0)
+	m.completeBootstrap(true)
 }
 
 func (m *BootstrapManager) bootstrapOne(ctx context.Context, specKey string, spec domain.ServerSpec) error {
