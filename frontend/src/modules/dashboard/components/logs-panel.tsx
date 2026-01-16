@@ -41,6 +41,12 @@ type LogSegment = {
   className: string
 }
 
+type LogRowData = {
+  log: LogEntry
+  segments: LogSegment[]
+  lineLength: number
+}
+
 const formatFieldValue = (value: unknown) => {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
@@ -99,9 +105,7 @@ const getSegmentsLength = (segments: LogSegment[]) => {
   return segments.reduce((sum, segment) => sum + segment.text.length, 0) + (segments.length - 1)
 }
 
-function LogRow({ log }: { log: LogEntry }) {
-  const segments = getLogSegments(log)
-
+function LogRow({ segments }: { segments: LogSegment[] }) {
   return (
     <div className="w-full border-b border-border/50 px-3 py-1 text-xs font-mono whitespace-pre leading-6">
       {segments.map((segment, index) => (
@@ -138,37 +142,52 @@ export function LogsPanel() {
     unknown: 'Unknown',
   }
 
-  const serverOptions = Array.from(
-    new Set(
-      logs
-        .map(log => log.serverType)
-        .filter((server): server is string => typeof server === 'string'),
-    ),
-  ).sort()
+  const serverOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        logs
+          .map(log => log.serverType)
+          .filter((server): server is string => typeof server === 'string'),
+      ),
+    ).sort()
+  }, [logs])
 
-  const filteredLogs = logs.filter((log) => {
-    if (levelFilter !== 'all' && log.level !== levelFilter) {
-      return false
-    }
-    if (sourceFilter !== 'all' && log.source !== sourceFilter) {
-      return false
-    }
-    if (serverFilter !== 'all' && log.serverType !== serverFilter) {
-      return false
-    }
-    return true
-  })
-  const orderedLogs = filteredLogs.slice().reverse()
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      if (levelFilter !== 'all' && log.level !== levelFilter) {
+        return false
+      }
+      if (sourceFilter !== 'all' && log.source !== sourceFilter) {
+        return false
+      }
+      if (serverFilter !== 'all' && log.serverType !== serverFilter) {
+        return false
+      }
+      return true
+    })
+  }, [levelFilter, logs, serverFilter, sourceFilter])
+
+  const orderedLogs = useMemo(() => filteredLogs.slice().reverse(), [filteredLogs])
+  const orderedLogRows = useMemo(() => {
+    return orderedLogs.map((log): LogRowData => {
+      const segments = getLogSegments(log)
+      return {
+        log,
+        segments,
+        lineLength: getSegmentsLength(segments),
+      }
+    })
+  }, [orderedLogs])
+
   const maxLineLength = useMemo(() => {
     let max = 0
-    for (const log of orderedLogs) {
-      const length = getSegmentsLength(getLogSegments(log))
-      if (length > max) {
-        max = length
+    for (const row of orderedLogRows) {
+      if (row.lineLength > max) {
+        max = row.lineLength
       }
     }
     return max
-  }, [orderedLogs])
+  }, [orderedLogRows])
   const listWidth = maxLineLength > 0 ? `${maxLineLength}ch` : '100%'
 
   const clearLogs = () => {
@@ -190,22 +209,22 @@ export function LogsPanel() {
     && (sourceFilter === 'all' || sourceFilter === 'downstream')
 
   const virtualizer = useVirtualizer({
-    count: orderedLogs.length,
+    count: orderedLogRows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => logRowSize,
     overscan: 12,
   })
 
   useEffect(() => {
-    if (!autoScroll || orderedLogs.length === 0) {
+    if (!autoScroll || orderedLogRows.length === 0) {
       return
     }
     // Scroll to the end (latest log)
-    virtualizer.scrollToIndex(orderedLogs.length - 1, {
+    virtualizer.scrollToIndex(orderedLogRows.length - 1, {
       align: 'end',
       behavior: 'auto',
     })
-  }, [autoScroll, orderedLogs.length, virtualizer])
+  }, [autoScroll, orderedLogRows.length, virtualizer])
 
   useEffect(() => {
     if (sourceFilter !== 'downstream' && sourceFilter !== 'all' && serverFilter !== 'all') {
@@ -361,7 +380,7 @@ export function LogsPanel() {
         <Separator />
         <CardContent className="p-0">
           <div ref={parentRef} className="h-80 overflow-auto">
-            {orderedLogs.length === 0 ? (
+            {orderedLogRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
                 <ScrollTextIcon className="size-8 mb-2 opacity-50" />
                 {renderEmptyState()}
@@ -376,7 +395,7 @@ export function LogsPanel() {
                 }}
               >
                 {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const log = orderedLogs[virtualItem.index]
+                  const row = orderedLogRows[virtualItem.index]
                   return (
                     <div
                       key={virtualItem.key}
@@ -389,7 +408,7 @@ export function LogsPanel() {
                         transform: `translateY(${virtualItem.start}px)`,
                       }}
                     >
-                      <LogRow log={log} />
+                      <LogRow segments={row.segments} />
                     </div>
                   )
                 })}

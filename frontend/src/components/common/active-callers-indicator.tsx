@@ -38,7 +38,7 @@ export const ActiveCallersIndicator = ({ className }: { className?: string }) =>
         <div className="flex items-center gap-1">
           {visibleCallers.map(entry => (
             <span
-              key={entry.caller}
+              key={`${entry.caller}:${entry.pid}`}
               className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 font-mono text-[0.7rem] text-foreground shadow-xs"
             >
               <MousePointer2Icon className="size-3 text-info" />

@@ -8,7 +8,7 @@ import {
   FileTextIcon,
   RefreshCwIcon,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import type { ResourceEntry } from '@bindings/mcpd/internal/ui'
 import { Badge } from '@/components/ui/badge'
@@ -40,9 +40,29 @@ interface ResourceSchema {
   mimeType?: string
 }
 
+const parseResourceJson = (resource: ResourceEntry): ResourceSchema => {
+  try {
+    const parsed = typeof resource.resourceJson === 'string'
+      ? JSON.parse(resource.resourceJson)
+      : resource.resourceJson
+    return { uri: resource.uri, ...parsed }
+  }
+  catch {
+    return { uri: resource.uri }
+  }
+}
+
 export function ResourcesList() {
   const { resources, isLoading, mutate } = useResources()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  const parsedResources = useMemo(() => {
+    const map = new Map<string, ResourceSchema>()
+    resources.forEach(resource => {
+      map.set(resource.uri, parseResourceJson(resource))
+    })
+    return map
+  }, [resources])
 
   const toggleExpanded = (uri: string) => {
     setExpandedItems((prev) => {
@@ -55,18 +75,6 @@ export function ResourcesList() {
       }
       return next
     })
-  }
-
-  const parseResourceJson = (resource: ResourceEntry): ResourceSchema => {
-    try {
-      const parsed = typeof resource.resourceJson === 'string'
-        ? JSON.parse(resource.resourceJson)
-        : resource.resourceJson
-      return { uri: resource.uri, ...parsed }
-    }
-    catch {
-      return { uri: resource.uri }
-    }
   }
 
   if (isLoading) {
@@ -125,7 +133,7 @@ export function ResourcesList() {
             ) : (
               <div className="space-y-2">
                 {resources.map((resource) => {
-                  const parsed = parseResourceJson(resource)
+                  const parsed = parsedResources.get(resource.uri) ?? { uri: resource.uri }
                   const isExpanded = expandedItems.has(resource.uri)
 
                   return (

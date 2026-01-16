@@ -58,6 +58,16 @@ export function ToolsSidebar({
   })
   const { data: activeCallers } = useActiveCallers()
 
+  const toolDescriptionById = useMemo(() => {
+    const map = new Map<string, string>()
+    servers.forEach(server => {
+      server.tools.forEach(tool => {
+        map.set(`${server.id}:${tool.name}`, parseToolDescription(tool))
+      })
+    })
+    return map
+  }, [servers])
+
   const filteredServers = useMemo(() => {
     if (!searchQuery.trim()) return servers
 
@@ -65,7 +75,7 @@ export function ToolsSidebar({
     return servers
       .map(server => {
         const matchingTools = server.tools.filter(tool => {
-          const desc = parseToolDescription(tool)
+          const desc = toolDescriptionById.get(`${server.id}:${tool.name}`) ?? ''
           return (
             tool.name.toLowerCase().includes(query) ||
             desc.toLowerCase().includes(query)
@@ -85,7 +95,7 @@ export function ToolsSidebar({
         return null
       })
       .filter((s): s is ServerGroup => s !== null)
-  }, [servers, searchQuery])
+  }, [searchQuery, servers, toolDescriptionById])
 
   const activeCallersByServer = useMemo(() => {
     const byServer = new Map<string, ActiveCaller[]>()
@@ -131,6 +141,38 @@ export function ToolsSidebar({
       return next
     })
   }
+
+  useEffect(() => {
+    if (servers.length === 0) {
+      return
+    }
+    setExpandedServers(prev => {
+      const serverIds = new Set(servers.map(server => server.id))
+      if (prev.size === 0) {
+        return new Set(serverIds)
+      }
+
+      let changed = false
+      const next = new Set<string>()
+
+      prev.forEach(id => {
+        if (serverIds.has(id)) {
+          next.add(id)
+        } else {
+          changed = true
+        }
+      })
+
+      servers.forEach(server => {
+        if (!next.has(server.id)) {
+          next.add(server.id)
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [servers])
 
   useEffect(() => {
     if (!selectedServerId) {

@@ -58,9 +58,29 @@ interface ToolSchema {
   }
 }
 
+const parseToolJson = (tool: ToolEntry): ToolSchema => {
+  try {
+    const parsed = typeof tool.toolJson === 'string'
+      ? JSON.parse(tool.toolJson)
+      : tool.toolJson
+    return { name: tool.name, ...parsed }
+  }
+  catch {
+    return { name: tool.name }
+  }
+}
+
 export function ToolsTable() {
   const { tools, isLoading } = useTools()
   const [search, setSearch] = useState('')
+
+  const parsedTools = useMemo(() => {
+    const map = new Map<string, ToolSchema>()
+    tools.forEach(tool => {
+      map.set(tool.name, parseToolJson(tool))
+    })
+    return map
+  }, [tools])
 
   const filteredTools = useMemo(() => {
     if (!search) return tools
@@ -69,18 +89,6 @@ export function ToolsTable() {
       tool.name.toLowerCase().includes(lower),
     )
   }, [tools, search])
-
-  const parseToolJson = (tool: ToolEntry): ToolSchema => {
-    try {
-      const parsed = typeof tool.toolJson === 'string'
-        ? JSON.parse(tool.toolJson)
-        : tool.toolJson
-      return { name: tool.name, ...parsed }
-    }
-    catch {
-      return { name: tool.name }
-    }
-  }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -146,7 +154,7 @@ export function ToolsTable() {
                   </TableRow>
                 ) : (
                   filteredTools.map((tool) => {
-                    const parsed = parseToolJson(tool)
+                    const parsed = parsedTools.get(tool.name) ?? { name: tool.name }
                     return (
                       <TableRow key={tool.name}>
                         <TableCell className="py-1.5 font-mono ">
