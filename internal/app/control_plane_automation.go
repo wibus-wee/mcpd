@@ -31,14 +31,17 @@ func newAutomationService(state *controlPlaneState, registry *callerRegistry, di
 	}
 }
 
+// SetSubAgent sets the active SubAgent implementation.
 func (a *automationService) SetSubAgent(agent domain.SubAgent) {
 	a.subAgent = agent
 }
 
+// IsSubAgentEnabled reports whether SubAgent is enabled.
 func (a *automationService) IsSubAgentEnabled() bool {
 	return a.subAgent != nil
 }
 
+// IsSubAgentEnabledForCaller reports whether SubAgent is enabled for a caller.
 func (a *automationService) IsSubAgentEnabledForCaller(caller string) bool {
 	if a.subAgent == nil {
 		return false
@@ -61,6 +64,7 @@ func (a *automationService) IsSubAgentEnabledForCaller(caller string) bool {
 	return profileData.Catalog.SubAgent.Enabled
 }
 
+// AutomaticMCP filters tools using the automatic MCP flow.
 func (a *automationService) AutomaticMCP(ctx context.Context, caller string, params domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
 	profile, err := a.registry.resolveProfile(caller)
 	if err != nil {
@@ -105,6 +109,7 @@ func (a *automationService) fallbackAutomaticMCP(caller string, profile *profile
 	}, nil
 }
 
+// AutomaticEval evaluates a tool call using the automatic MCP flow.
 func (a *automationService) AutomaticEval(ctx context.Context, caller string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
 	if _, err := a.getToolDefinition(caller, params.ToolName); err != nil {
 		return nil, err

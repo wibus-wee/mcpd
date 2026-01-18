@@ -7,16 +7,19 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// LoggingConfig configures logging wiring.
 type LoggingConfig struct {
 	Logger      *zap.Logger
 	Broadcaster *telemetry.LogBroadcaster
 }
 
+// Logging bundles the logger and broadcaster.
 type Logging struct {
 	Logger      *zap.Logger
 	Broadcaster *telemetry.LogBroadcaster
 }
 
+// NewLogging constructs logging dependencies.
 func NewLogging(cfg LoggingConfig) Logging {
 	logger := cfg.Logger
 	if logger == nil {
@@ -42,10 +45,12 @@ func NewLogging(cfg LoggingConfig) Logging {
 	}
 }
 
+// NewLogger returns the logger from a Logging bundle.
 func NewLogger(logging Logging) *zap.Logger {
 	return logging.Logger
 }
 
+// NewLogBroadcaster returns the broadcaster from a Logging bundle.
 func NewLogBroadcaster(logging Logging) *telemetry.LogBroadcaster {
 	return logging.Broadcaster
 }

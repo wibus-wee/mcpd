@@ -13,6 +13,7 @@ import (
 	"mcpd/internal/domain"
 )
 
+// ServerInitializationManager coordinates async server initialization.
 type ServerInitializationManager struct {
 	scheduler domain.Scheduler
 	specs     map[string]domain.ServerSpec
@@ -33,6 +34,7 @@ type ServerInitializationManager struct {
 	started bool
 }
 
+// NewServerInitializationManager constructs a server initialization manager.
 func NewServerInitializationManager(
 	scheduler domain.Scheduler,
 	state *domain.CatalogState,
@@ -63,6 +65,7 @@ func NewServerInitializationManager(
 	}
 }
 
+// ApplyCatalogState updates the manager with a new catalog state.
 func (m *ServerInitializationManager) ApplyCatalogState(state *domain.CatalogState) {
 	summary := state.Summary
 	specs := summary.SpecRegistry
@@ -158,6 +161,7 @@ func resolveServerInitRetry(runtime domain.RuntimeConfig) (time.Duration, time.D
 	return time.Duration(retryBaseSeconds) * time.Second, time.Duration(retryMaxSeconds) * time.Second, maxRetries
 }
 
+// Start begins background initialization work.
 func (m *ServerInitializationManager) Start(ctx context.Context) {
 	m.mu.Lock()
 	if m.started {
@@ -190,6 +194,7 @@ func (m *ServerInitializationManager) Start(ctx context.Context) {
 	}
 }
 
+// Stop stops background initialization work.
 func (m *ServerInitializationManager) Stop() {
 	m.mu.Lock()
 	cancel := m.cancel
@@ -200,6 +205,7 @@ func (m *ServerInitializationManager) Stop() {
 	}
 }
 
+// SetMinReady updates min-ready settings for a spec.
 func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int, cause domain.StartCause) error {
 	m.mu.Lock()
 	if !m.started {
@@ -250,6 +256,7 @@ func (m *ServerInitializationManager) SetMinReady(specKey string, minReady int, 
 	return nil
 }
 
+// RetrySpec requests a retry for a spec initialization.
 func (m *ServerInitializationManager) RetrySpec(specKey string) error {
 	m.mu.Lock()
 	if !m.started {
@@ -276,6 +283,7 @@ func (m *ServerInitializationManager) RetrySpec(specKey string) error {
 	return nil
 }
 
+// Statuses returns the current init status snapshot.
 func (m *ServerInitializationManager) Statuses(ctx context.Context) []domain.ServerInitStatus {
 	m.mu.Lock()
 	scheduler := m.scheduler

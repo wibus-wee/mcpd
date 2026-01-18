@@ -81,6 +81,7 @@ type profileRuntime struct {
 	active bool
 }
 
+// Activate starts indexes for the profile runtime.
 func (p *profileRuntime) Activate(ctx context.Context) {
 	p.mu.Lock()
 	if p.active {
@@ -101,6 +102,7 @@ func (p *profileRuntime) Activate(ctx context.Context) {
 	}
 }
 
+// Deactivate stops indexes for the profile runtime.
 func (p *profileRuntime) Deactivate() {
 	p.mu.Lock()
 	if !p.active {
@@ -121,6 +123,7 @@ func (p *profileRuntime) Deactivate() {
 	}
 }
 
+// SpecKeys returns a copy of the profile spec keys.
 func (p *profileRuntime) SpecKeys() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -130,6 +133,7 @@ func (p *profileRuntime) SpecKeys() []string {
 	return append([]string(nil), p.specKeys...)
 }
 
+// UpdateCatalog refreshes profile runtime state from the catalog.
 func (p *profileRuntime) UpdateCatalog(cfg domain.CatalogProfile) {
 	p.mu.Lock()
 	p.specKeys = collectSpecKeys(cfg.SpecKeys)
@@ -154,6 +158,7 @@ func defaultControlPlaneInfo() domain.ControlPlaneInfo {
 	}
 }
 
+// UpdateCatalog replaces the control plane state with a new catalog.
 func (s *controlPlaneState) UpdateCatalog(state *domain.CatalogState, profiles map[string]*profileRuntime) {
 	store := state.Store
 	callers := store.Callers
@@ -170,24 +175,28 @@ func (s *controlPlaneState) UpdateCatalog(state *domain.CatalogState, profiles m
 	s.mu.Unlock()
 }
 
+// ProfileStore returns the current profile store.
 func (s *controlPlaneState) ProfileStore() domain.ProfileStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.profileStore
 }
 
+// Callers returns the current caller mapping.
 func (s *controlPlaneState) Callers() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.callers
 }
 
+// Profiles returns the current profile runtimes.
 func (s *controlPlaneState) Profiles() map[string]*profileRuntime {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.profiles
 }
 
+// Profile returns a profile runtime by name.
 func (s *controlPlaneState) Profile(name string) (*profileRuntime, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -195,12 +204,14 @@ func (s *controlPlaneState) Profile(name string) (*profileRuntime, bool) {
 	return runtime, ok
 }
 
+// SpecRegistry returns the current spec registry.
 func (s *controlPlaneState) SpecRegistry() map[string]domain.ServerSpec {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.specRegistry
 }
 
+// Runtime returns the current runtime config.
 func (s *controlPlaneState) Runtime() domain.RuntimeConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

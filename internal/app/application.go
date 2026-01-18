@@ -12,6 +12,7 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// Application wires the core runtime and dependencies.
 type Application struct {
 	ctx           context.Context
 	configPath    string
@@ -32,6 +33,7 @@ type Application struct {
 	reloadManager    *ReloadManager
 }
 
+// NewApplication constructs the core application runtime.
 func NewApplication(
 	ctx context.Context,
 	cfg ServeConfig,
@@ -72,6 +74,7 @@ func NewApplication(
 	}
 }
 
+// Run starts the core services and blocks until shutdown.
 func (a *Application) Run() error {
 	a.logger.Info("configuration loaded",
 		zap.String("config", a.configPath),

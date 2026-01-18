@@ -9,6 +9,7 @@ import (
 	"github.com/google/wire"
 )
 
+// InitializeApplication wires dependencies for the application.
 func InitializeApplication(ctx context.Context, cfg ServeConfig, logging LoggingConfig) (*Application, error) {
 	wire.Build(AppSet)
 	return nil, nil

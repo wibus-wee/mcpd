@@ -12,6 +12,7 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// ReloadManager coordinates catalog reloads and applies updates.
 type ReloadManager struct {
 	provider      domain.CatalogProvider
 	state         *controlPlaneState
@@ -28,6 +29,7 @@ type ReloadManager struct {
 	started       atomic.Bool
 }
 
+// NewReloadManager constructs a reload manager.
 func NewReloadManager(
 	provider domain.CatalogProvider,
 	state *controlPlaneState,
@@ -58,6 +60,7 @@ func NewReloadManager(
 	}
 }
 
+// Start begins watching for catalog updates.
 func (m *ReloadManager) Start(ctx context.Context) error {
 	updates, err := m.provider.Watch(ctx)
 	if err != nil {
@@ -71,6 +74,7 @@ func (m *ReloadManager) Start(ctx context.Context) error {
 	return nil
 }
 
+// Reload forces a catalog reload and waits for application.
 func (m *ReloadManager) Reload(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()

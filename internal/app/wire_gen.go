@@ -8,12 +8,12 @@ package app
 
 import (
 	"context"
-
 	"mcpd/internal/domain"
 )
 
 // Injectors from wire.go:
 
+// InitializeApplication wires dependencies for the application.
 func InitializeApplication(ctx context.Context, cfg ServeConfig, logging LoggingConfig) (*Application, error) {
 	appLogging := NewLogging(logging)
 	logger := NewLogger(appLogging)

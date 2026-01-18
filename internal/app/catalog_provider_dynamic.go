@@ -18,6 +18,7 @@ import (
 
 const defaultReloadDebounce = 200 * time.Millisecond
 
+// DynamicCatalogProvider loads and watches catalog updates.
 type DynamicCatalogProvider struct {
 	logger      *zap.Logger
 	loader      *catalog.ProfileStoreLoader
@@ -35,6 +36,7 @@ type DynamicCatalogProvider struct {
 	watchCtx  context.Context
 }
 
+// NewDynamicCatalogProvider loads a catalog and watches for updates.
 func NewDynamicCatalogProvider(ctx context.Context, cfg ServeConfig, logger *zap.Logger) (*DynamicCatalogProvider, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -67,6 +69,7 @@ func NewDynamicCatalogProvider(ctx context.Context, cfg ServeConfig, logger *zap
 	return provider, nil
 }
 
+// Snapshot returns the current catalog snapshot.
 func (p *DynamicCatalogProvider) Snapshot(ctx context.Context) (domain.CatalogState, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -77,6 +80,7 @@ func (p *DynamicCatalogProvider) Snapshot(ctx context.Context) (domain.CatalogSt
 	return state, nil
 }
 
+// Watch subscribes to catalog updates.
 func (p *DynamicCatalogProvider) Watch(ctx context.Context) (<-chan domain.CatalogUpdate, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -100,6 +104,7 @@ func (p *DynamicCatalogProvider) Watch(ctx context.Context) (<-chan domain.Catal
 	return ch, nil
 }
 
+// Reload forces a catalog reload.
 func (p *DynamicCatalogProvider) Reload(ctx context.Context) error {
 	return p.reload(ctx, domain.CatalogUpdateSourceManual)
 }

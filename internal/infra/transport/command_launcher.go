@@ -69,9 +69,15 @@ func (l *CommandLauncher) Start(ctx context.Context, specKey string, spec domain
 	go mirrorStderr(stderr, downstreamLogger)
 
 	stop := func(stopCtx context.Context) error {
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = stderr.Close()
+		if err := stdin.Close(); err != nil {
+			l.logger.Warn("close stdin failed", zap.Error(err))
+		}
+		if err := stdout.Close(); err != nil {
+			l.logger.Warn("close stdout failed", zap.Error(err))
+		}
+		if err := stderr.Close(); err != nil {
+			l.logger.Warn("close stderr failed", zap.Error(err))
+		}
 		if groupCleanup != nil {
 			groupCleanup()
 		}

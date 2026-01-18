@@ -30,19 +30,24 @@ const (
 	StrategySingleton InstanceStrategy = "singleton"
 )
 
+// TransportKind identifies the transport used by a server.
 type TransportKind string
 
 const (
-	TransportStdio          TransportKind = "stdio"
+	// TransportStdio uses stdio streams for transport.
+	TransportStdio TransportKind = "stdio"
+	// TransportStreamableHTTP uses streamable HTTP for transport.
 	TransportStreamableHTTP TransportKind = "streamable_http"
 )
 
+// StreamableHTTPConfig configures the streamable HTTP transport.
 type StreamableHTTPConfig struct {
 	Endpoint   string            `json:"endpoint"`
 	Headers    map[string]string `json:"headers,omitempty"`
 	MaxRetries int               `json:"maxRetries"`
 }
 
+// ServerSpec declares how to run and connect to a server.
 type ServerSpec struct {
 	Name                string                `json:"name"`
 	Transport           TransportKind         `json:"transport"`
@@ -62,6 +67,7 @@ type ServerSpec struct {
 	HTTP                *StreamableHTTPConfig `json:"http,omitempty"`
 }
 
+// RuntimeConfig defines runtime-level settings for orchestration.
 type RuntimeConfig struct {
 	RouteTimeoutSeconds        int                 `json:"routeTimeoutSeconds"`
 	PingIntervalSeconds        int                 `json:"pingIntervalSeconds"`
@@ -85,10 +91,12 @@ type RuntimeConfig struct {
 	DefaultActivationMode   ActivationMode `json:"defaultActivationMode"`   // "on-demand" or "always-on", default "on-demand"
 }
 
+// ObservabilityConfig controls runtime observability endpoints.
 type ObservabilityConfig struct {
 	ListenAddress string `json:"listenAddress"`
 }
 
+// RPCConfig configures the RPC server.
 type RPCConfig struct {
 	ListenAddress           string `json:"listenAddress"`
 	MaxRecvMsgSize          int    `json:"maxRecvMsgSize"`
@@ -99,6 +107,7 @@ type RPCConfig struct {
 	TLS                     RPCTLSConfig
 }
 
+// RPCTLSConfig configures TLS for the RPC server.
 type RPCTLSConfig struct {
 	Enabled    bool   `json:"enabled"`
 	CertFile   string `json:"certFile"`
@@ -107,12 +116,14 @@ type RPCTLSConfig struct {
 	ClientAuth bool   `json:"clientAuth"`
 }
 
+// Catalog groups runtime and server spec configuration.
 type Catalog struct {
 	Specs    map[string]ServerSpec
 	Runtime  RuntimeConfig
 	SubAgent ProfileSubAgentConfig // Per-profile SubAgent settings (enabled/disabled)
 }
 
+// ServerCapabilities describes the capabilities reported by a server.
 type ServerCapabilities struct {
 	Tools        *ToolsCapability
 	Resources    *ResourcesCapability
@@ -122,36 +133,51 @@ type ServerCapabilities struct {
 	Experimental map[string]any
 }
 
+// ToolsCapability captures tool-related capabilities.
 type ToolsCapability struct {
 	ListChanged bool
 }
 
+// ResourcesCapability captures resource-related capabilities.
 type ResourcesCapability struct {
 	Subscribe   bool
 	ListChanged bool
 }
 
+// PromptsCapability captures prompt-related capabilities.
 type PromptsCapability struct {
 	ListChanged bool
 }
 
+// LoggingCapability captures logging capabilities.
 type LoggingCapability struct{}
 
+// CompletionsCapability captures completions capabilities.
 type CompletionsCapability struct{}
 
+// InstanceState describes the lifecycle state of an instance.
 type InstanceState string
 
 const (
-	InstanceStateStarting     InstanceState = "starting"
+	// InstanceStateStarting indicates the instance is starting.
+	InstanceStateStarting InstanceState = "starting"
+	// InstanceStateInitializing indicates the instance is initializing.
 	InstanceStateInitializing InstanceState = "initializing"
-	InstanceStateHandshaking  InstanceState = "handshaking"
-	InstanceStateReady        InstanceState = "ready"
-	InstanceStateBusy         InstanceState = "busy"
-	InstanceStateDraining     InstanceState = "draining"
-	InstanceStateStopped      InstanceState = "stopped"
-	InstanceStateFailed       InstanceState = "failed"
+	// InstanceStateHandshaking indicates the instance is handshaking.
+	InstanceStateHandshaking InstanceState = "handshaking"
+	// InstanceStateReady indicates the instance is ready.
+	InstanceStateReady InstanceState = "ready"
+	// InstanceStateBusy indicates the instance is busy.
+	InstanceStateBusy InstanceState = "busy"
+	// InstanceStateDraining indicates the instance is draining.
+	InstanceStateDraining InstanceState = "draining"
+	// InstanceStateStopped indicates the instance is stopped.
+	InstanceStateStopped InstanceState = "stopped"
+	// InstanceStateFailed indicates the instance failed.
+	InstanceStateFailed InstanceState = "failed"
 )
 
+// Instance represents a running server instance.
 type Instance struct {
 	ID               string
 	Spec             ServerSpec
@@ -193,6 +219,7 @@ type PoolInfo struct {
 	Metrics    PoolMetrics
 }
 
+// PoolMetrics aggregates pool-level metrics.
 type PoolMetrics struct {
 	StartCount    int
 	StopCount     int
@@ -202,17 +229,25 @@ type PoolMetrics struct {
 	LastCallAt    time.Time
 }
 
+// ServerInitState describes the initialization state of a server.
 type ServerInitState string
 
 const (
-	ServerInitPending   ServerInitState = "pending"
-	ServerInitStarting  ServerInitState = "starting"
-	ServerInitReady     ServerInitState = "ready"
-	ServerInitDegraded  ServerInitState = "degraded"
-	ServerInitFailed    ServerInitState = "failed"
+	// ServerInitPending indicates initialization has not started.
+	ServerInitPending ServerInitState = "pending"
+	// ServerInitStarting indicates initialization is in progress.
+	ServerInitStarting ServerInitState = "starting"
+	// ServerInitReady indicates initialization is complete.
+	ServerInitReady ServerInitState = "ready"
+	// ServerInitDegraded indicates initialization completed with issues.
+	ServerInitDegraded ServerInitState = "degraded"
+	// ServerInitFailed indicates initialization failed.
+	ServerInitFailed ServerInitState = "failed"
+	// ServerInitSuspended indicates initialization retries are suspended.
 	ServerInitSuspended ServerInitState = "suspended"
 )
 
+// ServerInitStatus reports initialization progress for a server.
 type ServerInitStatus struct {
 	SpecKey     string
 	ServerName  string
@@ -226,19 +261,46 @@ type ServerInitStatus struct {
 	UpdatedAt   time.Time
 }
 
+// ErrMethodNotAllowed indicates a method is not permitted by capabilities.
 var ErrMethodNotAllowed = errors.New("method not allowed")
+
+// ErrInvalidRequest indicates a request is malformed.
 var ErrInvalidRequest = errors.New("invalid request")
+
+// ErrToolNotFound indicates the requested tool does not exist.
 var ErrToolNotFound = errors.New("tool not found")
+
+// ErrResourceNotFound indicates the requested resource does not exist.
 var ErrResourceNotFound = errors.New("resource not found")
+
+// ErrPromptNotFound indicates the requested prompt does not exist.
 var ErrPromptNotFound = errors.New("prompt not found")
+
+// ErrInvalidCursor indicates a pagination cursor is invalid.
 var ErrInvalidCursor = errors.New("invalid cursor")
+
+// ErrCallerNotRegistered indicates the caller is unknown.
 var ErrCallerNotRegistered = errors.New("caller not registered")
+
+// ErrNoReadyInstance indicates no instance is ready to serve the request.
 var ErrNoReadyInstance = errors.New("no ready instance")
+
+// ErrUnknownSpecKey indicates the server spec key is unknown.
 var ErrUnknownSpecKey = errors.New("unknown spec key")
+
+// ErrInvalidCommand indicates a server command is invalid.
 var ErrInvalidCommand = errors.New("invalid command")
+
+// ErrExecutableNotFound indicates the executable could not be found.
 var ErrExecutableNotFound = errors.New("executable not found")
+
+// ErrPermissionDenied indicates permission was denied.
 var ErrPermissionDenied = errors.New("permission denied")
+
+// ErrUnsupportedProtocol indicates an unsupported protocol version.
 var ErrUnsupportedProtocol = errors.New("unsupported protocol version")
+
+// ErrConnectionClosed indicates the connection was closed.
 var ErrConnectionClosed = errors.New("connection closed")
 
 // BootstrapMode defines whether mcpd prefetches metadata during startup.
@@ -264,13 +326,18 @@ const (
 )
 
 // BootstrapState represents the current state of the bootstrap process
+// BootstrapState represents the current bootstrap state.
 type BootstrapState string
 
 const (
-	BootstrapPending   BootstrapState = "pending"
-	BootstrapRunning   BootstrapState = "running"
+	// BootstrapPending indicates bootstrap is pending.
+	BootstrapPending BootstrapState = "pending"
+	// BootstrapRunning indicates bootstrap is running.
+	BootstrapRunning BootstrapState = "running"
+	// BootstrapCompleted indicates bootstrap completed successfully.
 	BootstrapCompleted BootstrapState = "completed"
-	BootstrapFailed    BootstrapState = "failed"
+	// BootstrapFailed indicates bootstrap failed.
+	BootstrapFailed BootstrapState = "failed"
 )
 
 // BootstrapProgress provides real-time status of the bootstrap process
@@ -285,8 +352,12 @@ type BootstrapProgress struct {
 
 // Bootstrap configuration defaults
 const (
-	DefaultBootstrapMode           = BootstrapModeMetadata
-	DefaultBootstrapConcurrency    = 3
+	// DefaultBootstrapMode is the default bootstrap mode.
+	DefaultBootstrapMode = BootstrapModeMetadata
+	// DefaultBootstrapConcurrency is the default bootstrap concurrency.
+	DefaultBootstrapConcurrency = 3
+	// DefaultBootstrapTimeoutSeconds is the default bootstrap timeout in seconds.
 	DefaultBootstrapTimeoutSeconds = 30
-	DefaultActivationMode          = ActivationOnDemand
+	// DefaultActivationMode is the default activation mode.
+	DefaultActivationMode = ActivationOnDemand
 )

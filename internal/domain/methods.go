@@ -1,5 +1,6 @@
 package domain
 
+// MethodAllowed reports whether the capability set allows the method.
 func MethodAllowed(caps ServerCapabilities, method string) bool {
 	switch method {
 	case "ping":

@@ -17,7 +17,7 @@ import (
 
 // ServerInitIndex manages server initialization status snapshots with broadcast support
 type ServerInitIndex struct {
-	cp     domain.ControlPlane
+	cp     domain.ServerInitStatusReader
 	logger *zap.Logger
 
 	mu    sync.RWMutex
@@ -30,7 +30,7 @@ type serverInitStatusIndexState struct {
 }
 
 // NewServerInitIndex creates a new server init status index
-func NewServerInitIndex(cp domain.ControlPlane, logger *zap.Logger) *ServerInitIndex {
+func NewServerInitIndex(cp domain.ServerInitStatusReader, logger *zap.Logger) *ServerInitIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}

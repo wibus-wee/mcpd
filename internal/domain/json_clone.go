@@ -1,5 +1,6 @@
 package domain
 
+// CloneJSONValue deep-copies JSON-like values.
 func CloneJSONValue(value any) any {
 	switch typed := value.(type) {
 	case nil:
@@ -35,6 +36,7 @@ func CloneJSONValue(value any) any {
 	}
 }
 
+// CloneToolDefinition deep-copies a tool definition.
 func CloneToolDefinition(tool ToolDefinition) ToolDefinition {
 	out := tool
 	out.InputSchema = CloneJSONValue(tool.InputSchema)
@@ -44,6 +46,7 @@ func CloneToolDefinition(tool ToolDefinition) ToolDefinition {
 	return out
 }
 
+// CloneToolSnapshot deep-copies a tool snapshot.
 func CloneToolSnapshot(snapshot ToolSnapshot) ToolSnapshot {
 	tools := make([]ToolDefinition, 0, len(snapshot.Tools))
 	for _, tool := range snapshot.Tools {
@@ -52,6 +55,7 @@ func CloneToolSnapshot(snapshot ToolSnapshot) ToolSnapshot {
 	return ToolSnapshot{ETag: snapshot.ETag, Tools: tools}
 }
 
+// CloneResourceDefinition deep-copies a resource definition.
 func CloneResourceDefinition(resource ResourceDefinition) ResourceDefinition {
 	out := resource
 	out.Meta = cloneMeta(resource.Meta)
@@ -59,6 +63,7 @@ func CloneResourceDefinition(resource ResourceDefinition) ResourceDefinition {
 	return out
 }
 
+// CloneResourceSnapshot deep-copies a resource snapshot.
 func CloneResourceSnapshot(snapshot ResourceSnapshot) ResourceSnapshot {
 	resources := make([]ResourceDefinition, 0, len(snapshot.Resources))
 	for _, resource := range snapshot.Resources {
@@ -67,6 +72,7 @@ func CloneResourceSnapshot(snapshot ResourceSnapshot) ResourceSnapshot {
 	return ResourceSnapshot{ETag: snapshot.ETag, Resources: resources}
 }
 
+// ClonePromptDefinition deep-copies a prompt definition.
 func ClonePromptDefinition(prompt PromptDefinition) PromptDefinition {
 	out := prompt
 	out.Meta = cloneMeta(prompt.Meta)
@@ -74,6 +80,7 @@ func ClonePromptDefinition(prompt PromptDefinition) PromptDefinition {
 	return out
 }
 
+// ClonePromptSnapshot deep-copies a prompt snapshot.
 func ClonePromptSnapshot(snapshot PromptSnapshot) PromptSnapshot {
 	prompts := make([]PromptDefinition, 0, len(snapshot.Prompts))
 	for _, prompt := range snapshot.Prompts {

@@ -43,8 +43,12 @@ func (t *MCPTransport) Connect(ctx context.Context, specKey string, spec domain.
 	}
 	mcpConn, err := transport.Connect(ctx)
 	if err != nil {
-		_ = streams.Reader.Close()
-		_ = streams.Writer.Close()
+		if closeErr := streams.Reader.Close(); closeErr != nil {
+			t.logger.Warn("close stream reader failed", zap.Error(closeErr))
+		}
+		if closeErr := streams.Writer.Close(); closeErr != nil {
+			t.logger.Warn("close stream writer failed", zap.Error(closeErr))
+		}
 		return nil, fmt.Errorf("connect io transport: %w", err)
 	}
 

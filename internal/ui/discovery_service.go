@@ -39,7 +39,11 @@ func (s *DiscoveryService) ListTools(ctx context.Context) ([]ToolEntry, error) {
 		manager.GetSharedState().SetToolSnapshot(toolSnapshotFromCatalog(catalog))
 	}
 
-	return mapToolCatalogEntries(catalog), nil
+	entries, err := mapToolCatalogEntries(catalog)
+	if err != nil {
+		return nil, NewUIErrorWithDetails(ErrCodeInternal, "Failed to map tools", err.Error())
+	}
+	return entries, nil
 }
 
 // ListResources lists resources.
@@ -54,7 +58,11 @@ func (s *DiscoveryService) ListResources(ctx context.Context, cursor string) (*R
 		return nil, MapDomainError(err)
 	}
 
-	return mapResourcePage(page), nil
+	result, err := mapResourcePage(page)
+	if err != nil {
+		return nil, NewUIErrorWithDetails(ErrCodeInternal, "Failed to map resources", err.Error())
+	}
+	return result, nil
 }
 
 // ListPrompts lists prompt templates.
@@ -69,7 +77,11 @@ func (s *DiscoveryService) ListPrompts(ctx context.Context, cursor string) (*Pro
 		return nil, MapDomainError(err)
 	}
 
-	return mapPromptPage(page), nil
+	result, err := mapPromptPage(page)
+	if err != nil {
+		return nil, NewUIErrorWithDetails(ErrCodeInternal, "Failed to map prompts", err.Error())
+	}
+	return result, nil
 }
 
 // CallTool calls a tool.

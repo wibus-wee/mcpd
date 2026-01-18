@@ -70,7 +70,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 		HasPrompts:   true,
 	})
 
-	g.clients = newClientManager(g.cfg)
+	g.clients = newClientManager(g.cfg, g.logger)
 	g.registry = newToolRegistry(g.server, g.toolHandler, g.logger)
 	g.resources = newResourceRegistry(g.server, g.resourceHandler, g.logger)
 	g.prompts = newPromptRegistry(g.server, g.promptHandler, g.logger)

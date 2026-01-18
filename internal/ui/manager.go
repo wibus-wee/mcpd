@@ -104,7 +104,10 @@ func (m *Manager) startWithConfig(ctx context.Context, configPath string, observ
 	emitCoreState(m.wails, string(CoreStateStarting), nil)
 
 	// Create context for Core lifecycle
-	m.coreCtx, m.coreCancel = context.WithCancel(context.Background())
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.coreCtx, m.coreCancel = context.WithCancel(ctx)
 
 	cfg := app.ServeConfig{
 		ConfigPath:    configPath,
@@ -122,7 +125,12 @@ func resolveStartOptions(opts StartCoreOptions, fallback string) (string, *app.O
 	mode := strings.ToLower(strings.TrimSpace(opts.Mode))
 	configPath := strings.TrimSpace(opts.ConfigPath)
 	if configPath == "" {
-		configPath = "." // TODO: dynamic resolve with user data.
+		switch {
+		case fallback != "":
+			configPath = fallback
+		default:
+			configPath = "." // TODO: dynamic resolve with user data.
+		}
 	}
 	// if configPath == "" {
 	// 	switch mode {

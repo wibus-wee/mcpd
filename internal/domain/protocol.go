@@ -2,6 +2,7 @@ package domain
 
 import "strings"
 
+// NormalizeTransport normalizes transport names to supported values.
 func NormalizeTransport(transport TransportKind) TransportKind {
 	trimmed := strings.ToLower(strings.TrimSpace(string(transport)))
 	switch trimmed {
@@ -16,6 +17,7 @@ func NormalizeTransport(transport TransportKind) TransportKind {
 	}
 }
 
+// IsSupportedProtocolVersion reports whether a protocol version is supported.
 func IsSupportedProtocolVersion(transport TransportKind, version string) bool {
 	switch NormalizeTransport(transport) {
 	case TransportStreamableHTTP:

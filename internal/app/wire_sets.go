@@ -9,11 +9,13 @@ import (
 	"mcpd/internal/domain"
 )
 
+// CatalogProviderSet wires catalog providers for dependency injection.
 var CatalogProviderSet = wire.NewSet(
 	NewDynamicCatalogProvider,
 	wire.Bind(new(domain.CatalogProvider), new(*DynamicCatalogProvider)),
 )
 
+// CoreInfraSet wires core infrastructure dependencies.
 var CoreInfraSet = wire.NewSet(
 	NewLogging,
 	NewLogger,
@@ -28,6 +30,7 @@ var CoreInfraSet = wire.NewSet(
 	NewPingProbe,
 )
 
+// ReloadableAppSet wires reloadable application dependencies.
 var ReloadableAppSet = wire.NewSet(
 	CatalogProviderSet,
 	NewCatalogState,
@@ -47,6 +50,7 @@ var ReloadableAppSet = wire.NewSet(
 	wire.Bind(new(domain.ControlPlane), new(*ControlPlane)),
 )
 
+// AppSet wires the full application dependency set.
 var AppSet = wire.NewSet(
 	CoreInfraSet,
 	ReloadableAppSet,

@@ -9,6 +9,7 @@ import (
 	"mcpd/internal/infra/catalog"
 )
 
+// ValidateConfig validates the configuration at the provided path.
 func (a *App) ValidateConfig(ctx context.Context, cfg ValidateConfig) error {
 	logging := NewLogging(LoggingConfig{
 		Logger:      a.logger,

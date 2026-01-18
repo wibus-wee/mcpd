@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mapping"
@@ -9,43 +10,58 @@ import (
 	controlv1 "mcpd/pkg/api/control/v1"
 )
 
-func toProtoSnapshot(snapshot domain.ToolSnapshot) *controlv1.ToolsSnapshot {
-	tools := mapping.MapSlice(snapshot.Tools, func(tool domain.ToolDefinition) *controlv1.ToolDefinition {
-		return &controlv1.ToolDefinition{
-			Name:     tool.Name,
-			ToolJson: mcpcodec.MustMarshalToolDefinition(tool),
+func toProtoSnapshot(snapshot domain.ToolSnapshot) (*controlv1.ToolsSnapshot, error) {
+	tools := make([]*controlv1.ToolDefinition, 0, len(snapshot.Tools))
+	for _, tool := range snapshot.Tools {
+		raw, err := mcpcodec.MarshalToolDefinition(tool)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool %q: %w", tool.Name, err)
 		}
-	})
+		tools = append(tools, &controlv1.ToolDefinition{
+			Name:     tool.Name,
+			ToolJson: raw,
+		})
+	}
 	return &controlv1.ToolsSnapshot{
 		Etag:  snapshot.ETag,
 		Tools: tools,
-	}
+	}, nil
 }
 
-func toProtoResourcesSnapshot(snapshot domain.ResourceSnapshot) *controlv1.ResourcesSnapshot {
-	resources := mapping.MapSlice(snapshot.Resources, func(resource domain.ResourceDefinition) *controlv1.ResourceDefinition {
-		return &controlv1.ResourceDefinition{
-			Uri:          resource.URI,
-			ResourceJson: mcpcodec.MustMarshalResourceDefinition(resource),
+func toProtoResourcesSnapshot(snapshot domain.ResourceSnapshot) (*controlv1.ResourcesSnapshot, error) {
+	resources := make([]*controlv1.ResourceDefinition, 0, len(snapshot.Resources))
+	for _, resource := range snapshot.Resources {
+		raw, err := mcpcodec.MarshalResourceDefinition(resource)
+		if err != nil {
+			return nil, fmt.Errorf("marshal resource %q: %w", resource.URI, err)
 		}
-	})
+		resources = append(resources, &controlv1.ResourceDefinition{
+			Uri:          resource.URI,
+			ResourceJson: raw,
+		})
+	}
 	return &controlv1.ResourcesSnapshot{
 		Etag:      snapshot.ETag,
 		Resources: resources,
-	}
+	}, nil
 }
 
-func toProtoPromptsSnapshot(snapshot domain.PromptSnapshot) *controlv1.PromptsSnapshot {
-	prompts := mapping.MapSlice(snapshot.Prompts, func(prompt domain.PromptDefinition) *controlv1.PromptDefinition {
-		return &controlv1.PromptDefinition{
-			Name:       prompt.Name,
-			PromptJson: mcpcodec.MustMarshalPromptDefinition(prompt),
+func toProtoPromptsSnapshot(snapshot domain.PromptSnapshot) (*controlv1.PromptsSnapshot, error) {
+	prompts := make([]*controlv1.PromptDefinition, 0, len(snapshot.Prompts))
+	for _, prompt := range snapshot.Prompts {
+		raw, err := mcpcodec.MarshalPromptDefinition(prompt)
+		if err != nil {
+			return nil, fmt.Errorf("marshal prompt %q: %w", prompt.Name, err)
 		}
-	})
+		prompts = append(prompts, &controlv1.PromptDefinition{
+			Name:       prompt.Name,
+			PromptJson: raw,
+		})
+	}
 	return &controlv1.PromptsSnapshot{
 		Etag:    snapshot.ETag,
 		Prompts: prompts,
-	}
+	}, nil
 }
 
 func toProtoLogEntry(entry domain.LogEntry) *controlv1.LogEntry {

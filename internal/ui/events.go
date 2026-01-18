@@ -108,9 +108,13 @@ func emitToolsUpdated(app *application.App, snapshot domain.ToolSnapshot) {
 	}
 	tools := make([]ToolEntry, 0, len(snapshot.Tools))
 	for _, t := range snapshot.Tools {
+		raw, err := mcpcodec.MarshalToolDefinition(t)
+		if err != nil {
+			continue
+		}
 		tools = append(tools, ToolEntry{
 			Name:       t.Name,
-			ToolJSON:   mcpcodec.MustMarshalToolDefinition(t),
+			ToolJSON:   raw,
 			SpecKey:    t.SpecKey,
 			ServerName: t.ServerName,
 			Source:     string(domain.ToolSourceLive),
@@ -129,9 +133,13 @@ func emitResourcesUpdated(app *application.App, snapshot domain.ResourceSnapshot
 	}
 	resources := make([]ResourceEntry, 0, len(snapshot.Resources))
 	for _, r := range snapshot.Resources {
+		raw, err := mcpcodec.MarshalResourceDefinition(r)
+		if err != nil {
+			continue
+		}
 		resources = append(resources, ResourceEntry{
 			URI:          r.URI,
-			ResourceJSON: mcpcodec.MustMarshalResourceDefinition(r),
+			ResourceJSON: raw,
 		})
 	}
 	event := ResourcesUpdatedEvent{
@@ -147,9 +155,13 @@ func emitPromptsUpdated(app *application.App, snapshot domain.PromptSnapshot) {
 	}
 	prompts := make([]PromptEntry, 0, len(snapshot.Prompts))
 	for _, p := range snapshot.Prompts {
+		raw, err := mcpcodec.MarshalPromptDefinition(p)
+		if err != nil {
+			continue
+		}
 		prompts = append(prompts, PromptEntry{
 			Name:       p.Name,
-			PromptJSON: mcpcodec.MustMarshalPromptDefinition(p),
+			PromptJSON: raw,
 		})
 	}
 	event := PromptsUpdatedEvent{

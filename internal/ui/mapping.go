@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"time"
 
 	"mcpd/internal/domain"
@@ -8,58 +9,82 @@ import (
 	"mcpd/internal/infra/mcpcodec"
 )
 
-func mapToolEntries(snapshot domain.ToolSnapshot) []ToolEntry {
-	return mapping.MapSlice(snapshot.Tools, func(tool domain.ToolDefinition) ToolEntry {
-		return ToolEntry{
+func mapToolEntries(snapshot domain.ToolSnapshot) ([]ToolEntry, error) {
+	entries := make([]ToolEntry, 0, len(snapshot.Tools))
+	for _, tool := range snapshot.Tools {
+		raw, err := mcpcodec.MarshalToolDefinition(tool)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool %q: %w", tool.Name, err)
+		}
+		entries = append(entries, ToolEntry{
 			Name:       tool.Name,
-			ToolJSON:   mcpcodec.MustMarshalToolDefinition(tool),
+			ToolJSON:   raw,
 			SpecKey:    tool.SpecKey,
 			ServerName: tool.ServerName,
 			Source:     string(domain.ToolSourceLive),
-		}
-	})
+		})
+	}
+	return entries, nil
 }
 
-func mapToolCatalogEntries(snapshot domain.ToolCatalogSnapshot) []ToolEntry {
-	return mapping.MapSlice(snapshot.Tools, func(entry domain.ToolCatalogEntry) ToolEntry {
+func mapToolCatalogEntries(snapshot domain.ToolCatalogSnapshot) ([]ToolEntry, error) {
+	entries := make([]ToolEntry, 0, len(snapshot.Tools))
+	for _, entry := range snapshot.Tools {
 		tool := entry.Definition
+		raw, err := mcpcodec.MarshalToolDefinition(tool)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool %q: %w", tool.Name, err)
+		}
 		cachedAt := ""
 		if entry.Source == domain.ToolSourceCache && !entry.CachedAt.IsZero() {
 			cachedAt = entry.CachedAt.UTC().Format(time.RFC3339Nano)
 		}
-		return ToolEntry{
+		entries = append(entries, ToolEntry{
 			Name:       tool.Name,
-			ToolJSON:   mcpcodec.MustMarshalToolDefinition(tool),
+			ToolJSON:   raw,
 			SpecKey:    tool.SpecKey,
 			ServerName: tool.ServerName,
 			Source:     string(entry.Source),
 			CachedAt:   cachedAt,
-		}
-	})
+		})
+	}
+	return entries, nil
 }
 
-func mapResourcePage(page domain.ResourcePage) *ResourcePage {
+func mapResourcePage(page domain.ResourcePage) (*ResourcePage, error) {
+	resources := make([]ResourceEntry, 0, len(page.Snapshot.Resources))
+	for _, resource := range page.Snapshot.Resources {
+		raw, err := mcpcodec.MarshalResourceDefinition(resource)
+		if err != nil {
+			return nil, fmt.Errorf("marshal resource %q: %w", resource.URI, err)
+		}
+		resources = append(resources, ResourceEntry{
+			URI:          resource.URI,
+			ResourceJSON: raw,
+		})
+	}
 	return &ResourcePage{
 		NextCursor: page.NextCursor,
-		Resources: mapping.MapSlice(page.Snapshot.Resources, func(resource domain.ResourceDefinition) ResourceEntry {
-			return ResourceEntry{
-				URI:          resource.URI,
-				ResourceJSON: mcpcodec.MustMarshalResourceDefinition(resource),
-			}
-		}),
-	}
+		Resources:  resources,
+	}, nil
 }
 
-func mapPromptPage(page domain.PromptPage) *PromptPage {
+func mapPromptPage(page domain.PromptPage) (*PromptPage, error) {
+	prompts := make([]PromptEntry, 0, len(page.Snapshot.Prompts))
+	for _, prompt := range page.Snapshot.Prompts {
+		raw, err := mcpcodec.MarshalPromptDefinition(prompt)
+		if err != nil {
+			return nil, fmt.Errorf("marshal prompt %q: %w", prompt.Name, err)
+		}
+		prompts = append(prompts, PromptEntry{
+			Name:       prompt.Name,
+			PromptJSON: raw,
+		})
+	}
 	return &PromptPage{
 		NextCursor: page.NextCursor,
-		Prompts: mapping.MapSlice(page.Snapshot.Prompts, func(prompt domain.PromptDefinition) PromptEntry {
-			return PromptEntry{
-				Name:       prompt.Name,
-				PromptJSON: mcpcodec.MustMarshalPromptDefinition(prompt),
-			}
-		}),
-	}
+		Prompts:    prompts,
+	}, nil
 }
 
 func mapRuntimeStatuses(pools []domain.PoolInfo) []ServerRuntimeStatus {

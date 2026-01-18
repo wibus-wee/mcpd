@@ -10,10 +10,12 @@ import (
 	"mcpd/internal/infra/catalog"
 )
 
+// StaticCatalogProvider serves an immutable catalog snapshot.
 type StaticCatalogProvider struct {
 	state domain.CatalogState
 }
 
+// NewStaticCatalogProvider loads a catalog once and returns a static provider.
 func NewStaticCatalogProvider(ctx context.Context, cfg ServeConfig, logger *zap.Logger) (*StaticCatalogProvider, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -35,6 +37,7 @@ func NewStaticCatalogProvider(ctx context.Context, cfg ServeConfig, logger *zap.
 	return &StaticCatalogProvider{state: state}, nil
 }
 
+// Snapshot returns the current catalog snapshot.
 func (p *StaticCatalogProvider) Snapshot(ctx context.Context) (domain.CatalogState, error) {
 	if ctx == nil {
 		return p.state, nil
@@ -45,12 +48,14 @@ func (p *StaticCatalogProvider) Snapshot(ctx context.Context) (domain.CatalogSta
 	return p.state, nil
 }
 
+// Watch returns a closed update channel for static catalogs.
 func (p *StaticCatalogProvider) Watch(ctx context.Context) (<-chan domain.CatalogUpdate, error) {
 	ch := make(chan domain.CatalogUpdate)
 	close(ch)
 	return ch, nil
 }
 
+// Reload is a no-op for static catalogs.
 func (p *StaticCatalogProvider) Reload(ctx context.Context) error {
 	return nil
 }

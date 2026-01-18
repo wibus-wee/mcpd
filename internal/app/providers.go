@@ -19,6 +19,7 @@ import (
 	"mcpd/internal/infra/transport"
 )
 
+// NewMetricsRegistry creates a Prometheus registry.
 func NewMetricsRegistry() *prometheus.Registry {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
@@ -26,22 +27,27 @@ func NewMetricsRegistry() *prometheus.Registry {
 	return registry
 }
 
+// NewMetrics constructs metrics backed by Prometheus.
 func NewMetrics(registry *prometheus.Registry) domain.Metrics {
 	return telemetry.NewPrometheusMetrics(registry)
 }
 
+// NewHealthTracker constructs a health tracker.
 func NewHealthTracker() *telemetry.HealthTracker {
 	return telemetry.NewHealthTracker()
 }
 
+// NewListChangeHub constructs a list change hub.
 func NewListChangeHub() *notifications.ListChangeHub {
 	return notifications.NewListChangeHub()
 }
 
+// NewCommandLauncher constructs a launcher for stdio servers.
 func NewCommandLauncher(logger *zap.Logger) domain.Launcher {
 	return transport.NewCommandLauncher(transport.CommandLauncherOptions{Logger: logger})
 }
 
+// NewMCPTransport constructs an MCP transport for stdio servers.
 func NewMCPTransport(logger *zap.Logger, listChanges *notifications.ListChangeHub) domain.Transport {
 	stdioTransport := transport.NewMCPTransport(transport.MCPTransportOptions{
 		Logger:            logger,
@@ -57,14 +63,17 @@ func NewMCPTransport(logger *zap.Logger, listChanges *notifications.ListChangeHu
 	})
 }
 
+// NewLifecycleManager constructs the lifecycle manager.
 func NewLifecycleManager(ctx context.Context, launcher domain.Launcher, transport domain.Transport, logger *zap.Logger) domain.Lifecycle {
 	return lifecycle.NewManager(ctx, launcher, transport, logger)
 }
 
+// NewPingProbe constructs a ping-based health probe.
 func NewPingProbe() *probe.PingProbe {
 	return &probe.PingProbe{Timeout: defaultPingProbeTimeout}
 }
 
+// NewScheduler constructs the scheduler.
 func NewScheduler(
 	lifecycle domain.Lifecycle,
 	state *domain.CatalogState,
@@ -82,6 +91,7 @@ func NewScheduler(
 	})
 }
 
+// NewBootstrapManagerProvider constructs the bootstrap manager.
 func NewBootstrapManagerProvider(
 	lifecycle domain.Lifecycle,
 	scheduler domain.Scheduler,
@@ -132,6 +142,7 @@ func NewBootstrapManagerProvider(
 	})
 }
 
+// NewProfileRuntimes constructs runtime state for profiles.
 func NewProfileRuntimes(
 	state *domain.CatalogState,
 	scheduler domain.Scheduler,
@@ -149,6 +160,7 @@ func NewProfileRuntimes(
 	return profiles
 }
 
+// NewControlPlaneState constructs a control plane state container.
 func NewControlPlaneState(
 	ctx context.Context,
 	profiles map[string]*profileRuntime,
@@ -181,6 +193,7 @@ func NewControlPlaneState(
 	return controlState
 }
 
+// NewRPCServer constructs the RPC server.
 func NewRPCServer(control domain.ControlPlane, state *domain.CatalogState, logger *zap.Logger) *rpc.Server {
 	return rpc.NewServer(control, state.Summary.DefaultRuntime.RPC, logger)
 }

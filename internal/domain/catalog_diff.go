@@ -5,6 +5,7 @@ import (
 	"sort"
 )
 
+// CatalogDiff summarizes changes between catalog states.
 type CatalogDiff struct {
 	AddedSpecKeys    []string
 	RemovedSpecKeys  []string
@@ -16,6 +17,7 @@ type CatalogDiff struct {
 	CallersChanged   bool
 }
 
+// IsEmpty reports whether the diff contains any changes.
 func (d CatalogDiff) IsEmpty() bool {
 	return len(d.AddedSpecKeys) == 0 &&
 		len(d.RemovedSpecKeys) == 0 &&
@@ -27,6 +29,7 @@ func (d CatalogDiff) IsEmpty() bool {
 		!d.CallersChanged
 }
 
+// DiffCatalogStates computes a diff between two catalog states.
 func DiffCatalogStates(prev CatalogState, next CatalogState) CatalogDiff {
 	diff := CatalogDiff{}
 	diff.CallersChanged = !reflect.DeepEqual(prev.Store.Callers, next.Store.Callers)

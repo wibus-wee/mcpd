@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Scheduler manages instance pools for server specs.
 type Scheduler interface {
 	Acquire(ctx context.Context, specKey, routingKey string) (*Instance, error)
 	AcquireReady(ctx context.Context, specKey, routingKey string) (*Instance, error)

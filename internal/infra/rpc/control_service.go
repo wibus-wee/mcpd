@@ -77,8 +77,12 @@ func (s *ControlService) ListTools(ctx context.Context, req *controlv1.ListTools
 	if err != nil {
 		return nil, mapCallerError("list tools", err)
 	}
+	protoSnapshot, err := toProtoSnapshot(snapshot)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list tools: %v", err)
+	}
 	return &controlv1.ListToolsResponse{
-		Snapshot: toProtoSnapshot(snapshot),
+		Snapshot: protoSnapshot,
 	}, nil
 }
 
@@ -90,7 +94,11 @@ func (s *ControlService) WatchTools(req *controlv1.WatchToolsRequest, stream con
 	}
 	lastETag := req.GetLastEtag()
 	if lastETag == "" || lastETag != current.ETag {
-		if err := stream.Send(toProtoSnapshot(current)); err != nil {
+		protoSnapshot, err := toProtoSnapshot(current)
+		if err != nil {
+			return status.Errorf(codes.Internal, "watch tools: %v", err)
+		}
+		if err := stream.Send(protoSnapshot); err != nil {
 			return err
 		}
 		lastETag = current.ETag
@@ -112,7 +120,11 @@ func (s *ControlService) WatchTools(req *controlv1.WatchToolsRequest, stream con
 			if lastETag == snapshot.ETag {
 				continue
 			}
-			if err := stream.Send(toProtoSnapshot(snapshot)); err != nil {
+			protoSnapshot, err := toProtoSnapshot(snapshot)
+			if err != nil {
+				return status.Errorf(codes.Internal, "watch tools: %v", err)
+			}
+			if err := stream.Send(protoSnapshot); err != nil {
 				return err
 			}
 			lastETag = snapshot.ETag
@@ -141,8 +153,12 @@ func (s *ControlService) ListResources(ctx context.Context, req *controlv1.ListR
 	if err != nil {
 		return nil, mapListError("list resources", err)
 	}
+	resourcesSnapshot, err := toProtoResourcesSnapshot(page.Snapshot)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list resources: %v", err)
+	}
 	return &controlv1.ListResourcesResponse{
-		Snapshot:   toProtoResourcesSnapshot(page.Snapshot),
+		Snapshot:   resourcesSnapshot,
 		NextCursor: page.NextCursor,
 	}, nil
 }
@@ -167,7 +183,11 @@ func (s *ControlService) WatchResources(req *controlv1.WatchResourcesRequest, st
 			if lastETag == snapshot.ETag {
 				continue
 			}
-			if err := stream.Send(toProtoResourcesSnapshot(snapshot)); err != nil {
+			protoSnapshot, err := toProtoResourcesSnapshot(snapshot)
+			if err != nil {
+				return status.Errorf(codes.Internal, "watch resources: %v", err)
+			}
+			if err := stream.Send(protoSnapshot); err != nil {
 				return err
 			}
 			lastETag = snapshot.ETag
@@ -196,8 +216,12 @@ func (s *ControlService) ListPrompts(ctx context.Context, req *controlv1.ListPro
 	if err != nil {
 		return nil, mapListError("list prompts", err)
 	}
+	promptsSnapshot, err := toProtoPromptsSnapshot(page.Snapshot)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list prompts: %v", err)
+	}
 	return &controlv1.ListPromptsResponse{
-		Snapshot:   toProtoPromptsSnapshot(page.Snapshot),
+		Snapshot:   promptsSnapshot,
 		NextCursor: page.NextCursor,
 	}, nil
 }
@@ -222,7 +246,11 @@ func (s *ControlService) WatchPrompts(req *controlv1.WatchPromptsRequest, stream
 			if lastETag == snapshot.ETag {
 				continue
 			}
-			if err := stream.Send(toProtoPromptsSnapshot(snapshot)); err != nil {
+			protoSnapshot, err := toProtoPromptsSnapshot(snapshot)
+			if err != nil {
+				return status.Errorf(codes.Internal, "watch prompts: %v", err)
+			}
+			if err := stream.Send(protoSnapshot); err != nil {
 				return err
 			}
 			lastETag = snapshot.ETag
@@ -413,7 +441,11 @@ func (s *ControlService) AutomaticMCP(ctx context.Context, req *controlv1.Automa
 		return nil, mapCallerError("automatic_mcp", err)
 	}
 
-	return toProtoAutomaticMCPResponse(result), nil
+	resp, err := toProtoAutomaticMCPResponse(result)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "automatic_mcp: %v", err)
+	}
+	return resp, nil
 }
 
 // AutomaticEval handles the automatic_eval tool call for SubAgent.
@@ -446,12 +478,12 @@ func (s *ControlService) IsSubAgentEnabled(ctx context.Context, req *controlv1.I
 }
 
 // toProtoAutomaticMCPResponse converts domain.AutomaticMCPResult to proto response.
-func toProtoAutomaticMCPResponse(snapshot domain.AutomaticMCPResult) *controlv1.AutomaticMCPResponse {
+func toProtoAutomaticMCPResponse(snapshot domain.AutomaticMCPResult) (*controlv1.AutomaticMCPResponse, error) {
 	tools := make([][]byte, 0, len(snapshot.Tools))
 	for _, tool := range snapshot.Tools {
-		raw := mcpcodec.MustMarshalToolDefinition(tool)
-		if len(raw) == 0 {
-			continue
+		raw, err := mcpcodec.MarshalToolDefinition(tool)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool %q: %w", tool.Name, err)
 		}
 		tools = append(tools, raw)
 	}
@@ -460,5 +492,5 @@ func toProtoAutomaticMCPResponse(snapshot domain.AutomaticMCPResult) *controlv1.
 		ToolsJson:      tools,
 		TotalAvailable: int32(snapshot.TotalAvailable),
 		Filtered:       int32(snapshot.Filtered),
-	}
+	}, nil
 }

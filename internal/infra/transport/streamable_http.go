@@ -70,10 +70,14 @@ func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, s
 		)
 	}
 	if streams.Reader != nil {
-		_ = streams.Reader.Close()
+		if err := streams.Reader.Close(); err != nil {
+			t.logger.Warn("close stream reader failed", zap.Error(err))
+		}
 	}
 	if streams.Writer != nil {
-		_ = streams.Writer.Close()
+		if err := streams.Writer.Close(); err != nil {
+			t.logger.Warn("close stream writer failed", zap.Error(err))
+		}
 	}
 
 	return newClientConn(mcpConn, clientConnOptions{

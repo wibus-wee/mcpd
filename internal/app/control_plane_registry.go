@@ -45,6 +45,7 @@ func newCallerRegistry(state *controlPlaneState) *callerRegistry {
 	}
 }
 
+// StartMonitor begins monitoring caller heartbeats.
 func (r *callerRegistry) StartMonitor(ctx context.Context) {
 	runtime := r.state.Runtime()
 	interval := time.Duration(runtime.CallerCheckSeconds) * time.Second
@@ -81,6 +82,7 @@ func (r *callerRegistry) StartMonitor(ctx context.Context) {
 	}()
 }
 
+// RegisterCaller registers a caller and returns the profile name.
 func (r *callerRegistry) RegisterCaller(ctx context.Context, caller string, pid int) (string, error) {
 	if caller == "" {
 		return "", errors.New("caller is required")
@@ -145,6 +147,7 @@ func (r *callerRegistry) RegisterCaller(ctx context.Context, caller string, pid 
 	return profileName, nil
 }
 
+// UnregisterCaller unregisters a caller.
 func (r *callerRegistry) UnregisterCaller(ctx context.Context, caller string) error {
 	if caller == "" {
 		return errors.New("caller is required")
@@ -174,6 +177,7 @@ func (r *callerRegistry) UnregisterCaller(ctx context.Context, caller string) er
 	return nil
 }
 
+// ListActiveCallers lists active callers.
 func (r *callerRegistry) ListActiveCallers(ctx context.Context) ([]domain.ActiveCaller, error) {
 	now := time.Now()
 	r.mu.Lock()
@@ -182,6 +186,7 @@ func (r *callerRegistry) ListActiveCallers(ctx context.Context) ([]domain.Active
 	return finalizeActiveCallerSnapshot(snapshot).Callers, nil
 }
 
+// WatchActiveCallers streams active caller updates.
 func (r *callerRegistry) WatchActiveCallers(ctx context.Context) (<-chan domain.ActiveCallerSnapshot, error) {
 	ch := make(chan domain.ActiveCallerSnapshot, 1)
 	r.mu.Lock()
@@ -202,6 +207,7 @@ func (r *callerRegistry) WatchActiveCallers(ctx context.Context) (<-chan domain.
 }
 
 // WatchProfileChanges returns a channel that receives events when a caller's profile mapping changes.
+// WatchProfileChanges streams profile change events.
 func (r *callerRegistry) WatchProfileChanges(ctx context.Context) <-chan profileChangeEvent {
 	ch := make(chan profileChangeEvent, 16)
 	r.mu.Lock()
@@ -470,6 +476,7 @@ func (r *callerRegistry) broadcastActiveCallers(snapshot domain.ActiveCallerSnap
 	}
 }
 
+// ApplyCatalogUpdate updates caller state based on catalog changes.
 func (r *callerRegistry) ApplyCatalogUpdate(ctx context.Context, update domain.CatalogUpdate) error {
 	callers := r.state.Callers()
 	profiles := r.state.Profiles()

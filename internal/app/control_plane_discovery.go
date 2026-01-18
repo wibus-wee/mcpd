@@ -99,6 +99,7 @@ func (w *callerWatcher[T]) switchProfile(ctx context.Context, profile *profileRu
 }
 
 // StartProfileChangeListener starts listening for profile changes and switches watchers accordingly.
+// StartProfileChangeListener watches profile changes for caller subscriptions.
 func (d *discoveryService) StartProfileChangeListener(ctx context.Context) {
 	changes := d.registry.WatchProfileChanges(ctx)
 	go func() {
@@ -138,6 +139,7 @@ func (d *discoveryService) handleProfileChange(ctx context.Context, event profil
 	}
 }
 
+// ListTools lists tools for a caller.
 func (d *discoveryService) ListTools(ctx context.Context, caller string) (domain.ToolSnapshot, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -149,6 +151,7 @@ func (d *discoveryService) ListTools(ctx context.Context, caller string) (domain
 	return profile.tools.Snapshot(), nil
 }
 
+// ListToolsAllProfiles lists tools across all profiles.
 func (d *discoveryService) ListToolsAllProfiles(ctx context.Context) (domain.ToolSnapshot, error) {
 	profileNames := d.registry.activeProfileNames()
 	if len(profileNames) == 0 {
@@ -201,6 +204,7 @@ func (d *discoveryService) ListToolsAllProfiles(ctx context.Context) (domain.Too
 	}, nil
 }
 
+// ListToolCatalog returns the full tool catalog snapshot.
 func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCatalogSnapshot, error) {
 	profiles := d.state.Profiles()
 	if len(profiles) == 0 {
@@ -252,6 +256,7 @@ func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCata
 	return buildToolCatalogSnapshot(liveTools, cachedTools, cachedAt), nil
 }
 
+// WatchTools streams tool snapshots for a caller.
 func (d *discoveryService) WatchTools(ctx context.Context, caller string) (<-chan domain.ToolSnapshot, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -303,6 +308,7 @@ func (d *discoveryService) WatchTools(ctx context.Context, caller string) (<-cha
 	return watcher.output, nil
 }
 
+// CallTool executes a tool on behalf of a caller.
 func (d *discoveryService) CallTool(ctx context.Context, caller, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -321,6 +327,7 @@ func (d *discoveryService) CallTool(ctx context.Context, caller, name string, ar
 	return profile.tools.CallTool(ctx, name, args, routingKey)
 }
 
+// CallToolAllProfiles executes a tool across all profiles.
 func (d *discoveryService) CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error) {
 	ctx = domain.WithStartCause(ctx, domain.StartCause{
 		Reason:   domain.StartCauseToolCall,
@@ -347,6 +354,7 @@ func (d *discoveryService) CallToolAllProfiles(ctx context.Context, name string,
 	return nil, domain.ErrToolNotFound
 }
 
+// ListResources lists resources for a caller.
 func (d *discoveryService) ListResources(ctx context.Context, caller string, cursor string) (domain.ResourcePage, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -359,6 +367,7 @@ func (d *discoveryService) ListResources(ctx context.Context, caller string, cur
 	return paginateResources(snapshot, cursor)
 }
 
+// ListResourcesAllProfiles lists resources across all profiles.
 func (d *discoveryService) ListResourcesAllProfiles(ctx context.Context, cursor string) (domain.ResourcePage, error) {
 	profileNames := d.registry.activeProfileNames()
 	if len(profileNames) == 0 {
@@ -398,6 +407,7 @@ func (d *discoveryService) ListResourcesAllProfiles(ctx context.Context, cursor 
 	return paginateResources(snapshot, cursor)
 }
 
+// WatchResources streams resource snapshots for a caller.
 func (d *discoveryService) WatchResources(ctx context.Context, caller string) (<-chan domain.ResourceSnapshot, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -449,6 +459,7 @@ func (d *discoveryService) WatchResources(ctx context.Context, caller string) (<
 	return watcher.output, nil
 }
 
+// ReadResource reads a resource on behalf of a caller.
 func (d *discoveryService) ReadResource(ctx context.Context, caller, uri string) (json.RawMessage, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -461,6 +472,7 @@ func (d *discoveryService) ReadResource(ctx context.Context, caller, uri string)
 	return profile.resources.ReadResource(ctx, uri)
 }
 
+// ReadResourceAllProfiles reads a resource across all profiles.
 func (d *discoveryService) ReadResourceAllProfiles(ctx context.Context, uri, specKey string) (json.RawMessage, error) {
 	profileNames := d.registry.activeProfileNames()
 	for _, profileName := range profileNames {
@@ -483,6 +495,7 @@ func (d *discoveryService) ReadResourceAllProfiles(ctx context.Context, uri, spe
 	return nil, domain.ErrResourceNotFound
 }
 
+// ListPrompts lists prompts for a caller.
 func (d *discoveryService) ListPrompts(ctx context.Context, caller string, cursor string) (domain.PromptPage, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -495,6 +508,7 @@ func (d *discoveryService) ListPrompts(ctx context.Context, caller string, curso
 	return paginatePrompts(snapshot, cursor)
 }
 
+// ListPromptsAllProfiles lists prompts across all profiles.
 func (d *discoveryService) ListPromptsAllProfiles(ctx context.Context, cursor string) (domain.PromptPage, error) {
 	profileNames := d.registry.activeProfileNames()
 	if len(profileNames) == 0 {
@@ -534,6 +548,7 @@ func (d *discoveryService) ListPromptsAllProfiles(ctx context.Context, cursor st
 	return paginatePrompts(snapshot, cursor)
 }
 
+// WatchPrompts streams prompt snapshots for a caller.
 func (d *discoveryService) WatchPrompts(ctx context.Context, caller string) (<-chan domain.PromptSnapshot, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -585,6 +600,7 @@ func (d *discoveryService) WatchPrompts(ctx context.Context, caller string) (<-c
 	return watcher.output, nil
 }
 
+// GetPrompt resolves a prompt for a caller.
 func (d *discoveryService) GetPrompt(ctx context.Context, caller, name string, args json.RawMessage) (json.RawMessage, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {
@@ -597,6 +613,7 @@ func (d *discoveryService) GetPrompt(ctx context.Context, caller, name string, a
 	return profile.prompts.GetPrompt(ctx, name, args)
 }
 
+// GetPromptAllProfiles resolves a prompt across all profiles.
 func (d *discoveryService) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage, specKey string) (json.RawMessage, error) {
 	profileNames := d.registry.activeProfileNames()
 	for _, profileName := range profileNames {
@@ -619,6 +636,7 @@ func (d *discoveryService) GetPromptAllProfiles(ctx context.Context, name string
 	return nil, domain.ErrPromptNotFound
 }
 
+// GetToolSnapshotForCaller returns the tool snapshot for a caller.
 func (d *discoveryService) GetToolSnapshotForCaller(caller string) (domain.ToolSnapshot, error) {
 	profile, err := d.registry.resolveProfile(caller)
 	if err != nil {

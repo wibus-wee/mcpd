@@ -11,6 +11,7 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// App wires core services and provides lifecycle entry points.
 type App struct {
 	logger         *zap.Logger
 	logBroadcaster *telemetry.LogBroadcaster
@@ -18,21 +19,25 @@ type App struct {
 	reloadManager  *ReloadManager
 }
 
+// ServeConfig describes how to start the core application.
 type ServeConfig struct {
 	ConfigPath    string
 	OnReady       func(domain.ControlPlane) // Called when Core is ready (after RPC server starts)
 	Observability *ObservabilityOptions
 }
 
+// ValidateConfig describes how to validate configuration.
 type ValidateConfig struct {
 	ConfigPath string
 }
 
+// ObservabilityOptions toggles observability features.
 type ObservabilityOptions struct {
 	MetricsEnabled *bool
 	HealthzEnabled *bool
 }
 
+// New constructs an App with the provided logger.
 func New(logger *zap.Logger) *App {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -42,6 +47,7 @@ func New(logger *zap.Logger) *App {
 	}
 }
 
+// NewWithBroadcaster constructs an App with a log broadcaster.
 func NewWithBroadcaster(logger *zap.Logger, broadcaster *telemetry.LogBroadcaster) *App {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -52,6 +58,7 @@ func NewWithBroadcaster(logger *zap.Logger, broadcaster *telemetry.LogBroadcaste
 	}
 }
 
+// Serve starts the core application.
 func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	a.logger.Info("core initialization started", zap.String("config", cfg.ConfigPath))
 	application, err := InitializeApplication(ctx, cfg, LoggingConfig{
@@ -68,6 +75,7 @@ func (a *App) Serve(ctx context.Context, cfg ServeConfig) error {
 	return application.Run()
 }
 
+// ReloadConfig triggers a configuration reload.
 func (a *App) ReloadConfig(ctx context.Context) error {
 	a.mu.RLock()
 	manager := a.reloadManager

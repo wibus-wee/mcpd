@@ -6,6 +6,7 @@ import (
 	"mcpd/internal/domain"
 )
 
+// NewCatalogState loads a catalog state from a provider snapshot.
 func NewCatalogState(ctx context.Context, provider domain.CatalogProvider) (*domain.CatalogState, error) {
 	if ctx == nil {
 		ctx = context.Background()

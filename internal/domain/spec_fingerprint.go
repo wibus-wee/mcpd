@@ -8,6 +8,7 @@ import (
 	"sort"
 )
 
+// SpecFingerprint returns a stable hash for a server spec.
 func SpecFingerprint(spec ServerSpec) (string, error) {
 	hasher := sha256.New()
 	transport := NormalizeTransport(spec.Transport)

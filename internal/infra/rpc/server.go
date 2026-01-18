@@ -153,10 +153,14 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	if s.listener != nil {
-		_ = s.listener.Close()
+		if err := s.listener.Close(); err != nil {
+			s.logger.Warn("rpc listener close failed", zap.Error(err))
+		}
 	}
 	if s.network == "unix" && s.address != "" {
-		_ = os.Remove(s.address)
+		if err := os.Remove(s.address); err != nil && !os.IsNotExist(err) {
+			s.logger.Warn("rpc socket remove failed", zap.Error(err))
+		}
 	}
 	return nil
 }

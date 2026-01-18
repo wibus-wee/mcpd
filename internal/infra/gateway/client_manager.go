@@ -4,19 +4,26 @@ import (
 	"context"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"mcpd/internal/infra/rpc"
 )
 
 type clientManager struct {
-	cfg rpc.ClientConfig
+	cfg    rpc.ClientConfig
+	logger *zap.Logger
 
 	mu     sync.Mutex
 	client *rpc.Client
 }
 
-func newClientManager(cfg rpc.ClientConfig) *clientManager {
+func newClientManager(cfg rpc.ClientConfig, logger *zap.Logger) *clientManager {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &clientManager{
-		cfg: cfg,
+		cfg:    cfg,
+		logger: logger.Named("gateway_client"),
 	}
 }
 
@@ -38,7 +45,9 @@ func (m *clientManager) get(ctx context.Context) (*rpc.Client, error) {
 func (m *clientManager) reset() {
 	m.mu.Lock()
 	if m.client != nil {
-		_ = m.client.Close()
+		if err := m.client.Close(); err != nil {
+			m.logger.Warn("rpc client close failed", zap.Error(err))
+		}
 		m.client = nil
 	}
 	m.mu.Unlock()

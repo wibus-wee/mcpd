@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// RouteContext carries caller metadata for routing.
 type RouteContext struct {
 	Caller  string
 	Profile string
@@ -12,21 +13,29 @@ type RouteContext struct {
 
 type routeContextKey struct{}
 
+// StartCauseReason labels why an instance was started.
 type StartCauseReason string
 
 const (
-	StartCauseBootstrap      StartCauseReason = "bootstrap"
-	StartCauseToolCall       StartCauseReason = "tool_call"
+	// StartCauseBootstrap indicates bootstrap triggered the start.
+	StartCauseBootstrap StartCauseReason = "bootstrap"
+	// StartCauseToolCall indicates a tool call triggered the start.
+	StartCauseToolCall StartCauseReason = "tool_call"
+	// StartCauseCallerActivate indicates caller activation triggered the start.
 	StartCauseCallerActivate StartCauseReason = "caller_activate"
+	// StartCausePolicyAlwaysOn indicates always-on policy triggered the start.
 	StartCausePolicyAlwaysOn StartCauseReason = "policy_always_on"
+	// StartCausePolicyMinReady indicates min-ready policy triggered the start.
 	StartCausePolicyMinReady StartCauseReason = "policy_min_ready"
 )
 
+// StartCausePolicy captures policy details for a start cause.
 type StartCausePolicy struct {
 	ActivationMode ActivationMode `json:"activationMode"`
 	MinReady       int            `json:"minReady"`
 }
 
+// StartCause describes why an instance was started.
 type StartCause struct {
 	Reason    StartCauseReason  `json:"reason"`
 	Caller    string            `json:"caller,omitempty"`
@@ -38,6 +47,7 @@ type StartCause struct {
 
 type startCauseKey struct{}
 
+// WithRouteContext attaches routing metadata to a context.
 func WithRouteContext(ctx context.Context, meta RouteContext) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -45,6 +55,7 @@ func WithRouteContext(ctx context.Context, meta RouteContext) context.Context {
 	return context.WithValue(ctx, routeContextKey{}, meta)
 }
 
+// RouteContextFrom extracts routing metadata from a context.
 func RouteContextFrom(ctx context.Context) (RouteContext, bool) {
 	if ctx == nil {
 		return RouteContext{}, false
@@ -53,6 +64,7 @@ func RouteContextFrom(ctx context.Context) (RouteContext, bool) {
 	return meta, ok
 }
 
+// WithStartCause attaches a start cause to a context.
 func WithStartCause(ctx context.Context, cause StartCause) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -60,6 +72,7 @@ func WithStartCause(ctx context.Context, cause StartCause) context.Context {
 	return context.WithValue(ctx, startCauseKey{}, cause)
 }
 
+// StartCauseFromContext extracts a start cause from a context.
 func StartCauseFromContext(ctx context.Context) (StartCause, bool) {
 	if ctx == nil {
 		return StartCause{}, false
@@ -68,6 +81,7 @@ func StartCauseFromContext(ctx context.Context) (StartCause, bool) {
 	return cause, ok
 }
 
+// CloneStartCause deep-copies a start cause when it is non-nil.
 func CloneStartCause(cause *StartCause) *StartCause {
 	if cause == nil {
 		return nil

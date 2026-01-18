@@ -5,11 +5,13 @@ import (
 	"fmt"
 )
 
+// CatalogProfile pairs a profile with its resolved spec keys.
 type CatalogProfile struct {
 	Profile  Profile
 	SpecKeys map[string]string
 }
 
+// CatalogSummary aggregates catalog metadata across profiles.
 type CatalogSummary struct {
 	Profiles        map[string]CatalogProfile
 	SpecRegistry    map[string]ServerSpec
@@ -18,6 +20,7 @@ type CatalogSummary struct {
 	DefaultRuntime  RuntimeConfig
 }
 
+// BuildCatalogSummary computes a summary view of the profile store.
 func BuildCatalogSummary(store ProfileStore) (CatalogSummary, error) {
 	if len(store.Profiles) == 0 {
 		return CatalogSummary{}, errors.New("no profiles loaded")

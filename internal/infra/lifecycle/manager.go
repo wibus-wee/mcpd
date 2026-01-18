@@ -86,6 +86,12 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 	}
 
 	startCtx, cancelStart := context.WithCancel(baseCtx)
+	cancelOnReturn := cancelStart
+	defer func() {
+		if cancelOnReturn != nil {
+			cancelOnReturn()
+		}
+	}()
 	var detached atomic.Bool
 	stopBridge := func() bool { return true }
 	if ctx != nil && ctx != baseCtx {
@@ -134,6 +140,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		// Streamable HTTP connects to external servers and does not use IO streams.
 		streams = domain.IOStreams{}
 	}
+	stop = wrapStop(stop, cancelStart)
 	spawnedAt = time.Now()
 
 	conn, err := m.transport.Connect(startCtx, specKey, spec, streams)
@@ -186,9 +193,19 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 			telemetry.DurationField(time.Since(started)),
 			zap.Error(err),
 		)
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			m.logger.Warn("instance close after init failure failed",
+				telemetry.ServerTypeField(spec.Name),
+				zap.Error(closeErr),
+			)
+		}
 		if stop != nil {
-			_ = stop(ctx)
+			if stopErr := stop(ctx); stopErr != nil {
+				m.logger.Warn("instance stop after init failure failed",
+					telemetry.ServerTypeField(spec.Name),
+					zap.Error(stopErr),
+				)
+			}
 		}
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
@@ -216,6 +233,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		telemetry.DurationField(time.Since(started)),
 	)
 	detached.Store(true)
+	cancelOnReturn = nil
 	return instance, nil
 }
 
@@ -324,11 +342,21 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 		return fmt.Errorf("unknown instance: %s", instance.ID)
 	}
 
+	var closeErr error
 	if conn != nil {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			closeErr = err
+			m.logger.Warn("instance close failed",
+				telemetry.ServerTypeField(instance.Spec.Name),
+				telemetry.InstanceIDField(instance.ID),
+				zap.Error(err),
+			)
+		}
 	}
+	var stopErr error
 	if stop != nil {
 		if err := stop(ctx); err != nil {
+			stopErr = err
 			m.logger.Error("instance stop failed",
 				telemetry.EventField(telemetry.EventStopFailure),
 				telemetry.ServerTypeField(instance.Spec.Name),
@@ -336,8 +364,13 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 				telemetry.DurationField(time.Since(started)),
 				zap.Error(err),
 			)
-			return fmt.Errorf("stop instance %s: %w", instance.ID, err)
 		}
+	}
+	if stopErr != nil {
+		return fmt.Errorf("stop instance %s: %w", instance.ID, errors.Join(stopErr, closeErr))
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close instance %s: %w", instance.ID, closeErr)
 	}
 
 	instance.State = domain.InstanceStateStopped
@@ -354,6 +387,18 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 
 func (m *Manager) generateInstanceID(spec domain.ServerSpec) string {
 	return fmt.Sprintf("%s-%d-%d", spec.Name, time.Now().UnixNano(), rand.Int63())
+}
+
+func wrapStop(stop domain.StopFn, cancel context.CancelFunc) domain.StopFn {
+	return func(ctx context.Context) error {
+		if cancel != nil {
+			defer cancel()
+		}
+		if stop == nil {
+			return nil
+		}
+		return stop(ctx)
+	}
 }
 
 func (m *Manager) validateInitializeResponse(raw json.RawMessage) (domain.ServerCapabilities, error) {

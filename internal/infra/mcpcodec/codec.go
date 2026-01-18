@@ -70,17 +70,26 @@ func MarshalPromptDefinition(prompt domain.PromptDefinition) ([]byte, error) {
 }
 
 func MustMarshalToolDefinition(tool domain.ToolDefinition) []byte {
-	raw, _ := MarshalToolDefinition(tool)
+	raw, err := MarshalToolDefinition(tool)
+	if err != nil {
+		panic(err)
+	}
 	return raw
 }
 
 func MustMarshalResourceDefinition(resource domain.ResourceDefinition) []byte {
-	raw, _ := MarshalResourceDefinition(resource)
+	raw, err := MarshalResourceDefinition(resource)
+	if err != nil {
+		panic(err)
+	}
 	return raw
 }
 
 func MustMarshalPromptDefinition(prompt domain.PromptDefinition) []byte {
-	raw, _ := MarshalPromptDefinition(prompt)
+	raw, err := MarshalPromptDefinition(prompt)
+	if err != nil {
+		panic(err)
+	}
 	return raw
 }
 

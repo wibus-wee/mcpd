@@ -33,6 +33,7 @@ func newObservabilityService(state *controlPlaneState, registry *callerRegistry,
 	}
 }
 
+// StreamLogs streams logs for a caller.
 func (o *observabilityService) StreamLogs(ctx context.Context, caller string, minLevel domain.LogLevel) (<-chan domain.LogEntry, error) {
 	if _, err := o.registry.resolveProfile(caller); err != nil {
 		return closedLogEntryChannel(), err
@@ -40,6 +41,7 @@ func (o *observabilityService) StreamLogs(ctx context.Context, caller string, mi
 	return o.streamLogs(ctx, minLevel)
 }
 
+// StreamLogsAllProfiles streams logs across all profiles.
 func (o *observabilityService) StreamLogsAllProfiles(ctx context.Context, minLevel domain.LogLevel) (<-chan domain.LogEntry, error) {
 	return o.streamLogs(ctx, minLevel)
 }
@@ -79,6 +81,7 @@ func (o *observabilityService) streamLogs(ctx context.Context, minLevel domain.L
 	return out, nil
 }
 
+// GetPoolStatus returns current pool status.
 func (o *observabilityService) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, error) {
 	if o.state.scheduler == nil {
 		return nil, nil
@@ -86,6 +89,7 @@ func (o *observabilityService) GetPoolStatus(ctx context.Context) ([]domain.Pool
 	return o.state.scheduler.GetPoolStatus(ctx)
 }
 
+// GetServerInitStatus returns current server init statuses.
 func (o *observabilityService) GetServerInitStatus(ctx context.Context) ([]domain.ServerInitStatus, error) {
 	if o.state.initManager == nil {
 		return nil, nil
@@ -93,6 +97,7 @@ func (o *observabilityService) GetServerInitStatus(ctx context.Context) ([]domai
 	return o.state.initManager.Statuses(ctx), nil
 }
 
+// WatchRuntimeStatus streams runtime status for a caller.
 func (o *observabilityService) WatchRuntimeStatus(ctx context.Context, caller string) (<-chan domain.RuntimeStatusSnapshot, error) {
 	if _, err := o.registry.resolveProfile(caller); err != nil {
 		return closedRuntimeStatusChannel(), err
@@ -103,6 +108,7 @@ func (o *observabilityService) WatchRuntimeStatus(ctx context.Context, caller st
 	return o.runtimeStatusIdx.Subscribe(ctx), nil
 }
 
+// WatchRuntimeStatusAllProfiles streams runtime status across profiles.
 func (o *observabilityService) WatchRuntimeStatusAllProfiles(ctx context.Context) (<-chan domain.RuntimeStatusSnapshot, error) {
 	if o.runtimeStatusIdx == nil {
 		return closedRuntimeStatusChannel(), nil
@@ -110,6 +116,7 @@ func (o *observabilityService) WatchRuntimeStatusAllProfiles(ctx context.Context
 	return o.runtimeStatusIdx.Subscribe(ctx), nil
 }
 
+// WatchServerInitStatus streams server init status for a caller.
 func (o *observabilityService) WatchServerInitStatus(ctx context.Context, caller string) (<-chan domain.ServerInitStatusSnapshot, error) {
 	if _, err := o.registry.resolveProfile(caller); err != nil {
 		return closedServerInitStatusChannel(), err
@@ -120,6 +127,7 @@ func (o *observabilityService) WatchServerInitStatus(ctx context.Context, caller
 	return o.serverInitIdx.Subscribe(ctx), nil
 }
 
+// WatchServerInitStatusAllProfiles streams server init status across profiles.
 func (o *observabilityService) WatchServerInitStatusAllProfiles(ctx context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
 	if o.serverInitIdx == nil {
 		return closedServerInitStatusChannel(), nil
@@ -127,6 +135,7 @@ func (o *observabilityService) WatchServerInitStatusAllProfiles(ctx context.Cont
 	return o.serverInitIdx.Subscribe(ctx), nil
 }
 
+// SetRuntimeStatusIndex updates the runtime status index.
 func (o *observabilityService) SetRuntimeStatusIndex(idx *aggregator.RuntimeStatusIndex) {
 	o.runtimeStatusIdx = idx
 	if idx != nil {
@@ -134,6 +143,7 @@ func (o *observabilityService) SetRuntimeStatusIndex(idx *aggregator.RuntimeStat
 	}
 }
 
+// SetServerInitIndex updates the server init status index.
 func (o *observabilityService) SetServerInitIndex(idx *aggregator.ServerInitIndex) {
 	o.serverInitIdx = idx
 	if idx != nil {
