@@ -178,6 +178,7 @@ type ControlPlane interface {
 	WatchActiveCallers(ctx context.Context) (<-chan ActiveCallerSnapshot, error)
 	ListTools(ctx context.Context, caller string) (ToolSnapshot, error)
 	ListToolsAllProfiles(ctx context.Context) (ToolSnapshot, error)
+	ListToolCatalog(ctx context.Context) (ToolCatalogSnapshot, error)
 	WatchTools(ctx context.Context, caller string) (<-chan ToolSnapshot, error)
 	CallTool(ctx context.Context, caller, name string, args json.RawMessage, routingKey string) (json.RawMessage, error)
 	CallToolAllProfiles(ctx context.Context, name string, args json.RawMessage, routingKey, specKey string) (json.RawMessage, error)

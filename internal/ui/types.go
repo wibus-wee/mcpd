@@ -10,6 +10,8 @@ type ToolEntry struct {
 	ToolJSON   json.RawMessage `json:"toolJson"`
 	SpecKey    string          `json:"specKey"`
 	ServerName string          `json:"serverName"`
+	Source     string          `json:"source"`
+	CachedAt   string          `json:"cachedAt,omitempty"`
 }
 
 // ResourceEntry represents a single resource for the frontend

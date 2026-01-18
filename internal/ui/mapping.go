@@ -15,6 +15,25 @@ func mapToolEntries(snapshot domain.ToolSnapshot) []ToolEntry {
 			ToolJSON:   mcpcodec.MustMarshalToolDefinition(tool),
 			SpecKey:    tool.SpecKey,
 			ServerName: tool.ServerName,
+			Source:     string(domain.ToolSourceLive),
+		}
+	})
+}
+
+func mapToolCatalogEntries(snapshot domain.ToolCatalogSnapshot) []ToolEntry {
+	return mapping.MapSlice(snapshot.Tools, func(entry domain.ToolCatalogEntry) ToolEntry {
+		tool := entry.Definition
+		cachedAt := ""
+		if entry.Source == domain.ToolSourceCache && !entry.CachedAt.IsZero() {
+			cachedAt = entry.CachedAt.UTC().Format(time.RFC3339Nano)
+		}
+		return ToolEntry{
+			Name:       tool.Name,
+			ToolJSON:   mcpcodec.MustMarshalToolDefinition(tool),
+			SpecKey:    tool.SpecKey,
+			ServerName: tool.ServerName,
+			Source:     string(entry.Source),
+			CachedAt:   cachedAt,
 		}
 	})
 }

@@ -191,6 +191,13 @@ func (f *fakeControlPlane) ListToolsAllProfiles(ctx context.Context) (domain.Too
 	return f.snapshot, nil
 }
 
+func (f *fakeControlPlane) ListToolCatalog(ctx context.Context) (domain.ToolCatalogSnapshot, error) {
+	if f.listToolsErr != nil {
+		return domain.ToolCatalogSnapshot{}, f.listToolsErr
+	}
+	return domain.ToolCatalogSnapshot{}, nil
+}
+
 func (f *fakeControlPlane) WatchTools(ctx context.Context, caller string) (<-chan domain.ToolSnapshot, error) {
 	ch := make(chan domain.ToolSnapshot)
 	close(ch)

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 
 	"go.uber.org/zap"
+
+	"mcpd/internal/domain"
 )
 
 // DiscoveryService exposes tools/resources/prompts APIs.
@@ -27,17 +29,17 @@ func (s *DiscoveryService) ListTools(ctx context.Context) ([]ToolEntry, error) {
 		return nil, err
 	}
 
-	snapshot, err := cp.ListToolsAllProfiles(ctx)
+	catalog, err := cp.ListToolCatalog(ctx)
 	if err != nil {
 		return nil, MapDomainError(err)
 	}
 
 	manager := s.deps.manager()
 	if manager != nil {
-		manager.GetSharedState().SetToolSnapshot(snapshot)
+		manager.GetSharedState().SetToolSnapshot(toolSnapshotFromCatalog(catalog))
 	}
 
-	return mapToolEntries(snapshot), nil
+	return mapToolCatalogEntries(catalog), nil
 }
 
 // ListResources lists resources.
@@ -111,4 +113,15 @@ func (s *DiscoveryService) GetPrompt(ctx context.Context, name string, args json
 		return nil, MapDomainError(err)
 	}
 	return result, nil
+}
+
+func toolSnapshotFromCatalog(snapshot domain.ToolCatalogSnapshot) domain.ToolSnapshot {
+	tools := make([]domain.ToolDefinition, 0, len(snapshot.Tools))
+	for _, entry := range snapshot.Tools {
+		tools = append(tools, entry.Definition)
+	}
+	return domain.ToolSnapshot{
+		ETag:  snapshot.ETag,
+		Tools: tools,
+	}
 }

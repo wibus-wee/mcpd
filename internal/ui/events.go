@@ -113,6 +113,7 @@ func emitToolsUpdated(app *application.App, snapshot domain.ToolSnapshot) {
 			ToolJSON:   mcpcodec.MustMarshalToolDefinition(t),
 			SpecKey:    t.SpecKey,
 			ServerName: t.ServerName,
+			Source:     string(domain.ToolSourceLive),
 		})
 	}
 	event := ToolsUpdatedEvent{

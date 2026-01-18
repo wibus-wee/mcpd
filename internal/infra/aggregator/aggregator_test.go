@@ -128,6 +128,38 @@ func TestToolIndex_UsesCachedToolsWhenNoReadyInstance(t *testing.T) {
 	require.Equal(t, "echo", snapshot.Tools[0].ServerName)
 }
 
+func TestToolIndex_CachedSnapshot(t *testing.T) {
+	cache := domain.NewMetadataCache()
+	cache.SetTools("spec-echo", []domain.ToolDefinition{
+		{
+			Name:        "echo",
+			Description: "cached",
+			InputSchema: map[string]any{"type": "object"},
+		},
+	}, "etag")
+
+	router := &failingRouter{err: domain.ErrNoReadyInstance}
+	specs := map[string]domain.ServerSpec{
+		"echo": {Name: "echo"},
+	}
+	specKeys := map[string]string{
+		"echo": "spec-echo",
+	}
+	cfg := domain.RuntimeConfig{
+		ExposeTools:           true,
+		ToolNamespaceStrategy: "prefix",
+	}
+
+	index := NewToolIndex(router, specs, specKeys, cfg, cache, zap.NewNop(), nil, nil, nil)
+
+	snapshot := index.CachedSnapshot()
+	require.Len(t, snapshot.Tools, 1)
+	require.Equal(t, "echo.echo", snapshot.Tools[0].Name)
+	require.Equal(t, "cached", snapshot.Tools[0].Description)
+	require.Equal(t, "spec-echo", snapshot.Tools[0].SpecKey)
+	require.Equal(t, "echo", snapshot.Tools[0].ServerName)
+}
+
 func TestToolIndex_CallToolNotFound(t *testing.T) {
 	ctx := context.Background()
 	index := NewToolIndex(&fakeRouter{}, map[string]domain.ServerSpec{}, map[string]string{}, domain.RuntimeConfig{}, nil, zap.NewNop(), nil, nil, nil)

@@ -344,6 +344,10 @@ export function ServerDetailPanel({
             <div className="space-y-2">
               {toolList.map(tool => {
                 const description = parseToolDescription(tool)
+                const isCached = tool.source === 'cache'
+                const cachedLabel = tool.cachedAt
+                  ? `Cached ${formatRelativeTime(tool.cachedAt)}`
+                  : 'Cached metadata'
 
                 return (
                   <button
@@ -360,6 +364,16 @@ export function ServerDetailPanel({
                       <span className="font-mono text-xs text-foreground/90">
                         {tool.name}
                       </span>
+                      {isCached && (
+                        <Badge
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto"
+                          title={cachedLabel}
+                        >
+                          cached
+                        </Badge>
+                      )}
                     </div>
                     {description && (
                       <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">

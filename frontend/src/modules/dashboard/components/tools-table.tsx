@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { useTools } from '../hooks'
+import { formatRelativeTime } from '@/lib/time'
 
 interface ToolSchema {
   name: string
@@ -155,10 +156,28 @@ export function ToolsTable() {
                 ) : (
                   filteredTools.map((tool) => {
                     const parsed = parsedTools.get(tool.name) ?? { name: tool.name }
+                    const isCached = tool.source === 'cache'
+                    const cachedLabel = tool.cachedAt
+                      ? `Cached ${formatRelativeTime(tool.cachedAt)}`
+                      : 'Cached metadata'
                     return (
                       <TableRow key={tool.name}>
                         <TableCell className="py-1.5 font-mono ">
-                          {tool.name}
+                          <div className="flex items-center gap-2">
+                            <span>{tool.name}</span>
+                            {isCached && (
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={(
+                                    <Badge variant="outline" size="sm">
+                                      cached
+                                    </Badge>
+                                  )}
+                                />
+                                <TooltipContent>{cachedLabel}</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="max-w-60 truncate py-1.5  text-muted-foreground">
                           {parsed.description || '--'}

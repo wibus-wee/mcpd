@@ -105,6 +105,31 @@ func (a *ToolIndex) Snapshot() domain.ToolSnapshot {
 	return a.index.Snapshot()
 }
 
+// CachedSnapshot builds a snapshot from metadata cache without touching live instances.
+func (a *ToolIndex) CachedSnapshot() domain.ToolSnapshot {
+	if a.metadataCache == nil || !a.cfg.ExposeTools {
+		return domain.ToolSnapshot{}
+	}
+
+	cache := make(map[string]serverCache)
+	serverTypes := sortedServerTypes(a.specs)
+	for _, serverType := range serverTypes {
+		spec := a.specs[serverType]
+		cached, ok := a.cachedServerCache(serverType, spec)
+		if !ok || len(cached.tools) == 0 {
+			continue
+		}
+		cache[serverType] = cached
+	}
+
+	if len(cache) == 0 {
+		return domain.ToolSnapshot{}
+	}
+
+	snapshot, _ := a.buildSnapshot(cache)
+	return snapshot
+}
+
 func (a *ToolIndex) Subscribe(ctx context.Context) <-chan domain.ToolSnapshot {
 	return a.index.Subscribe(ctx)
 }

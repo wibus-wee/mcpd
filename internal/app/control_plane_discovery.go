@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mcpcodec"
@@ -198,6 +199,57 @@ func (d *discoveryService) ListToolsAllProfiles(ctx context.Context) (domain.Too
 		ETag:  hashTools(merged),
 		Tools: merged,
 	}, nil
+}
+
+func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCatalogSnapshot, error) {
+	profiles := d.state.Profiles()
+	if len(profiles) == 0 {
+		return domain.ToolCatalogSnapshot{}, nil
+	}
+
+	liveTools := make([]domain.ToolDefinition, 0)
+	activeProfiles := d.registry.activeProfileNames()
+	for _, name := range activeProfiles {
+		runtime, ok := d.state.Profile(name)
+		if !ok || runtime.tools == nil {
+			continue
+		}
+		snapshot := runtime.tools.Snapshot()
+		liveTools = append(liveTools, snapshot.Tools...)
+	}
+
+	cachedTools := make([]domain.ToolDefinition, 0)
+	for _, runtime := range profiles {
+		if runtime.tools == nil {
+			continue
+		}
+		snapshot := runtime.tools.CachedSnapshot()
+		if len(snapshot.Tools) == 0 {
+			continue
+		}
+		cachedTools = append(cachedTools, snapshot.Tools...)
+	}
+
+	cachedAt := make(map[string]time.Time)
+	if len(cachedTools) > 0 {
+		cache := d.metadataCache()
+		if cache != nil {
+			for _, tool := range cachedTools {
+				specKey := tool.SpecKey
+				if specKey == "" {
+					continue
+				}
+				if _, ok := cachedAt[specKey]; ok {
+					continue
+				}
+				if ts, ok := cache.GetCachedAt(specKey); ok {
+					cachedAt[specKey] = ts
+				}
+			}
+		}
+	}
+
+	return buildToolCatalogSnapshot(liveTools, cachedTools, cachedAt), nil
 }
 
 func (d *discoveryService) WatchTools(ctx context.Context, caller string) (<-chan domain.ToolSnapshot, error) {
@@ -646,6 +698,99 @@ func indexAfterPromptCursor(prompts []domain.PromptDefinition, cursor string) in
 		return -1
 	}
 	return idx + 1
+}
+
+func (d *discoveryService) metadataCache() *domain.MetadataCache {
+	if d == nil || d.state == nil || d.state.bootstrapManager == nil {
+		return nil
+	}
+	return d.state.bootstrapManager.GetCache()
+}
+
+func buildToolCatalogSnapshot(liveTools []domain.ToolDefinition, cachedTools []domain.ToolDefinition, cachedAt map[string]time.Time) domain.ToolCatalogSnapshot {
+	entriesByKey := make(map[string]domain.ToolCatalogEntry)
+
+	for _, tool := range liveTools {
+		if tool.Name == "" {
+			continue
+		}
+		key := toolDedupKey(tool)
+		if key == "" {
+			continue
+		}
+		entriesByKey[key] = domain.ToolCatalogEntry{
+			Definition: tool,
+			Source:     domain.ToolSourceLive,
+		}
+	}
+
+	for _, tool := range cachedTools {
+		if tool.Name == "" {
+			continue
+		}
+		key := toolDedupKey(tool)
+		if key == "" {
+			continue
+		}
+		if _, ok := entriesByKey[key]; ok {
+			continue
+		}
+		entry := domain.ToolCatalogEntry{
+			Definition: tool,
+			Source:     domain.ToolSourceCache,
+		}
+		if tool.SpecKey != "" && cachedAt != nil {
+			if ts, ok := cachedAt[tool.SpecKey]; ok {
+				entry.CachedAt = ts
+			}
+		}
+		entriesByKey[key] = entry
+	}
+
+	if len(entriesByKey) == 0 {
+		return domain.ToolCatalogSnapshot{}
+	}
+
+	entries := make([]domain.ToolCatalogEntry, 0, len(entriesByKey))
+	for _, entry := range entriesByKey {
+		entries = append(entries, entry)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		left := entries[i].Definition
+		right := entries[j].Definition
+		if left.SpecKey != right.SpecKey {
+			return left.SpecKey < right.SpecKey
+		}
+		if left.Name != right.Name {
+			return left.Name < right.Name
+		}
+		return left.ServerName < right.ServerName
+	})
+
+	tools := make([]domain.ToolDefinition, 0, len(entries))
+	for _, entry := range entries {
+		tools = append(tools, entry.Definition)
+	}
+
+	return domain.ToolCatalogSnapshot{
+		ETag:  hashTools(tools),
+		Tools: entries,
+	}
+}
+
+func toolDedupKey(tool domain.ToolDefinition) string {
+	key := tool.SpecKey
+	if key == "" {
+		key = tool.ServerName
+	}
+	if key == "" {
+		key = tool.Name
+	}
+	if key == "" || tool.Name == "" {
+		return ""
+	}
+	return key + "\x00" + tool.Name
 }
 
 func hashTools(tools []domain.ToolDefinition) string {

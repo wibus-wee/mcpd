@@ -67,6 +67,10 @@ func (c *ControlPlane) ListToolsAllProfiles(ctx context.Context) (domain.ToolSna
 	return c.discovery.ListToolsAllProfiles(ctx)
 }
 
+func (c *ControlPlane) ListToolCatalog(ctx context.Context) (domain.ToolCatalogSnapshot, error) {
+	return c.discovery.ListToolCatalog(ctx)
+}
+
 func (c *ControlPlane) WatchTools(ctx context.Context, caller string) (<-chan domain.ToolSnapshot, error) {
 	return c.discovery.WatchTools(ctx, caller)
 }

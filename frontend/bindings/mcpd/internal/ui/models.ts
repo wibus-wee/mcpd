@@ -1345,6 +1345,8 @@ export class ToolEntry {
     "toolJson": json$0.RawMessage;
     "specKey": string;
     "serverName": string;
+    "source": string;
+    "cachedAt"?: string;
 
     /** Creates a new ToolEntry instance. */
     constructor($$source: Partial<ToolEntry> = {}) {
@@ -1359,6 +1361,9 @@ export class ToolEntry {
         }
         if (!("serverName" in $$source)) {
             this["serverName"] = "";
+        }
+        if (!("source" in $$source)) {
+            this["source"] = "";
         }
 
         Object.assign(this, $$source);

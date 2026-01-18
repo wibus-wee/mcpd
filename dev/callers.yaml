@@ -1,9 +1,9 @@
 callers:
-    Alma: weather-http
+    Alma: default
     cherryStudio: chat
     claudeCode: code
     codex: code
     copilot: code
     cursor: code
-    inspector: weather-http
+    inspector: default
     vscode: code

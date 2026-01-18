@@ -9,12 +9,14 @@ import { ChevronRightIcon, SearchIcon, ServerIcon, WrenchIcon } from 'lucide-rea
 import type { ActiveCaller, ToolEntry } from '@bindings/mcpd/internal/ui'
 
 import { CallerChipGroup } from '@/components/common/caller-chip-group'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useActiveCallers } from '@/hooks/use-active-callers'
 import { ServerRuntimeIndicator } from '@/modules/config/components/server-runtime-status'
 import { cn } from '@/lib/utils'
 import { Spring } from '@/lib/spring'
+import { formatRelativeTime } from '@/lib/time'
 
 import type { ServerGroup } from '../hooks'
 
@@ -265,6 +267,10 @@ export function ToolsSidebar({
                           <div className="ml-4 pl-2 border-l border-border/50 space-y-0.5 py-1">
                             {server.tools.map(tool => {
                               const isSelected = selectedToolId === `${server.id}:${tool.name}`
+                              const isCached = tool.source === 'cache'
+                              const cachedLabel = tool.cachedAt
+                                ? `Cached ${formatRelativeTime(tool.cachedAt)}`
+                                : 'Cached metadata'
 
                               return (
                                 <button
@@ -286,6 +292,16 @@ export function ToolsSidebar({
                                   <span className="truncate font-mono text-xs">
                                     {tool.name}
                                   </span>
+                                  {isCached && (
+                                    <Badge
+                                      variant="outline"
+                                      size="sm"
+                                      className="ml-auto"
+                                      title={cachedLabel}
+                                    >
+                                      cached
+                                    </Badge>
+                                  )}
                                 </button>
                               )
                             })}
