@@ -3,7 +3,8 @@
 // Position: Dashboard logs section with filtering
 
 import { useSetAtom } from 'jotai'
-import { RefreshCwIcon, ScrollTextIcon, TrashIcon } from 'lucide-react'
+import { debounce } from 'es-toolkit/function'
+import { RefreshCwIcon, ScrollTextIcon, SearchIcon, TrashIcon, XIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
@@ -25,6 +26,7 @@ import { useCoreState } from '@/hooks/use-core-state'
 import type { LogEntry, LogSource } from '@/hooks/use-logs'
 import { useLogs } from '@/hooks/use-logs'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 
 const levelClassName: Record<LogEntry['level'], string> = {
   debug: 'text-muted-foreground',
@@ -123,6 +125,8 @@ export function LogsPanel() {
   const [levelFilter, setLevelFilter] = useState<string>('all')
   const [sourceFilter, setSourceFilter] = useState<LogSource | 'all'>('all')
   const [serverFilter, setServerFilter] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const bumpLogStreamToken = useSetAtom(logStreamTokenAtom)
   const parentRef = useRef<HTMLDivElement | null>(null)
@@ -163,9 +167,17 @@ export function LogsPanel() {
       if (serverFilter !== 'all' && log.serverType !== serverFilter) {
         return false
       }
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        const matchesMessage = log.message.toLowerCase().includes(query)
+        const matchesFields = JSON.stringify(log.fields).toLowerCase().includes(query)
+        if (!matchesMessage && !matchesFields) {
+          return false
+        }
+      }
       return true
     })
-  }, [levelFilter, logs, serverFilter, sourceFilter])
+  }, [levelFilter, logs, searchQuery, serverFilter, sourceFilter])
 
   const orderedLogs = useMemo(() => filteredLogs.slice().reverse(), [filteredLogs])
   const orderedLogRows = useMemo(() => {
@@ -194,9 +206,13 @@ export function LogsPanel() {
     mutate([], { revalidate: false })
   }
 
-  const handleLevelChange = (value: string | null) => {
-    setLevelFilter(value ?? 'all')
-  }
+  const handleSearchChange = useMemo(
+    () =>
+      debounce((value: string) => {
+        setSearchQuery(value)
+      }, 200),
+    [],
+  )
 
   const forceRefresh = () => {
     bumpLogStreamToken(value => value + 1)
@@ -293,6 +309,31 @@ export function LogsPanel() {
               )}
             </CardTitle>
             <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-56">
+                <SearchIcon className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search logs..."
+                  value={searchInput}
+                  onChange={e => {
+                    const value = e.target.value
+                    setSearchInput(value)
+                    handleSearchChange(value)
+                  }}
+                  className="h-8 pl-8 pr-8"
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => {
+                      setSearchInput('')
+                      setSearchQuery('')
+                      handleSearchChange.cancel()
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <XIcon className="size-4" />
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="auto-scroll"
@@ -303,7 +344,7 @@ export function LogsPanel() {
                   Auto-scroll
                 </Label>
               </div>
-              <Select value={levelFilter} onValueChange={handleLevelChange}>
+              <Select value={levelFilter} onValueChange={value => setLevelFilter(value || "all")}>
                 <SelectTrigger size="sm" className="w-32">
                   <SelectValue>
                     {value =>

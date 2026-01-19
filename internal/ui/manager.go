@@ -103,11 +103,12 @@ func (m *Manager) startWithConfig(ctx context.Context, configPath string, observ
 	m.coreError = nil
 	emitCoreState(m.wails, string(CoreStateStarting), nil)
 
-	// Create context for Core lifecycle
-	if ctx == nil {
-		ctx = context.Background()
+	// Create context for Core lifecycle. Detach from request-scoped context to avoid early cancellation.
+	parent := context.Background()
+	if ctx != nil {
+		parent = context.WithoutCancel(ctx)
 	}
-	m.coreCtx, m.coreCancel = context.WithCancel(ctx)
+	m.coreCtx, m.coreCancel = context.WithCancel(parent)
 
 	cfg := app.ServeConfig{
 		ConfigPath:    configPath,
