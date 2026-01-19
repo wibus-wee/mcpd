@@ -100,6 +100,73 @@ func (w *callerWatcher[T]) switchProfile(ctx context.Context, profile *profileRu
 	}()
 }
 
+func switchCallerWatchers[T any](ctx context.Context, watchers map[string][]*callerWatcher[T], caller string, profile *profileRuntime) {
+	for _, watcher := range watchers[caller] {
+		watcher.switchProfile(ctx, profile)
+	}
+}
+
+func watchSnapshots[T any](
+	d *discoveryService,
+	ctx context.Context,
+	caller string,
+	closedCh func() chan T,
+	getIndex func(*profileRuntime) indexSubscriber[T],
+	watchers map[string][]*callerWatcher[T],
+) (<-chan T, error) {
+	profile, err := d.registry.resolveProfile(caller)
+	if err != nil {
+		return closedCh(), err
+	}
+
+	watcher := &callerWatcher[T]{
+		caller:   caller,
+		output:   make(chan T, 1),
+		getIndex: getIndex,
+	}
+
+	watcher.switchProfile(ctx, profile)
+
+	d.mu.Lock()
+	watchers[caller] = append(watchers[caller], watcher)
+	d.mu.Unlock()
+
+	go cleanupWatcher(d, ctx, caller, watcher, watchers)
+
+	return watcher.output, nil
+}
+
+func cleanupWatcher[T any](
+	d *discoveryService,
+	ctx context.Context,
+	caller string,
+	watcher *callerWatcher[T],
+	watchers map[string][]*callerWatcher[T],
+) {
+	<-ctx.Done()
+	watcher.mu.Lock()
+	if watcher.subCancel != nil {
+		watcher.subCancel()
+	}
+	watcher.mu.Unlock()
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	callerWatchers := watchers[caller]
+	for i, w := range callerWatchers {
+		if w == watcher {
+			callerWatchers = append(callerWatchers[:i], callerWatchers[i+1:]...)
+			break
+		}
+	}
+	if len(callerWatchers) == 0 {
+		delete(watchers, caller)
+		return
+	}
+	watchers[caller] = callerWatchers
+}
+
 // StartProfileChangeListener watches profile changes for caller subscriptions.
 func (d *discoveryService) StartProfileChangeListener(ctx context.Context) {
 	changes := d.registry.WatchProfileChanges(ctx)
@@ -124,20 +191,9 @@ func (d *discoveryService) handleProfileChange(ctx context.Context, event profil
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Switch all tool watchers for this caller
-	for _, w := range d.toolWatchers[event.Caller] {
-		w.switchProfile(ctx, newProfile)
-	}
-
-	// Switch all resource watchers for this caller
-	for _, w := range d.resourceWatchers[event.Caller] {
-		w.switchProfile(ctx, newProfile)
-	}
-
-	// Switch all prompt watchers for this caller
-	for _, w := range d.promptWatchers[event.Caller] {
-		w.switchProfile(ctx, newProfile)
-	}
+	switchCallerWatchers(ctx, d.toolWatchers, event.Caller, newProfile)
+	switchCallerWatchers(ctx, d.resourceWatchers, event.Caller, newProfile)
+	switchCallerWatchers(ctx, d.promptWatchers, event.Caller, newProfile)
 }
 
 // ListTools lists tools for a caller.
@@ -259,54 +315,19 @@ func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCata
 
 // WatchTools streams tool snapshots for a caller.
 func (d *discoveryService) WatchTools(ctx context.Context, caller string) (<-chan domain.ToolSnapshot, error) {
-	profile, err := d.registry.resolveProfile(caller)
-	if err != nil {
-		return closedToolSnapshotChannel(), err
-	}
-
-	watcher := &callerWatcher[domain.ToolSnapshot]{
-		caller: caller,
-		output: make(chan domain.ToolSnapshot, 1),
-		getIndex: func(p *profileRuntime) indexSubscriber[domain.ToolSnapshot] {
+	return watchSnapshots(
+		d,
+		ctx,
+		caller,
+		closedToolSnapshotChannel,
+		func(p *profileRuntime) indexSubscriber[domain.ToolSnapshot] {
 			if p == nil || p.tools == nil {
 				return nil
 			}
 			return p.tools
 		},
-	}
-
-	// Initial subscription to current profile
-	watcher.switchProfile(ctx, profile)
-
-	// Register watcher for profile change notifications
-	d.mu.Lock()
-	d.toolWatchers[caller] = append(d.toolWatchers[caller], watcher)
-	d.mu.Unlock()
-
-	// Cleanup on context done
-	go func() {
-		<-ctx.Done()
-		watcher.mu.Lock()
-		if watcher.subCancel != nil {
-			watcher.subCancel()
-		}
-		watcher.mu.Unlock()
-
-		d.mu.Lock()
-		watchers := d.toolWatchers[caller]
-		for i, w := range watchers {
-			if w == watcher {
-				d.toolWatchers[caller] = append(watchers[:i], watchers[i+1:]...)
-				break
-			}
-		}
-		if len(d.toolWatchers[caller]) == 0 {
-			delete(d.toolWatchers, caller)
-		}
-		d.mu.Unlock()
-	}()
-
-	return watcher.output, nil
+		d.toolWatchers,
+	)
 }
 
 // CallTool executes a tool on behalf of a caller.
@@ -334,25 +355,12 @@ func (d *discoveryService) CallToolAllProfiles(ctx context.Context, name string,
 		Reason:   domain.StartCauseToolCall,
 		ToolName: name,
 	})
-	profileNames := d.registry.activeProfileNames()
-	for _, profileName := range profileNames {
-		runtime, ok := d.state.Profile(profileName)
-		if !ok || runtime.tools == nil {
-			continue
+	return d.callAcrossProfiles(ctx, specKey, domain.ErrToolNotFound, func(runtime *profileRuntime) (json.RawMessage, error) {
+		if runtime.tools == nil {
+			return nil, domain.ErrToolNotFound
 		}
-		if specKey != "" && !d.registry.profileContainsSpecKey(runtime, specKey) {
-			continue
-		}
-		result, err := runtime.tools.CallTool(ctx, name, args, routingKey)
-		if err == nil {
-			return result, nil
-		}
-		if errors.Is(err, domain.ErrToolNotFound) {
-			continue
-		}
-		return nil, err
-	}
-	return nil, domain.ErrToolNotFound
+		return runtime.tools.CallTool(ctx, name, args, routingKey)
+	})
 }
 
 // ListResources lists resources for a caller.
@@ -370,31 +378,18 @@ func (d *discoveryService) ListResources(ctx context.Context, caller string, cur
 
 // ListResourcesAllProfiles lists resources across all profiles.
 func (d *discoveryService) ListResourcesAllProfiles(ctx context.Context, cursor string) (domain.ResourcePage, error) {
-	profileNames := d.registry.activeProfileNames()
-	if len(profileNames) == 0 {
-		return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
-	}
-
-	merged := make([]domain.ResourceDefinition, 0)
-	seen := make(map[string]struct{})
-
-	for _, profileName := range profileNames {
-		runtime, ok := d.state.Profile(profileName)
-		if !ok || runtime.resources == nil {
-			continue
-		}
-		snapshot := runtime.resources.Snapshot()
-		for _, resource := range snapshot.Resources {
-			if resource.URI == "" {
-				continue
+	merged := collectUniqueAcrossProfiles(
+		d,
+		func(runtime *profileRuntime) []domain.ResourceDefinition {
+			if runtime.resources == nil {
+				return nil
 			}
-			if _, ok := seen[resource.URI]; ok {
-				continue
-			}
-			seen[resource.URI] = struct{}{}
-			merged = append(merged, resource)
-		}
-	}
+			return runtime.resources.Snapshot().Resources
+		},
+		func(resource domain.ResourceDefinition) string {
+			return resource.URI
+		},
+	)
 
 	if len(merged) == 0 {
 		return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
@@ -410,54 +405,19 @@ func (d *discoveryService) ListResourcesAllProfiles(ctx context.Context, cursor 
 
 // WatchResources streams resource snapshots for a caller.
 func (d *discoveryService) WatchResources(ctx context.Context, caller string) (<-chan domain.ResourceSnapshot, error) {
-	profile, err := d.registry.resolveProfile(caller)
-	if err != nil {
-		return closedResourceSnapshotChannel(), err
-	}
-
-	watcher := &callerWatcher[domain.ResourceSnapshot]{
-		caller: caller,
-		output: make(chan domain.ResourceSnapshot, 1),
-		getIndex: func(p *profileRuntime) indexSubscriber[domain.ResourceSnapshot] {
+	return watchSnapshots(
+		d,
+		ctx,
+		caller,
+		closedResourceSnapshotChannel,
+		func(p *profileRuntime) indexSubscriber[domain.ResourceSnapshot] {
 			if p == nil || p.resources == nil {
 				return nil
 			}
 			return p.resources
 		},
-	}
-
-	// Initial subscription to current profile
-	watcher.switchProfile(ctx, profile)
-
-	// Register watcher for profile change notifications
-	d.mu.Lock()
-	d.resourceWatchers[caller] = append(d.resourceWatchers[caller], watcher)
-	d.mu.Unlock()
-
-	// Cleanup on context done
-	go func() {
-		<-ctx.Done()
-		watcher.mu.Lock()
-		if watcher.subCancel != nil {
-			watcher.subCancel()
-		}
-		watcher.mu.Unlock()
-
-		d.mu.Lock()
-		watchers := d.resourceWatchers[caller]
-		for i, w := range watchers {
-			if w == watcher {
-				d.resourceWatchers[caller] = append(watchers[:i], watchers[i+1:]...)
-				break
-			}
-		}
-		if len(d.resourceWatchers[caller]) == 0 {
-			delete(d.resourceWatchers, caller)
-		}
-		d.mu.Unlock()
-	}()
-
-	return watcher.output, nil
+		d.resourceWatchers,
+	)
 }
 
 // ReadResource reads a resource on behalf of a caller.
@@ -475,25 +435,12 @@ func (d *discoveryService) ReadResource(ctx context.Context, caller, uri string)
 
 // ReadResourceAllProfiles reads a resource across all profiles.
 func (d *discoveryService) ReadResourceAllProfiles(ctx context.Context, uri, specKey string) (json.RawMessage, error) {
-	profileNames := d.registry.activeProfileNames()
-	for _, profileName := range profileNames {
-		runtime, ok := d.state.Profile(profileName)
-		if !ok || runtime.resources == nil {
-			continue
+	return d.callAcrossProfiles(ctx, specKey, domain.ErrResourceNotFound, func(runtime *profileRuntime) (json.RawMessage, error) {
+		if runtime.resources == nil {
+			return nil, domain.ErrResourceNotFound
 		}
-		if specKey != "" && !d.registry.profileContainsSpecKey(runtime, specKey) {
-			continue
-		}
-		result, err := runtime.resources.ReadResource(ctx, uri)
-		if err == nil {
-			return result, nil
-		}
-		if errors.Is(err, domain.ErrResourceNotFound) {
-			continue
-		}
-		return nil, err
-	}
-	return nil, domain.ErrResourceNotFound
+		return runtime.resources.ReadResource(ctx, uri)
+	})
 }
 
 // ListPrompts lists prompts for a caller.
@@ -511,31 +458,18 @@ func (d *discoveryService) ListPrompts(ctx context.Context, caller string, curso
 
 // ListPromptsAllProfiles lists prompts across all profiles.
 func (d *discoveryService) ListPromptsAllProfiles(ctx context.Context, cursor string) (domain.PromptPage, error) {
-	profileNames := d.registry.activeProfileNames()
-	if len(profileNames) == 0 {
-		return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
-	}
-
-	merged := make([]domain.PromptDefinition, 0)
-	seen := make(map[string]struct{})
-
-	for _, profileName := range profileNames {
-		runtime, ok := d.state.Profile(profileName)
-		if !ok || runtime.prompts == nil {
-			continue
-		}
-		snapshot := runtime.prompts.Snapshot()
-		for _, prompt := range snapshot.Prompts {
-			if prompt.Name == "" {
-				continue
+	merged := collectUniqueAcrossProfiles(
+		d,
+		func(runtime *profileRuntime) []domain.PromptDefinition {
+			if runtime.prompts == nil {
+				return nil
 			}
-			if _, ok := seen[prompt.Name]; ok {
-				continue
-			}
-			seen[prompt.Name] = struct{}{}
-			merged = append(merged, prompt)
-		}
-	}
+			return runtime.prompts.Snapshot().Prompts
+		},
+		func(prompt domain.PromptDefinition) string {
+			return prompt.Name
+		},
+	)
 
 	if len(merged) == 0 {
 		return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
@@ -551,54 +485,19 @@ func (d *discoveryService) ListPromptsAllProfiles(ctx context.Context, cursor st
 
 // WatchPrompts streams prompt snapshots for a caller.
 func (d *discoveryService) WatchPrompts(ctx context.Context, caller string) (<-chan domain.PromptSnapshot, error) {
-	profile, err := d.registry.resolveProfile(caller)
-	if err != nil {
-		return closedPromptSnapshotChannel(), err
-	}
-
-	watcher := &callerWatcher[domain.PromptSnapshot]{
-		caller: caller,
-		output: make(chan domain.PromptSnapshot, 1),
-		getIndex: func(p *profileRuntime) indexSubscriber[domain.PromptSnapshot] {
+	return watchSnapshots(
+		d,
+		ctx,
+		caller,
+		closedPromptSnapshotChannel,
+		func(p *profileRuntime) indexSubscriber[domain.PromptSnapshot] {
 			if p == nil || p.prompts == nil {
 				return nil
 			}
 			return p.prompts
 		},
-	}
-
-	// Initial subscription to current profile
-	watcher.switchProfile(ctx, profile)
-
-	// Register watcher for profile change notifications
-	d.mu.Lock()
-	d.promptWatchers[caller] = append(d.promptWatchers[caller], watcher)
-	d.mu.Unlock()
-
-	// Cleanup on context done
-	go func() {
-		<-ctx.Done()
-		watcher.mu.Lock()
-		if watcher.subCancel != nil {
-			watcher.subCancel()
-		}
-		watcher.mu.Unlock()
-
-		d.mu.Lock()
-		watchers := d.promptWatchers[caller]
-		for i, w := range watchers {
-			if w == watcher {
-				d.promptWatchers[caller] = append(watchers[:i], watchers[i+1:]...)
-				break
-			}
-		}
-		if len(d.promptWatchers[caller]) == 0 {
-			delete(d.promptWatchers, caller)
-		}
-		d.mu.Unlock()
-	}()
-
-	return watcher.output, nil
+		d.promptWatchers,
+	)
 }
 
 // GetPrompt resolves a prompt for a caller.
@@ -616,25 +515,12 @@ func (d *discoveryService) GetPrompt(ctx context.Context, caller, name string, a
 
 // GetPromptAllProfiles resolves a prompt across all profiles.
 func (d *discoveryService) GetPromptAllProfiles(ctx context.Context, name string, args json.RawMessage, specKey string) (json.RawMessage, error) {
-	profileNames := d.registry.activeProfileNames()
-	for _, profileName := range profileNames {
-		runtime, ok := d.state.Profile(profileName)
-		if !ok || runtime.prompts == nil {
-			continue
+	return d.callAcrossProfiles(ctx, specKey, domain.ErrPromptNotFound, func(runtime *profileRuntime) (json.RawMessage, error) {
+		if runtime.prompts == nil {
+			return nil, domain.ErrPromptNotFound
 		}
-		if specKey != "" && !d.registry.profileContainsSpecKey(runtime, specKey) {
-			continue
-		}
-		result, err := runtime.prompts.GetPrompt(ctx, name, args)
-		if err == nil {
-			return result, nil
-		}
-		if errors.Is(err, domain.ErrPromptNotFound) {
-			continue
-		}
-		return nil, err
-	}
-	return nil, domain.ErrPromptNotFound
+		return runtime.prompts.GetPrompt(ctx, name, args)
+	})
 }
 
 // GetToolSnapshotForCaller returns the tool snapshot for a caller.
@@ -697,6 +583,71 @@ func paginatePrompts(snapshot domain.PromptSnapshot, cursor string) (domain.Prom
 		Prompts: append([]domain.PromptDefinition(nil), prompts[start:end]...),
 	}
 	return domain.PromptPage{Snapshot: page, NextCursor: nextCursor}, nil
+}
+
+func collectUniqueAcrossProfiles[T any](
+	d *discoveryService,
+	list func(*profileRuntime) []T,
+	key func(T) string,
+) []T {
+	profileNames := d.registry.activeProfileNames()
+	if len(profileNames) == 0 {
+		return nil
+	}
+
+	merged := make([]T, 0)
+	seen := make(map[string]struct{})
+
+	for _, profileName := range profileNames {
+		runtime, ok := d.state.Profile(profileName)
+		if !ok {
+			continue
+		}
+		items := list(runtime)
+		for _, item := range items {
+			itemKey := key(item)
+			if itemKey == "" {
+				continue
+			}
+			if _, ok := seen[itemKey]; ok {
+				continue
+			}
+			seen[itemKey] = struct{}{}
+			merged = append(merged, item)
+		}
+	}
+
+	return merged
+}
+
+func (d *discoveryService) callAcrossProfiles(
+	ctx context.Context,
+	specKey string,
+	notFound error,
+	call func(*profileRuntime) (json.RawMessage, error),
+) (json.RawMessage, error) {
+	profileNames := d.registry.activeProfileNames()
+	for _, profileName := range profileNames {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		runtime, ok := d.state.Profile(profileName)
+		if !ok {
+			continue
+		}
+		if specKey != "" && !d.registry.profileContainsSpecKey(runtime, specKey) {
+			continue
+		}
+		result, err := call(runtime)
+		if err == nil {
+			return result, nil
+		}
+		if errors.Is(err, notFound) {
+			continue
+		}
+		return nil, err
+	}
+	return nil, notFound
 }
 
 func indexAfterResourceCursor(resources []domain.ResourceDefinition, cursor string) int {

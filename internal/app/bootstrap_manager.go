@@ -212,14 +212,14 @@ func (m *BootstrapManager) run(ctx context.Context, targets []bootstrapTarget) {
 	// Collect results
 	for result := range results {
 		if result.err != nil {
-			m.recordFailure(result.specKey, result.serverName, result.err)
+			m.recordFailure(result.specKey, result.err)
 			m.logger.Warn("bootstrap server failed",
 				zap.String("specKey", result.specKey),
 				zap.String("server", result.serverName),
 				zap.Error(result.err),
 			)
 		} else {
-			m.recordSuccess(result.specKey, result.serverName)
+			m.recordSuccess()
 			m.logger.Info("bootstrap server ready",
 				zap.String("specKey", result.specKey),
 				zap.String("server", result.serverName),
@@ -516,14 +516,14 @@ func (m *BootstrapManager) setCurrentServer(name string) {
 	m.mu.Unlock()
 }
 
-func (m *BootstrapManager) recordSuccess(specKey, serverName string) {
+func (m *BootstrapManager) recordSuccess() {
 	m.mu.Lock()
 	m.progress.Completed++
 	m.progress.Current = ""
 	m.mu.Unlock()
 }
 
-func (m *BootstrapManager) recordFailure(specKey, serverName string, err error) {
+func (m *BootstrapManager) recordFailure(specKey string, err error) {
 	m.mu.Lock()
 	m.progress.Failed++
 	m.progress.Current = ""

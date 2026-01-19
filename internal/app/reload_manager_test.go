@@ -89,13 +89,14 @@ func TestReloadManager_ApplyUpdate_RemovesProfile(t *testing.T) {
 		specKeys: collectSpecKeys(prevState.Summary.Profiles["extra"].SpecKeys),
 		active:   true,
 	}
+	defaultRuntime := &profileRuntime{
+		name:     domain.DefaultProfileName,
+		specKeys: collectSpecKeys(prevState.Summary.Profiles[domain.DefaultProfileName].SpecKeys),
+		active:   true,
+	}
 	profiles := map[string]*profileRuntime{
-		domain.DefaultProfileName: &profileRuntime{
-			name:     domain.DefaultProfileName,
-			specKeys: collectSpecKeys(prevState.Summary.Profiles[domain.DefaultProfileName].SpecKeys),
-			active:   true,
-		},
-		"extra": removedRuntime,
+		domain.DefaultProfileName: defaultRuntime,
+		"extra":                   removedRuntime,
 	}
 
 	scheduler := &schedulerStub{}
