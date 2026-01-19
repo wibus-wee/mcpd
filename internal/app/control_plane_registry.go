@@ -374,9 +374,10 @@ func (r *callerRegistry) deactivateSpecs(ctx context.Context, specKeys []string)
 	order := append([]string(nil), specKeys...)
 	sort.Strings(order)
 	runtime := r.state.Runtime()
+	registry := r.state.SpecRegistry()
 	var firstErr error
 	for _, specKey := range order {
-		spec, ok := r.state.SpecRegistry()[specKey]
+		spec, ok := registry[specKey]
 		if ok && resolveActivationMode(runtime, spec) == domain.ActivationAlwaysOn {
 			continue
 		}

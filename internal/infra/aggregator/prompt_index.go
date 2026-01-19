@@ -17,6 +17,7 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// PromptIndex aggregates prompt metadata across specs and supports prompt calls.
 type PromptIndex struct {
 	router               domain.Router
 	specs                map[string]domain.ServerSpec
@@ -31,6 +32,9 @@ type PromptIndex struct {
 	bootstrapWaiter      BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
+	baseMu               sync.RWMutex
+	baseCtx              context.Context
+	baseCancel           context.CancelFunc
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.PromptSnapshot, domain.PromptTarget, promptCache]
@@ -42,6 +46,7 @@ type promptCache struct {
 	etag    string
 }
 
+// NewPromptIndex builds a PromptIndex for the provided runtime configuration.
 func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *PromptIndex {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -82,39 +87,51 @@ func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKe
 	return promptIndex
 }
 
+// Start begins periodic refresh and list change tracking.
 func (a *PromptIndex) Start(ctx context.Context) {
-	a.index.Start(ctx)
-	a.startListChangeListener(ctx)
-	a.startBootstrapRefresh(ctx)
+	baseCtx := a.setBaseContext(ctx)
+	a.index.Start(baseCtx)
+	a.startListChangeListener(baseCtx)
+	a.startBootstrapRefresh(baseCtx)
 }
 
+// Stop halts refresh activity and cancels bootstrap waits.
 func (a *PromptIndex) Stop() {
 	a.index.Stop()
+	a.clearBaseContext()
 }
 
+// Refresh fetches prompt metadata on demand.
 func (a *PromptIndex) Refresh(ctx context.Context) error {
 	return a.index.Refresh(ctx)
 }
 
+// Snapshot returns the latest prompt snapshot.
 func (a *PromptIndex) Snapshot() domain.PromptSnapshot {
 	return a.index.Snapshot()
 }
 
+// Subscribe streams prompt snapshot updates.
 func (a *PromptIndex) Subscribe(ctx context.Context) <-chan domain.PromptSnapshot {
 	return a.index.Subscribe(ctx)
 }
 
+// Resolve locates a prompt target by name.
 func (a *PromptIndex) Resolve(name string) (domain.PromptTarget, bool) {
 	return a.index.Resolve(name)
 }
 
+// SetBootstrapWaiter registers a bootstrap completion hook.
 func (a *PromptIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
-	a.startBootstrapRefresh(context.Background())
+	if baseCtx := a.baseContext(); baseCtx != nil {
+		a.startBootstrapRefresh(baseCtx)
+	}
 }
 
+// GetPrompt routes a prompt request to the owning server.
 func (a *PromptIndex) GetPrompt(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
 	// Wait for bootstrap completion if needed
 	a.bootstrapWaiterMu.RLock()
@@ -167,6 +184,7 @@ func (a *PromptIndex) GetPrompt(ctx context.Context, name string, args json.RawM
 	return marshalPromptResult(result)
 }
 
+// UpdateSpecs replaces the registry backing the prompt index.
 func (a *PromptIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig) {
 	if specKeys == nil {
 		specKeys = map[string]string{}
@@ -211,7 +229,7 @@ func (a *PromptIndex) startBootstrapRefresh(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	a.bootstrapRefreshOnce.Do(func() {
 		go func() {
@@ -220,11 +238,44 @@ func (a *PromptIndex) startBootstrapRefresh(ctx context.Context) {
 				return
 			}
 
-			if err := a.index.Refresh(context.Background()); err != nil {
+			refreshCtx, cancel := withRefreshTimeout(ctx, a.cfg)
+			defer cancel()
+			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("prompt refresh after bootstrap failed", zap.Error(err))
 			}
 		}()
 	})
+}
+
+func (a *PromptIndex) setBaseContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.baseMu.Lock()
+	if a.baseCtx == nil {
+		baseCtx, cancel := context.WithCancel(ctx)
+		a.baseCtx = baseCtx
+		a.baseCancel = cancel
+	}
+	baseCtx := a.baseCtx
+	a.baseMu.Unlock()
+	return baseCtx
+}
+
+func (a *PromptIndex) baseContext() context.Context {
+	a.baseMu.RLock()
+	defer a.baseMu.RUnlock()
+	return a.baseCtx
+}
+
+func (a *PromptIndex) clearBaseContext() {
+	a.baseMu.Lock()
+	if a.baseCancel != nil {
+		a.baseCancel()
+	}
+	a.baseCtx = nil
+	a.baseCancel = nil
+	a.baseMu.Unlock()
 }
 
 func (a *PromptIndex) buildSnapshot(cache map[string]promptCache) (domain.PromptSnapshot, map[string]domain.PromptTarget) {

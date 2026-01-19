@@ -19,9 +19,10 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
-// BootstrapWaiter is a function that waits for bootstrap completion with a timeout.
+// BootstrapWaiter waits for bootstrap completion using the provided context.
 type BootstrapWaiter func(ctx context.Context) error
 
+// ToolIndex aggregates tool metadata across specs and supports routing calls.
 type ToolIndex struct {
 	router               domain.Router
 	specs                map[string]domain.ServerSpec
@@ -36,6 +37,9 @@ type ToolIndex struct {
 	bootstrapWaiter      BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
+	baseMu               sync.RWMutex
+	baseCtx              context.Context
+	baseCancel           context.CancelFunc
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ToolSnapshot, domain.ToolTarget, serverCache]
@@ -47,6 +51,7 @@ type serverCache struct {
 	etag    string
 }
 
+// NewToolIndex builds a ToolIndex for the provided runtime configuration.
 func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ToolIndex {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -87,20 +92,26 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 	return toolIndex
 }
 
+// Start begins periodic refresh and list change tracking.
 func (a *ToolIndex) Start(ctx context.Context) {
-	a.index.Start(ctx)
-	a.startListChangeListener(ctx)
-	a.startBootstrapRefresh(ctx)
+	baseCtx := a.setBaseContext(ctx)
+	a.index.Start(baseCtx)
+	a.startListChangeListener(baseCtx)
+	a.startBootstrapRefresh(baseCtx)
 }
 
+// Stop halts refresh activity and cancels bootstrap waits.
 func (a *ToolIndex) Stop() {
 	a.index.Stop()
+	a.clearBaseContext()
 }
 
+// Refresh fetches tool metadata on demand.
 func (a *ToolIndex) Refresh(ctx context.Context) error {
 	return a.index.Refresh(ctx)
 }
 
+// Snapshot returns the latest tool snapshot.
 func (a *ToolIndex) Snapshot() domain.ToolSnapshot {
 	return a.index.Snapshot()
 }
@@ -130,21 +141,27 @@ func (a *ToolIndex) CachedSnapshot() domain.ToolSnapshot {
 	return snapshot
 }
 
+// Subscribe streams tool snapshot updates.
 func (a *ToolIndex) Subscribe(ctx context.Context) <-chan domain.ToolSnapshot {
 	return a.index.Subscribe(ctx)
 }
 
+// Resolve locates a tool target by name.
 func (a *ToolIndex) Resolve(name string) (domain.ToolTarget, bool) {
 	return a.index.Resolve(name)
 }
 
+// SetBootstrapWaiter registers a bootstrap completion hook.
 func (a *ToolIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
-	a.startBootstrapRefresh(context.Background())
+	if baseCtx := a.baseContext(); baseCtx != nil {
+		a.startBootstrapRefresh(baseCtx)
+	}
 }
 
+// CallTool routes a tool call to the owning server.
 func (a *ToolIndex) CallTool(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
 	// Wait for bootstrap completion if needed
 	a.bootstrapWaiterMu.RLock()
@@ -190,6 +207,7 @@ func (a *ToolIndex) CallTool(ctx context.Context, name string, args json.RawMess
 	return marshalToolResult(result)
 }
 
+// UpdateSpecs replaces the registry backing the tool index.
 func (a *ToolIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig) {
 	if specKeys == nil {
 		specKeys = map[string]string{}
@@ -238,7 +256,7 @@ func (a *ToolIndex) startBootstrapRefresh(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	a.bootstrapRefreshOnce.Do(func() {
 		go func() {
@@ -247,11 +265,44 @@ func (a *ToolIndex) startBootstrapRefresh(ctx context.Context) {
 				return
 			}
 
-			if err := a.index.Refresh(context.Background()); err != nil {
+			refreshCtx, cancel := withRefreshTimeout(ctx, a.cfg)
+			defer cancel()
+			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("tool refresh after bootstrap failed", zap.Error(err))
 			}
 		}()
 	})
+}
+
+func (a *ToolIndex) setBaseContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.baseMu.Lock()
+	if a.baseCtx == nil {
+		baseCtx, cancel := context.WithCancel(ctx)
+		a.baseCtx = baseCtx
+		a.baseCancel = cancel
+	}
+	baseCtx := a.baseCtx
+	a.baseMu.Unlock()
+	return baseCtx
+}
+
+func (a *ToolIndex) baseContext() context.Context {
+	a.baseMu.RLock()
+	defer a.baseMu.RUnlock()
+	return a.baseCtx
+}
+
+func (a *ToolIndex) clearBaseContext() {
+	a.baseMu.Lock()
+	if a.baseCancel != nil {
+		a.baseCancel()
+	}
+	a.baseCtx = nil
+	a.baseCancel = nil
+	a.baseMu.Unlock()
 }
 
 func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnapshot, map[string]domain.ToolTarget) {

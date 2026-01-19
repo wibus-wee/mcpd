@@ -44,16 +44,17 @@ func newControlPlaneState(
 	}
 	store := state.Store
 	summary := state.Summary
-	callers := store.Callers
+	callers := copyCallers(store.Callers)
 	if callers == nil {
 		callers = map[string]string{}
 	}
+	specRegistry := copySpecRegistryMap(summary.SpecRegistry)
 
 	return &controlPlaneState{
 		info:             defaultControlPlaneInfo(),
 		profiles:         profiles,
 		callers:          callers,
-		specRegistry:     summary.SpecRegistry,
+		specRegistry:     specRegistry,
 		scheduler:        scheduler,
 		initManager:      initManager,
 		bootstrapManager: bootstrapManager,
@@ -161,15 +162,16 @@ func defaultControlPlaneInfo() domain.ControlPlaneInfo {
 // UpdateCatalog replaces the control plane state with a new catalog.
 func (s *controlPlaneState) UpdateCatalog(state *domain.CatalogState, profiles map[string]*profileRuntime) {
 	store := state.Store
-	callers := store.Callers
+	callers := copyCallers(store.Callers)
 	if callers == nil {
 		callers = map[string]string{}
 	}
+	specRegistry := copySpecRegistryMap(state.Summary.SpecRegistry)
 
 	s.mu.Lock()
 	s.profileStore = store
 	s.callers = callers
-	s.specRegistry = state.Summary.SpecRegistry
+	s.specRegistry = specRegistry
 	s.runtime = state.Summary.DefaultRuntime
 	s.profiles = profiles
 	s.mu.Unlock()
@@ -182,18 +184,18 @@ func (s *controlPlaneState) ProfileStore() domain.ProfileStore {
 	return s.profileStore
 }
 
-// Callers returns the current caller mapping.
+// Callers returns a copy of the current caller mapping.
 func (s *controlPlaneState) Callers() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.callers
+	return copyCallers(s.callers)
 }
 
-// Profiles returns the current profile runtimes.
+// Profiles returns a copy of the current profile runtimes.
 func (s *controlPlaneState) Profiles() map[string]*profileRuntime {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.profiles
+	return copyProfiles(s.profiles)
 }
 
 // Profile returns a profile runtime by name.
@@ -204,11 +206,11 @@ func (s *controlPlaneState) Profile(name string) (*profileRuntime, bool) {
 	return runtime, ok
 }
 
-// SpecRegistry returns the current spec registry.
+// SpecRegistry returns a copy of the current spec registry.
 func (s *controlPlaneState) SpecRegistry() map[string]domain.ServerSpec {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.specRegistry
+	return copySpecRegistryMap(s.specRegistry)
 }
 
 // Runtime returns the current runtime config.
@@ -216,4 +218,37 @@ func (s *controlPlaneState) Runtime() domain.RuntimeConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.runtime
+}
+
+func copyCallers(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func copyProfiles(src map[string]*profileRuntime) map[string]*profileRuntime {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]*profileRuntime, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func copySpecRegistryMap(src map[string]domain.ServerSpec) map[string]domain.ServerSpec {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]domain.ServerSpec, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }

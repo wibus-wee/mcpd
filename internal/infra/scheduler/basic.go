@@ -15,12 +15,17 @@ import (
 )
 
 var (
+	// ErrUnknownSpecKey indicates the spec key does not exist.
 	ErrUnknownSpecKey = domain.ErrUnknownSpecKey
-	ErrNoCapacity     = errors.New("no capacity available")
-	ErrStickyBusy     = errors.New("sticky instance at capacity")
+	// ErrNoCapacity indicates no instance capacity is available.
+	ErrNoCapacity = errors.New("no capacity available")
+	// ErrStickyBusy indicates a sticky instance is busy.
+	ErrStickyBusy = errors.New("sticky instance at capacity")
+	// ErrNotImplemented indicates the scheduler is not available.
 	ErrNotImplemented = errors.New("scheduler not implemented")
 )
 
+// SchedulerOptions configures the basic scheduler.
 type SchedulerOptions struct {
 	Probe        domain.HealthProbe
 	PingInterval time.Duration
@@ -29,6 +34,7 @@ type SchedulerOptions struct {
 	Health       *telemetry.HealthTracker
 }
 
+// BasicScheduler orchestrates instance lifecycle and routing policies.
 type BasicScheduler struct {
 	lifecycle domain.Lifecycle
 	specsMu   sync.RWMutex
@@ -91,6 +97,7 @@ type poolEntry struct {
 	state   *poolState
 }
 
+// NewBasicScheduler constructs a BasicScheduler using the provided options.
 func NewBasicScheduler(lifecycle domain.Lifecycle, specs map[string]domain.ServerSpec, opts SchedulerOptions) (*BasicScheduler, error) {
 	logger := opts.Logger
 	if logger == nil {
@@ -109,6 +116,7 @@ func NewBasicScheduler(lifecycle domain.Lifecycle, specs map[string]domain.Serve
 	}, nil
 }
 
+// Acquire obtains an instance for the given spec and routing key.
 func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string) (*domain.Instance, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -185,7 +193,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			if waitCh != nil {
 				close(waitCh)
 			}
-			stopErr := s.lifecycle.StopInstance(context.Background(), newInst, "start superseded")
+			stopErr := s.stopInstance(context.Background(), state.spec, newInst, "start superseded")
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
 			return nil, ErrNoCapacity
@@ -197,7 +205,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			if waitCh != nil {
 				close(waitCh)
 			}
-			stopErr := s.lifecycle.StopInstance(context.Background(), newInst, "singleton already exists")
+			stopErr := s.stopInstance(context.Background(), state.spec, newInst, "singleton already exists")
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
 			// Try to acquire the existing singleton
@@ -225,6 +233,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 	}
 }
 
+// AcquireReady returns a ready instance without starting new ones.
 func (s *BasicScheduler) AcquireReady(ctx context.Context, specKey, routingKey string) (*domain.Instance, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -244,6 +253,7 @@ func (s *BasicScheduler) AcquireReady(ctx context.Context, specKey, routingKey s
 	return inst, err
 }
 
+// Release marks an instance as idle and updates pool state.
 func (s *BasicScheduler) Release(ctx context.Context, instance *domain.Instance) error {
 	if instance == nil {
 		return errors.New("instance is nil")
@@ -282,7 +292,11 @@ func (s *BasicScheduler) Release(ctx context.Context, instance *domain.Instance)
 	return nil
 }
 
+// SetDesiredMinReady ensures a minimum ready instance count for the spec.
 func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string, minReady int) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	spec, ok := s.specForKey(specKey)
 	if !ok {
 		return ErrUnknownSpecKey
@@ -325,14 +339,14 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 			inst.SpecKey = specKey
 			if state.generation != startGen {
 				state.mu.Unlock()
-				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "start superseded")
+				stopErr := s.stopInstance(context.Background(), state.spec, inst, "start superseded")
 				s.observeInstanceStop(state.spec.Name, stopErr)
 				s.recordInstanceStop(state)
 				continue
 			}
 			if state.minReady == 0 {
 				state.mu.Unlock()
-				stopErr := s.lifecycle.StopInstance(context.Background(), inst, "min ready dropped")
+				stopErr := s.stopInstance(context.Background(), state.spec, inst, "min ready dropped")
 				s.observeInstanceStop(state.spec.Name, stopErr)
 				s.recordInstanceStop(state)
 				continue
@@ -350,6 +364,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 	return firstErr
 }
 
+// StopSpec stops instances for the given spec key.
 func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) error {
 	spec, ok := s.specForKey(specKey)
 	state := s.poolByKey(specKey)
@@ -390,7 +405,7 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 	}
 
 	for _, inst := range immediate {
-		err := s.lifecycle.StopInstance(ctx, inst.instance, reason)
+		err := s.stopInstance(ctx, spec, inst.instance, reason)
 		s.observeInstanceStop(spec.Name, err)
 		s.recordInstanceStop(state)
 	}
@@ -408,6 +423,29 @@ func (s *BasicScheduler) StopSpec(ctx context.Context, specKey, reason string) e
 	return nil
 }
 
+func stopTimeout(spec domain.ServerSpec) time.Duration {
+	timeout := time.Duration(spec.DrainTimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = time.Duration(domain.DefaultDrainTimeoutSeconds) * time.Second
+	}
+	return timeout
+}
+
+func (s *BasicScheduler) stopInstance(ctx context.Context, spec domain.ServerSpec, inst *domain.Instance, reason string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	} else if ctx.Err() != nil {
+		ctx = context.WithoutCancel(ctx)
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return s.lifecycle.StopInstance(ctx, inst, reason)
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, stopTimeout(spec))
+	defer cancel()
+	return s.lifecycle.StopInstance(stopCtx, inst, reason)
+}
+
+// ApplyCatalogDiff updates scheduler state after catalog changes.
 func (s *BasicScheduler) ApplyCatalogDiff(ctx context.Context, diff domain.CatalogDiff, registry map[string]domain.ServerSpec) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -639,6 +677,7 @@ func (s *BasicScheduler) StartIdleManager(interval time.Duration) {
 	}()
 }
 
+// StopIdleManager stops the idle reaper loop.
 func (s *BasicScheduler) StopIdleManager() {
 	s.mu.Lock()
 	if s.idleTicker != nil {
@@ -656,6 +695,7 @@ func (s *BasicScheduler) StopIdleManager() {
 	s.mu.Unlock()
 }
 
+// StartPingManager launches the periodic ping loop.
 func (s *BasicScheduler) StartPingManager(interval time.Duration) {
 	if interval <= 0 || s.probe == nil {
 		return
@@ -689,6 +729,7 @@ func (s *BasicScheduler) StartPingManager(interval time.Duration) {
 	}()
 }
 
+// StopPingManager stops the periodic ping loop.
 func (s *BasicScheduler) StopPingManager() {
 	s.mu.Lock()
 	if s.pingTicker != nil {
@@ -762,7 +803,7 @@ func (s *BasicScheduler) reapIdle() {
 	}
 
 	for _, candidate := range candidates {
-		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
+		err := s.stopInstance(context.Background(), candidate.state.spec, candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
 		s.recordInstanceStop(candidate.state)
 		candidate.state.mu.Lock()
@@ -870,7 +911,7 @@ func (s *BasicScheduler) probeInstances() {
 		candidate.inst.instance.State = domain.InstanceStateFailed
 		candidate.state.mu.Unlock()
 
-		err := s.lifecycle.StopInstance(context.Background(), candidate.inst.instance, candidate.reason)
+		err := s.stopInstance(context.Background(), candidate.state.spec, candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
 		s.recordInstanceStop(candidate.state)
 		candidate.state.mu.Lock()
@@ -909,7 +950,7 @@ func (s *BasicScheduler) StopAll(ctx context.Context) {
 	}
 
 	for _, candidate := range candidates {
-		err := s.lifecycle.StopInstance(ctx, candidate.inst.instance, candidate.reason)
+		err := s.stopInstance(ctx, candidate.state.spec, candidate.inst.instance, candidate.reason)
 		s.observeInstanceStop(candidate.state.spec.Name, err)
 		s.recordInstanceStop(candidate.state)
 	}
@@ -1108,7 +1149,7 @@ func (s *BasicScheduler) startDrain(specKey string, inst *trackedInstance, timeo
 				)
 			}
 
-			err := s.lifecycle.StopInstance(context.Background(), inst.instance, finalReason)
+			err := s.stopInstance(context.Background(), state.spec, inst.instance, finalReason)
 			s.observeInstanceStop(inst.instance.Spec.Name, err)
 			s.recordInstanceStop(state)
 		}()

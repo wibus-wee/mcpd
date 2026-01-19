@@ -10,6 +10,7 @@ import (
 	"mcpd/internal/domain"
 )
 
+// ToolFromMCP converts an MCP tool to a domain definition.
 func ToolFromMCP(tool *mcp.Tool) domain.ToolDefinition {
 	if tool == nil {
 		return domain.ToolDefinition{}
@@ -25,6 +26,7 @@ func ToolFromMCP(tool *mcp.Tool) domain.ToolDefinition {
 	}
 }
 
+// ResourceFromMCP converts an MCP resource to a domain definition.
 func ResourceFromMCP(resource *mcp.Resource) domain.ResourceDefinition {
 	if resource == nil {
 		return domain.ResourceDefinition{}
@@ -41,6 +43,7 @@ func ResourceFromMCP(resource *mcp.Resource) domain.ResourceDefinition {
 	}
 }
 
+// PromptFromMCP converts an MCP prompt to a domain definition.
 func PromptFromMCP(prompt *mcp.Prompt) domain.PromptDefinition {
 	if prompt == nil {
 		return domain.PromptDefinition{}
@@ -54,21 +57,25 @@ func PromptFromMCP(prompt *mcp.Prompt) domain.PromptDefinition {
 	}
 }
 
+// MarshalToolDefinition encodes a tool definition as MCP JSON.
 func MarshalToolDefinition(tool domain.ToolDefinition) ([]byte, error) {
 	wire := toolToMCP(tool)
 	return json.Marshal(&wire)
 }
 
+// MarshalResourceDefinition encodes a resource definition as MCP JSON.
 func MarshalResourceDefinition(resource domain.ResourceDefinition) ([]byte, error) {
 	wire := resourceToMCP(resource)
 	return json.Marshal(&wire)
 }
 
+// MarshalPromptDefinition encodes a prompt definition as MCP JSON.
 func MarshalPromptDefinition(prompt domain.PromptDefinition) ([]byte, error) {
 	wire := promptToMCP(prompt)
 	return json.Marshal(&wire)
 }
 
+// MustMarshalToolDefinition encodes a tool definition or panics.
 func MustMarshalToolDefinition(tool domain.ToolDefinition) []byte {
 	raw, err := MarshalToolDefinition(tool)
 	if err != nil {
@@ -77,6 +84,7 @@ func MustMarshalToolDefinition(tool domain.ToolDefinition) []byte {
 	return raw
 }
 
+// MustMarshalResourceDefinition encodes a resource definition or panics.
 func MustMarshalResourceDefinition(resource domain.ResourceDefinition) []byte {
 	raw, err := MarshalResourceDefinition(resource)
 	if err != nil {
@@ -85,6 +93,7 @@ func MustMarshalResourceDefinition(resource domain.ResourceDefinition) []byte {
 	return raw
 }
 
+// MustMarshalPromptDefinition encodes a prompt definition or panics.
 func MustMarshalPromptDefinition(prompt domain.PromptDefinition) []byte {
 	raw, err := MarshalPromptDefinition(prompt)
 	if err != nil {
@@ -93,6 +102,7 @@ func MustMarshalPromptDefinition(prompt domain.PromptDefinition) []byte {
 	return raw
 }
 
+// HashToolDefinition returns a deterministic hash for a tool definition.
 func HashToolDefinition(tool domain.ToolDefinition) string {
 	raw, err := MarshalToolDefinition(tool)
 	if err != nil {
@@ -102,6 +112,7 @@ func HashToolDefinition(tool domain.ToolDefinition) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// HashResourceDefinition returns a deterministic hash for a resource definition.
 func HashResourceDefinition(resource domain.ResourceDefinition) string {
 	raw, err := MarshalResourceDefinition(resource)
 	if err != nil {
@@ -111,6 +122,7 @@ func HashResourceDefinition(resource domain.ResourceDefinition) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// HashPromptDefinition returns a deterministic hash for a prompt definition.
 func HashPromptDefinition(prompt domain.PromptDefinition) string {
 	raw, err := MarshalPromptDefinition(prompt)
 	if err != nil {
@@ -120,6 +132,7 @@ func HashPromptDefinition(prompt domain.PromptDefinition) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// HashToolDefinitions returns a deterministic hash for a tool list.
 func HashToolDefinitions(tools []domain.ToolDefinition) string {
 	hasher := sha256.New()
 	for _, tool := range tools {
@@ -133,6 +146,7 @@ func HashToolDefinitions(tools []domain.ToolDefinition) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// HashResourceDefinitions returns a deterministic hash for a resource list.
 func HashResourceDefinitions(resources []domain.ResourceDefinition) string {
 	hasher := sha256.New()
 	for _, resource := range resources {
@@ -146,6 +160,7 @@ func HashResourceDefinitions(resources []domain.ResourceDefinition) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// HashPromptDefinitions returns a deterministic hash for a prompt list.
 func HashPromptDefinitions(prompts []domain.PromptDefinition) string {
 	hasher := sha256.New()
 	for _, prompt := range prompts {

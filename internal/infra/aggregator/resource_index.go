@@ -17,6 +17,7 @@ import (
 	"mcpd/internal/infra/telemetry"
 )
 
+// ResourceIndex aggregates resource metadata across specs and supports reads.
 type ResourceIndex struct {
 	router               domain.Router
 	specs                map[string]domain.ServerSpec
@@ -31,6 +32,9 @@ type ResourceIndex struct {
 	bootstrapWaiter      BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
+	baseMu               sync.RWMutex
+	baseCtx              context.Context
+	baseCancel           context.CancelFunc
 
 	reqBuilder requestBuilder
 	index      *GenericIndex[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]
@@ -42,6 +46,7 @@ type resourceCache struct {
 	etag      string
 }
 
+// NewResourceIndex builds a ResourceIndex for the provided runtime configuration.
 func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ResourceIndex {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -82,39 +87,51 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 	return resourceIndex
 }
 
+// Start begins periodic refresh and list change tracking.
 func (a *ResourceIndex) Start(ctx context.Context) {
-	a.index.Start(ctx)
-	a.startListChangeListener(ctx)
-	a.startBootstrapRefresh(ctx)
+	baseCtx := a.setBaseContext(ctx)
+	a.index.Start(baseCtx)
+	a.startListChangeListener(baseCtx)
+	a.startBootstrapRefresh(baseCtx)
 }
 
+// Stop halts refresh activity and cancels bootstrap waits.
 func (a *ResourceIndex) Stop() {
 	a.index.Stop()
+	a.clearBaseContext()
 }
 
+// Refresh fetches resource metadata on demand.
 func (a *ResourceIndex) Refresh(ctx context.Context) error {
 	return a.index.Refresh(ctx)
 }
 
+// Snapshot returns the latest resource snapshot.
 func (a *ResourceIndex) Snapshot() domain.ResourceSnapshot {
 	return a.index.Snapshot()
 }
 
+// Subscribe streams resource snapshot updates.
 func (a *ResourceIndex) Subscribe(ctx context.Context) <-chan domain.ResourceSnapshot {
 	return a.index.Subscribe(ctx)
 }
 
+// Resolve locates a resource target by URI.
 func (a *ResourceIndex) Resolve(uri string) (domain.ResourceTarget, bool) {
 	return a.index.Resolve(uri)
 }
 
+// SetBootstrapWaiter registers a bootstrap completion hook.
 func (a *ResourceIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
-	a.startBootstrapRefresh(context.Background())
+	if baseCtx := a.baseContext(); baseCtx != nil {
+		a.startBootstrapRefresh(baseCtx)
+	}
 }
 
+// ReadResource routes a resource read to the owning server.
 func (a *ResourceIndex) ReadResource(ctx context.Context, uri string) (json.RawMessage, error) {
 	// Wait for bootstrap completion if needed
 	a.bootstrapWaiterMu.RLock()
@@ -159,6 +176,7 @@ func (a *ResourceIndex) ReadResource(ctx context.Context, uri string) (json.RawM
 	return marshalReadResourceResult(result)
 }
 
+// UpdateSpecs replaces the registry backing the resource index.
 func (a *ResourceIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig) {
 	if specKeys == nil {
 		specKeys = map[string]string{}
@@ -203,7 +221,7 @@ func (a *ResourceIndex) startBootstrapRefresh(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	a.bootstrapRefreshOnce.Do(func() {
 		go func() {
@@ -212,11 +230,44 @@ func (a *ResourceIndex) startBootstrapRefresh(ctx context.Context) {
 				return
 			}
 
-			if err := a.index.Refresh(context.Background()); err != nil {
+			refreshCtx, cancel := withRefreshTimeout(ctx, a.cfg)
+			defer cancel()
+			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("resource refresh after bootstrap failed", zap.Error(err))
 			}
 		}()
 	})
+}
+
+func (a *ResourceIndex) setBaseContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.baseMu.Lock()
+	if a.baseCtx == nil {
+		baseCtx, cancel := context.WithCancel(ctx)
+		a.baseCtx = baseCtx
+		a.baseCancel = cancel
+	}
+	baseCtx := a.baseCtx
+	a.baseMu.Unlock()
+	return baseCtx
+}
+
+func (a *ResourceIndex) baseContext() context.Context {
+	a.baseMu.RLock()
+	defer a.baseMu.RUnlock()
+	return a.baseCtx
+}
+
+func (a *ResourceIndex) clearBaseContext() {
+	a.baseMu.Lock()
+	if a.baseCancel != nil {
+		a.baseCancel()
+	}
+	a.baseCtx = nil
+	a.baseCancel = nil
+	a.baseMu.Unlock()
 }
 
 func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.ResourceSnapshot, map[string]domain.ResourceTarget) {
