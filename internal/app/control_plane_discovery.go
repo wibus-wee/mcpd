@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"mcpd/internal/domain"
-	"mcpd/internal/infra/mcpcodec"
+	"mcpd/internal/infra/hashutil"
 )
 
 type discoveryService struct {
@@ -98,7 +100,6 @@ func (w *callerWatcher[T]) switchProfile(ctx context.Context, profile *profileRu
 	}()
 }
 
-// StartProfileChangeListener starts listening for profile changes and switches watchers accordingly.
 // StartProfileChangeListener watches profile changes for caller subscriptions.
 func (d *discoveryService) StartProfileChangeListener(ctx context.Context) {
 	changes := d.registry.WatchProfileChanges(ctx)
@@ -199,7 +200,7 @@ func (d *discoveryService) ListToolsAllProfiles(ctx context.Context) (domain.Too
 	})
 
 	return domain.ToolSnapshot{
-		ETag:  hashTools(merged),
+		ETag:  hashutil.ToolETag(d.state.logger, merged),
 		Tools: merged,
 	}, nil
 }
@@ -253,7 +254,7 @@ func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCata
 		}
 	}
 
-	return buildToolCatalogSnapshot(liveTools, cachedTools, cachedAt), nil
+	return buildToolCatalogSnapshot(d.state.logger, liveTools, cachedTools, cachedAt), nil
 }
 
 // WatchTools streams tool snapshots for a caller.
@@ -401,7 +402,7 @@ func (d *discoveryService) ListResourcesAllProfiles(ctx context.Context, cursor 
 
 	sort.Slice(merged, func(i, j int) bool { return merged[i].URI < merged[j].URI })
 	snapshot := domain.ResourceSnapshot{
-		ETag:      hashResources(merged),
+		ETag:      hashutil.ResourceETag(d.state.logger, merged),
 		Resources: merged,
 	}
 	return paginateResources(snapshot, cursor)
@@ -542,7 +543,7 @@ func (d *discoveryService) ListPromptsAllProfiles(ctx context.Context, cursor st
 
 	sort.Slice(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })
 	snapshot := domain.PromptSnapshot{
-		ETag:    hashPrompts(merged),
+		ETag:    hashutil.PromptETag(d.state.logger, merged),
 		Prompts: merged,
 	}
 	return paginatePrompts(snapshot, cursor)
@@ -725,7 +726,7 @@ func (d *discoveryService) metadataCache() *domain.MetadataCache {
 	return d.state.bootstrapManager.GetCache()
 }
 
-func buildToolCatalogSnapshot(liveTools []domain.ToolDefinition, cachedTools []domain.ToolDefinition, cachedAt map[string]time.Time) domain.ToolCatalogSnapshot {
+func buildToolCatalogSnapshot(logger *zap.Logger, liveTools []domain.ToolDefinition, cachedTools []domain.ToolDefinition, cachedAt map[string]time.Time) domain.ToolCatalogSnapshot {
 	entriesByKey := make(map[string]domain.ToolCatalogEntry)
 
 	for _, tool := range liveTools {
@@ -792,7 +793,7 @@ func buildToolCatalogSnapshot(liveTools []domain.ToolDefinition, cachedTools []d
 	}
 
 	return domain.ToolCatalogSnapshot{
-		ETag:  hashTools(tools),
+		ETag:  hashutil.ToolETag(logger, tools),
 		Tools: entries,
 	}
 }
@@ -809,18 +810,6 @@ func toolDedupKey(tool domain.ToolDefinition) string {
 		return ""
 	}
 	return key + "\x00" + tool.Name
-}
-
-func hashTools(tools []domain.ToolDefinition) string {
-	return mcpcodec.HashToolDefinitions(tools)
-}
-
-func hashResources(resources []domain.ResourceDefinition) string {
-	return mcpcodec.HashResourceDefinitions(resources)
-}
-
-func hashPrompts(prompts []domain.PromptDefinition) string {
-	return mcpcodec.HashPromptDefinitions(prompts)
 }
 
 func closedToolSnapshotChannel() chan domain.ToolSnapshot {

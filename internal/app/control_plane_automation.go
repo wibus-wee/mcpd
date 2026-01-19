@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"go.uber.org/zap"
+
 	"mcpd/internal/domain"
 	"mcpd/internal/infra/mcpcodec"
 )
@@ -89,7 +91,12 @@ func (a *automationService) fallbackAutomaticMCP(caller string, profile *profile
 	toolsToSend := make([]domain.ToolDefinition, 0, len(snapshot.Tools))
 	sentSchemas := make(map[string]string)
 	for _, tool := range snapshot.Tools {
-		hash := mcpcodec.HashToolDefinition(tool)
+		hash, err := mcpcodec.HashToolDefinition(tool)
+		if err != nil {
+			a.state.logger.Warn("tool hash failed", zap.String("tool", tool.Name), zap.Error(err))
+			toolsToSend = append(toolsToSend, domain.CloneToolDefinition(tool))
+			continue
+		}
 		shouldSend := params.ForceRefresh || a.cache.NeedsFull(sessionKey, tool.Name, hash)
 		if !shouldSend {
 			continue

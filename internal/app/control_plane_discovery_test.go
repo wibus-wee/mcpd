@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
 )
@@ -32,7 +33,7 @@ func TestBuildToolCatalogSnapshot_MergesSources(t *testing.T) {
 		},
 	}
 
-	snapshot := buildToolCatalogSnapshot(liveTools, cachedTools, map[string]time.Time{
+	snapshot := buildToolCatalogSnapshot(zap.NewNop(), liveTools, cachedTools, map[string]time.Time{
 		"spec-cache": cachedAt,
 	})
 

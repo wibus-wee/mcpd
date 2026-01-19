@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/hashutil"
 	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
@@ -324,7 +325,7 @@ func (a *PromptIndex) buildSnapshot(cache map[string]promptCache) (domain.Prompt
 	sort.Slice(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })
 
 	return domain.PromptSnapshot{
-		ETag:    hashPrompts(merged),
+		ETag:    a.hashPrompts(merged),
 		Prompts: merged,
 	}, targets
 }
@@ -368,7 +369,7 @@ func (a *PromptIndex) fetchServerCache(ctx context.Context, serverType string, s
 		}
 		return promptCache{}, err
 	}
-	return promptCache{prompts: prompts, targets: targets, etag: hashPrompts(prompts)}, nil
+	return promptCache{prompts: prompts, targets: targets, etag: a.hashPrompts(prompts)}, nil
 }
 
 func (a *PromptIndex) cachedServerCache(serverType string, spec domain.ServerSpec) (promptCache, bool) {
@@ -405,7 +406,7 @@ func (a *PromptIndex) cachedServerCache(serverType string, spec domain.ServerSpe
 	}
 
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return promptCache{prompts: result, targets: targets, etag: hashPrompts(result)}, true
+	return promptCache{prompts: result, targets: targets, etag: a.hashPrompts(result)}, true
 }
 
 func (a *PromptIndex) fetchServerPrompts(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.PromptDefinition, map[string]domain.PromptTarget, error) {
@@ -535,8 +536,8 @@ func marshalPromptResult(result *mcp.GetPromptResult) (json.RawMessage, error) {
 	return json.RawMessage(raw), nil
 }
 
-func hashPrompts(prompts []domain.PromptDefinition) string {
-	return mcpcodec.HashPromptDefinitions(prompts)
+func (a *PromptIndex) hashPrompts(prompts []domain.PromptDefinition) string {
+	return hashutil.PromptETag(a.logger, prompts)
 }
 
 func copyPromptSnapshot(snapshot domain.PromptSnapshot) domain.PromptSnapshot {

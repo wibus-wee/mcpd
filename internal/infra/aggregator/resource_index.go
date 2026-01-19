@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/hashutil"
 	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
@@ -294,7 +295,7 @@ func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.Re
 	sort.Slice(merged, func(i, j int) bool { return merged[i].URI < merged[j].URI })
 
 	return domain.ResourceSnapshot{
-		ETag:      hashResources(merged),
+		ETag:      a.hashResources(merged),
 		Resources: merged,
 	}, targets
 }
@@ -319,7 +320,7 @@ func (a *ResourceIndex) fetchServerCache(ctx context.Context, serverType string,
 		}
 		return resourceCache{}, err
 	}
-	return resourceCache{resources: resources, targets: targets, etag: hashResources(resources)}, nil
+	return resourceCache{resources: resources, targets: targets, etag: a.hashResources(resources)}, nil
 }
 
 func (a *ResourceIndex) cachedServerCache(serverType string, spec domain.ServerSpec) (resourceCache, bool) {
@@ -354,7 +355,7 @@ func (a *ResourceIndex) cachedServerCache(serverType string, spec domain.ServerS
 	}
 
 	sort.Slice(result, func(i, j int) bool { return result[i].URI < result[j].URI })
-	return resourceCache{resources: result, targets: targets, etag: hashResources(result)}, true
+	return resourceCache{resources: result, targets: targets, etag: a.hashResources(result)}, true
 }
 
 func (a *ResourceIndex) fetchServerResources(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ResourceDefinition, map[string]domain.ResourceTarget, error) {
@@ -473,8 +474,8 @@ func marshalReadResourceResult(result *mcp.ReadResourceResult) (json.RawMessage,
 	return json.RawMessage(raw), nil
 }
 
-func hashResources(resources []domain.ResourceDefinition) string {
-	return mcpcodec.HashResourceDefinitions(resources)
+func (a *ResourceIndex) hashResources(resources []domain.ResourceDefinition) string {
+	return hashutil.ResourceETag(a.logger, resources)
 }
 
 func copyResourceSnapshot(snapshot domain.ResourceSnapshot) domain.ResourceSnapshot {

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -102,76 +103,76 @@ func MustMarshalPromptDefinition(prompt domain.PromptDefinition) []byte {
 	return raw
 }
 
-// HashToolDefinition returns a deterministic hash for a tool definition.
-func HashToolDefinition(tool domain.ToolDefinition) string {
+// HashToolDefinition returns a deterministic hash for a tool definition or an error.
+func HashToolDefinition(tool domain.ToolDefinition) (string, error) {
 	raw, err := MarshalToolDefinition(tool)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("marshal tool definition: %w", err)
 	}
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
-// HashResourceDefinition returns a deterministic hash for a resource definition.
-func HashResourceDefinition(resource domain.ResourceDefinition) string {
+// HashResourceDefinition returns a deterministic hash for a resource definition or an error.
+func HashResourceDefinition(resource domain.ResourceDefinition) (string, error) {
 	raw, err := MarshalResourceDefinition(resource)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("marshal resource definition: %w", err)
 	}
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
-// HashPromptDefinition returns a deterministic hash for a prompt definition.
-func HashPromptDefinition(prompt domain.PromptDefinition) string {
+// HashPromptDefinition returns a deterministic hash for a prompt definition or an error.
+func HashPromptDefinition(prompt domain.PromptDefinition) (string, error) {
 	raw, err := MarshalPromptDefinition(prompt)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("marshal prompt definition: %w", err)
 	}
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
-// HashToolDefinitions returns a deterministic hash for a tool list.
-func HashToolDefinitions(tools []domain.ToolDefinition) string {
+// HashToolDefinitions returns a deterministic hash for a tool list or an error.
+func HashToolDefinitions(tools []domain.ToolDefinition) (string, error) {
 	hasher := sha256.New()
-	for _, tool := range tools {
+	for i, tool := range tools {
 		raw, err := MarshalToolDefinition(tool)
 		if err != nil {
-			continue
+			return "", fmt.Errorf("marshal tool definition %d: %w", i, err)
 		}
 		_, _ = hasher.Write(raw)
 		_, _ = hasher.Write([]byte{0})
 	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// HashResourceDefinitions returns a deterministic hash for a resource list.
-func HashResourceDefinitions(resources []domain.ResourceDefinition) string {
+// HashResourceDefinitions returns a deterministic hash for a resource list or an error.
+func HashResourceDefinitions(resources []domain.ResourceDefinition) (string, error) {
 	hasher := sha256.New()
-	for _, resource := range resources {
+	for i, resource := range resources {
 		raw, err := MarshalResourceDefinition(resource)
 		if err != nil {
-			continue
+			return "", fmt.Errorf("marshal resource definition %d: %w", i, err)
 		}
 		_, _ = hasher.Write(raw)
 		_, _ = hasher.Write([]byte{0})
 	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// HashPromptDefinitions returns a deterministic hash for a prompt list.
-func HashPromptDefinitions(prompts []domain.PromptDefinition) string {
+// HashPromptDefinitions returns a deterministic hash for a prompt list or an error.
+func HashPromptDefinitions(prompts []domain.PromptDefinition) (string, error) {
 	hasher := sha256.New()
-	for _, prompt := range prompts {
+	for i, prompt := range prompts {
 		raw, err := MarshalPromptDefinition(prompt)
 		if err != nil {
-			continue
+			return "", fmt.Errorf("marshal prompt definition %d: %w", i, err)
 		}
 		_, _ = hasher.Write(raw)
 		_, _ = hasher.Write([]byte{0})
 	}
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func toolToMCP(tool domain.ToolDefinition) mcp.Tool {

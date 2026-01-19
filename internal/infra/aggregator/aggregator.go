@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/hashutil"
 	"mcpd/internal/infra/mcpcodec"
 	"mcpd/internal/infra/telemetry"
 )
@@ -356,7 +357,7 @@ func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnap
 	sort.Slice(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })
 
 	return domain.ToolSnapshot{
-		ETag:  hashTools(merged),
+		ETag:  a.hashTools(merged),
 		Tools: merged,
 	}, targets
 }
@@ -397,7 +398,7 @@ func (a *ToolIndex) fetchServerCache(ctx context.Context, serverType string, spe
 		}
 		return serverCache{}, err
 	}
-	return serverCache{tools: tools, targets: targets, etag: hashTools(tools)}, nil
+	return serverCache{tools: tools, targets: targets, etag: a.hashTools(tools)}, nil
 }
 
 func (a *ToolIndex) cachedServerCache(serverType string, spec domain.ServerSpec) (serverCache, bool) {
@@ -448,7 +449,7 @@ func (a *ToolIndex) cachedServerCache(serverType string, spec domain.ServerSpec)
 	}
 
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return serverCache{tools: result, targets: targets, etag: hashTools(result)}, true
+	return serverCache{tools: result, targets: targets, etag: a.hashTools(result)}, true
 }
 
 func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spec domain.ServerSpec) ([]domain.ToolDefinition, map[string]domain.ToolTarget, error) {
@@ -702,8 +703,8 @@ func marshalToolResult(result *mcp.CallToolResult) (json.RawMessage, error) {
 	return json.RawMessage(raw), nil
 }
 
-func hashTools(tools []domain.ToolDefinition) string {
-	return mcpcodec.HashToolDefinitions(tools)
+func (a *ToolIndex) hashTools(tools []domain.ToolDefinition) string {
+	return hashutil.ToolETag(a.logger, tools)
 }
 
 func copySnapshot(snapshot domain.ToolSnapshot) domain.ToolSnapshot {

@@ -106,7 +106,12 @@ func (s *EinoSubAgent) SelectToolsForCaller(
 
 	shouldSend := make(map[string]bool, len(selectedNames))
 	for _, name := range selectedNames {
-		shouldSend[name] = params.ForceRefresh || s.cache.NeedsFull(sessionKey, name, hashMap[name])
+		hash, ok := hashMap[name]
+		if !ok {
+			shouldSend[name] = true
+			continue
+		}
+		shouldSend[name] = params.ForceRefresh || s.cache.NeedsFull(sessionKey, name, hash)
 	}
 
 	toolsToSend, sentSchemas := s.buildToolPayloads(snapshot.Tools, selectedNames, hashMap, shouldSend)
@@ -151,7 +156,12 @@ func (s *EinoSubAgent) buildToolSummaries(tools []domain.ToolDefinition) ([]tool
 			ParamCount:  countSchemaProperties(t.InputSchema),
 		})
 
-		hashMap[t.Name] = mcpcodec.HashToolDefinition(t)
+		hash, err := mcpcodec.HashToolDefinition(t)
+		if err != nil {
+			s.logger.Warn("tool hash failed", zap.String("tool", t.Name), zap.Error(err))
+			continue
+		}
+		hashMap[t.Name] = hash
 	}
 
 	return summaries, hashMap
@@ -276,7 +286,9 @@ func (s *EinoSubAgent) buildToolPayloads(
 		}
 
 		result = append(result, domain.CloneToolDefinition(t))
-		sentSchemas[name] = hashMap[name]
+		if hash, ok := hashMap[name]; ok {
+			sentSchemas[name] = hash
+		}
 	}
 
 	return result, sentSchemas

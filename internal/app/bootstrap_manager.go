@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/hashutil"
 	"mcpd/internal/infra/mcpcodec"
 )
 
@@ -352,7 +353,7 @@ func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey st
 	} else if len(tools) > 0 {
 		// Apply spec filtering and naming
 		filteredTools := m.filterAndNameTools(tools, specKey, spec)
-		etag := mcpcodec.HashToolDefinitions(filteredTools)
+		etag := hashutil.ToolETag(m.logger, filteredTools)
 		m.cache.SetTools(specKey, filteredTools, etag)
 		m.logger.Debug("cached tools", zap.String("specKey", specKey), zap.Int("count", len(filteredTools)))
 	}
@@ -363,7 +364,7 @@ func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey st
 		m.logger.Warn("failed to fetch resources", zap.String("specKey", specKey), zap.Error(err))
 	} else if len(resources) > 0 {
 		filteredResources := m.filterAndNameResources(resources, specKey, spec)
-		etag := hashResources(filteredResources)
+		etag := hashutil.ResourceETag(m.logger, filteredResources)
 		m.cache.SetResources(specKey, filteredResources, etag)
 		m.logger.Debug("cached resources", zap.String("specKey", specKey), zap.Int("count", len(filteredResources)))
 	}
@@ -374,7 +375,7 @@ func (m *BootstrapManager) fetchAndCacheMetadata(ctx context.Context, specKey st
 		m.logger.Warn("failed to fetch prompts", zap.String("specKey", specKey), zap.Error(err))
 	} else if len(prompts) > 0 {
 		filteredPrompts := m.filterAndNamePrompts(prompts, specKey, spec)
-		etag := hashPrompts(filteredPrompts)
+		etag := hashutil.PromptETag(m.logger, filteredPrompts)
 		m.cache.SetPrompts(specKey, filteredPrompts, etag)
 		m.logger.Debug("cached prompts", zap.String("specKey", specKey), zap.Int("count", len(filteredPrompts)))
 	}
