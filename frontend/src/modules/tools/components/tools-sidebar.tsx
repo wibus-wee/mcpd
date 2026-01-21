@@ -198,15 +198,15 @@ export function ToolsSidebar({
   const totalTools = servers.reduce((acc, s) => acc + s.tools.length, 0)
 
   return (
-    <div className={cn('flex flex-col h-full border-r border-border', className)}>
-      <div className="p-3 border-b border-border">
+    <div className={cn('flex flex-col h-full border-r border-border bg-muted/20', className)}>
+      <div className="p-3 border-b border-border bg-background/50">
         <div className="relative">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             placeholder={`Search ${totalTools} tools...`}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 bg-muted/50"
+            className="pl-9 h-9 bg-background border-muted-foreground/20 focus:border-primary/50"
           />
         </div>
       </div>

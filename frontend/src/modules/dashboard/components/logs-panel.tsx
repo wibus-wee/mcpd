@@ -28,9 +28,16 @@ import { cn } from '@/lib/utils'
 
 const levelClassName: Record<LogEntry['level'], string> = {
   debug: 'text-muted-foreground',
-  info: 'text-info',
-  warn: 'text-warning',
-  error: 'text-destructive',
+  info: 'text-sky-500',
+  warn: 'text-amber-500',
+  error: 'text-red-500',
+}
+
+const levelBgClassName: Record<LogEntry['level'], string> = {
+  debug: '',
+  info: '',
+  warn: 'bg-amber-500/5',
+  error: 'bg-red-500/5',
 }
 
 const hiddenFieldKeys = new Set(['log_source', 'logger', 'serverType', 'stream', 'timestamp'])
@@ -105,11 +112,16 @@ const getSegmentsLength = (segments: LogSegment[]) => {
   return segments.reduce((sum, segment) => sum + segment.text.length, 0) + (segments.length - 1)
 }
 
-function LogRow({ segments }: { segments: LogSegment[] }) {
+function LogRow({ segments, level }: { segments: LogSegment[], level?: LogEntry['level'] }) {
+  const bgClass = level ? levelBgClassName[level] : ''
+  
   return (
-    <div className="w-full border-b border-border/50 px-3 py-1 text-xs font-mono whitespace-pre leading-6">
+    <div className={cn(
+      'w-full border-b border-border/30 px-3 py-1 text-xs font-mono whitespace-pre leading-6 transition-colors hover:bg-muted/30',
+      bgClass
+    )}>
       {segments.map((segment, index) => (
-        <span key={`${segment.text}-${index}`} className={cn(segment.className, index === 1 && 'uppercase')}>
+        <span key={`${segment.text}-${index}`} className={cn(segment.className, index === 1 && 'uppercase font-medium')}>
           {index === 0 ? segment.text : ` ${segment.text}`}
         </span>
       ))}
@@ -405,7 +417,7 @@ export function LogsPanel() {
                         transform: `translateY(${virtualItem.start}px)`,
                       }}
                     >
-                      <LogRow segments={row.segments} />
+                      <LogRow segments={row.segments} level={row.log.level} />
                     </div>
                   )
                 })}

@@ -1,5 +1,5 @@
 // Input: Dashboard components, tabs/alerts/buttons, core/app hooks
-// Output: DashboardPage component - main dashboard view
+// Output: DashboardPage component - main dashboard view with insights
 // Position: Main dashboard page in dashboard module
 
 import {
@@ -16,24 +16,24 @@ import { useState } from 'react'
 
 import { DebugService } from '@bindings/mcpd/internal/ui'
 
+import { ConnectIdeSheet } from '@/components/common/connect-ide-sheet'
 import { UniversalEmptyState } from '@/components/common/universal-empty-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toastManager } from '@/components/ui/toast'
 import { useCoreActions, useCoreState } from '@/hooks/use-core-state'
+import { Spring } from '@/lib/spring'
 
-import { ConnectIdeSheet } from '@/components/common/connect-ide-sheet'
 import {
+  ActiveCallersPanel,
+  ActivityInsights,
   BootstrapProgressPanel,
   LogsPanel,
-  ResourcesList,
+  ServerHealthOverview,
   StatusCards,
-  ToolsTable,
 } from './components'
 import { useAppInfo, useBootstrapProgress } from './hooks'
-import { Spring } from '@/lib/spring'
 
 function DashboardHeader() {
   const { appInfo } = useAppInfo()
@@ -152,6 +152,27 @@ function DashboardHeader() {
   )
 }
 
+function DashboardInsights() {
+  return (
+    <m.div
+      initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={Spring.smooth(0.4, 0.1)}
+      className="grid gap-4 lg:grid-cols-3"
+    >
+      <div className="lg:col-span-2 space-y-4">
+        <ServerHealthOverview />
+      </div>
+      <div className="space-y-4">
+        <ActiveCallersPanel />
+      </div>
+      <div className='lg:col-span-3'>
+        <ActivityInsights />
+      </div>
+    </m.div>
+  )
+}
+
 function DashboardContent() {
   return (
     <m.div
@@ -162,33 +183,14 @@ function DashboardContent() {
     >
       <StatusCards />
 
-      <Tabs defaultValue="tools">
-        <TabsList variant="underline">
-          <TabsTrigger value="tools">Tools</TabsTrigger>
-          <TabsTrigger value="resources">Resources</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-        </TabsList>
-        <TabsContent value="tools" className="mt-4">
-          <ToolsTable />
-        </TabsContent>
-        <TabsContent value="resources" className="mt-4">
-          <ResourcesList />
-        </TabsContent>
-        <TabsContent value="logs" className="mt-4">
-          <LogsPanel />
-        </TabsContent>
-      </Tabs>
+      <DashboardInsights />
     </m.div>
   )
 }
 
-/**
- * Content shown while core is starting - displays bootstrap progress.
- */
 function StartingContent() {
   const { state, total } = useBootstrapProgress()
 
-  // Show bootstrap panel if there are servers to bootstrap
   if (total > 0 || state === 'running') {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6">
@@ -197,7 +199,6 @@ function StartingContent() {
     )
   }
 
-  // Fallback for initial loading before bootstrap info is available
   return (
     <UniversalEmptyState
       icon={Loader2Icon}

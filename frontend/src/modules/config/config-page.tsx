@@ -98,18 +98,20 @@ function ConfigHeader() {
   return (
     <m.div
       className="flex items-center justify-between"
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={Spring.smooth(0.3)}
     >
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <FileSliders className="size-4 text-muted-foreground" />
-          <h1 className="font-semibold text-lg">Configuration</h1>
+          <div className="flex size-7 items-center justify-center rounded-md bg-primary/10">
+            <FileSliders className="size-4 text-primary" />
+          </div>
+          <h1 className="font-semibold text-xl tracking-tight">Configuration</h1>
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground text-xs">
-          Setting up profiles and callers for managing connections
-        </div>
+        <p className="text-muted-foreground text-sm ml-9">
+          Manage profiles, callers, and server connections
+        </p>
       </div>
       <div className="flex items-center gap-1">
         <ImportMcpServersSheet />

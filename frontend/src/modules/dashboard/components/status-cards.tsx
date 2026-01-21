@@ -1,19 +1,22 @@
 // Input: Card, Badge, Progress, Tooltip components, dashboard data hooks, lucide icons
-// Output: StatusCards component displaying core status metrics
+// Output: StatusCards component displaying core status metrics with animations
 // Position: Dashboard status overview section
 
 import {
   ActivityIcon,
+  CheckCircle2Icon,
   ClockIcon,
   FileTextIcon,
+  Loader2Icon,
   ServerIcon,
   WrenchIcon,
+  XCircleIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
+import { Progress, ProgressIndicator, ProgressTrack } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCoreState } from '@/hooks/use-core-state'
@@ -21,6 +24,7 @@ import { Spring } from '@/lib/spring'
 import { formatDuration } from '@/lib/time'
 
 import { usePrompts, useResources, useTools } from '../hooks'
+import { AnimatedNumber } from './sparkline'
 
 interface StatCardProps {
   title: string
@@ -29,16 +33,25 @@ interface StatCardProps {
   description?: string
   delay?: number
   loading?: boolean
+  animate?: boolean
 }
 
-function StatCard({ title, value, icon, description, delay = 0, loading }: StatCardProps) {
+function StatCard({
+  title,
+  value,
+  icon,
+  description,
+  delay = 0,
+  loading,
+  animate = true,
+}: StatCardProps) {
   return (
     <m.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={Spring.smooth(0.3, delay)}
     >
-      <Card>
+      <Card className="relative overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardTitle className="text-muted-foreground text-xs font-medium">
             {title}
@@ -54,9 +67,134 @@ function StatCard({ title, value, icon, description, delay = 0, loading }: StatC
         </CardHeader>
         <CardContent>
           {loading ? (
-            <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-6 w-12" />
           ) : (
-            <div className="text-lg font-semibold">{value}</div>
+            <div className="text-xl font-semibold tabular-nums">
+              {typeof value === 'number' && animate ? (
+                <AnimatedNumber value={value} />
+              ) : (
+                value
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </m.div>
+  )
+}
+
+function CoreStatusCard() {
+  const { coreStatus, data: coreState, isLoading } = useCoreState()
+
+  const statusConfig = {
+    running: {
+      variant: 'success' as const,
+      icon: CheckCircle2Icon,
+      label: 'Running',
+      dotColor: 'bg-emerald-500',
+    },
+    starting: {
+      variant: 'warning' as const,
+      icon: Loader2Icon,
+      label: 'Starting',
+      dotColor: 'bg-amber-500',
+    },
+    stopped: {
+      variant: 'secondary' as const,
+      icon: XCircleIcon,
+      label: 'Stopped',
+      dotColor: 'bg-slate-400',
+    },
+    stopping: {
+      variant: 'warning' as const,
+      icon: Loader2Icon,
+      label: 'Stopping',
+      dotColor: 'bg-amber-500',
+    },
+    error: {
+      variant: 'error' as const,
+      icon: XCircleIcon,
+      label: 'Error',
+      dotColor: 'bg-red-500',
+    },
+  }
+
+  const config = statusConfig[coreStatus]
+  const StatusIcon = config.icon
+
+  return (
+    <m.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={Spring.smooth(0.3)}
+    >
+      <Card className="relative overflow-hidden">
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${config.dotColor}`} />
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium">
+            Core Status
+          </CardTitle>
+          <ServerIcon className="size-3.5 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-6 w-16" />
+          ) : (
+            <div className="flex items-center gap-2 mt-2.5">
+              <Badge variant={config.variant} size="default" className="gap-1.5">
+                {(coreStatus === 'starting' || coreStatus === 'stopping') && (
+                  <Loader2Icon className="size-3 animate-spin" />
+                )}
+                {config.label}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </m.div>
+  )
+}
+
+function UptimeCard() {
+  const { coreStatus, data: coreState, isLoading } = useCoreState()
+
+  const uptimeFormatted = coreState?.uptime ? formatDuration(coreState.uptime) : '--'
+
+  const getUptimeHint = () => {
+    if (!coreState?.uptime) return null
+    const hours = coreState.uptime / 3600
+    if (hours >= 24) return 'Stable'
+    if (hours >= 1) return 'Running well'
+    return null
+  }
+
+  const hint = getUptimeHint()
+
+  return (
+    <m.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={Spring.smooth(0.3, 0.03)}
+    >
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium">
+            Uptime
+          </CardTitle>
+          <ClockIcon className="size-3.5 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-6 w-16" />
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-semibold tabular-nums">
+                {uptimeFormatted}
+              </span>
+              {hint && (
+                <span className="text-xs text-emerald-500">{hint}</span>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -65,75 +203,14 @@ function StatCard({ title, value, icon, description, delay = 0, loading }: StatC
 }
 
 export function StatusCards() {
-  const { coreStatus, data: coreState, isLoading } = useCoreState()
   const { tools, isLoading: toolsLoading } = useTools()
   const { resources, isLoading: resourcesLoading } = useResources()
   const { prompts, isLoading: promptsLoading } = usePrompts()
 
-  const statusBadgeVariant = {
-    running: 'success' as const,
-    starting: 'warning' as const,
-    stopped: 'secondary' as const,
-    stopping: 'warning' as const,
-    error: 'error' as const,
-  }
-
   return (
-    <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-      <m.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={Spring.smooth(0.3)}
-      >
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-1">
-            <CardTitle className="text-muted-foreground text-xs font-medium">
-              Core Status
-            </CardTitle>
-            <ServerIcon className="size-3.5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-1.5">
-              {isLoading ? (
-                <Skeleton className="h-5 w-16" />
-              ) : (
-                <>
-                  <Badge variant={statusBadgeVariant[coreStatus]} size="default" className="mt-2.5">
-                    {coreStatus.charAt(0).toUpperCase() + coreStatus.slice(1)}
-                  </Badge>
-                  {coreStatus === 'starting' && (
-                    <Progress value={null} className="h-1 w-12" />
-                  )}
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </m.div>
-
-      <m.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={Spring.smooth(0.3, 0.03)}
-      >
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-1">
-            <CardTitle className="text-muted-foreground text-xs font-medium">
-              Uptime
-            </CardTitle>
-            <ClockIcon className="size-3.5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-5 w-12" />
-            ) : (
-              <div className="text-lg font-semibold">
-                {coreState?.uptime ? formatDuration(coreState.uptime) : '--'}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </m.div>
+    <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
+      <CoreStatusCard />
+      <UptimeCard />
 
       <StatCard
         title="Tools"
