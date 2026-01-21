@@ -163,11 +163,11 @@ export function CallersList({
             value={draftCaller}
             onChange={event => setDraftCaller(event.target.value)}
             placeholder="Caller"
-            className="h-8 min-w-[160px] font-mono text-xs"
+            className="h-8 min-w-40 font-mono text-xs"
             disabled={!canEdit || isCreating}
           />
           <Select
-            value={draftProfile || undefined}
+            value={draftProfile || profileOptions[0]}
             onValueChange={(value) => value && setDraftProfile(value)}
             disabled={!canEdit || !hasProfiles || isCreating}
           >
