@@ -66,5 +66,11 @@ The project is under active development:
 
 This project is licensed under the [MIT License](LICENSE).
 
+## ✏️ Author
+
+mcpd © Wibus, Released under MIT. Created on Dec 21, 2025.
+
+> [Personal Website](http://wibus.ren/) · [Blog](https://blog.wibus.ren/) · GitHub [@wibus-wee](https://github.com/wibus-wee/) · Telegram [@wibus✪](https://t.me/wibus_wee)
+
 ---
 <p align="center">Powered by Golang & 💖</p>

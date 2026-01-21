@@ -2,6 +2,8 @@ import './styles.css'
 
 import { start } from "react-scan"
 import { createRouter, RouterProvider } from '@tanstack/react-router'
+
+import { RouterErrorComponent } from '@/components/common/router-error-component'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 
@@ -21,6 +23,7 @@ const router = createRouter({
   scrollRestoration: true,
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
+  defaultErrorComponent: RouterErrorComponent,
 })
 
 // Register the router instance for type safety
