@@ -147,3 +147,4 @@ profiles
 !frontend/src/modules/config/components/profiles/
 callers.yaml
 .gocache/
+runtime.yaml

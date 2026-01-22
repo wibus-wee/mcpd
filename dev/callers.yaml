@@ -1,9 +1,2 @@
 callers:
-    Alma: default
-    cherryStudio: chat
-    claudeCode: code
-    codex: code
-    copilot: code
-    cursor: code
     inspector: default
-    vscode: code
