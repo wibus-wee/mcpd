@@ -16,7 +16,6 @@ import { m } from 'motion/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress, ProgressIndicator, ProgressTrack } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCoreState } from '@/hooks/use-core-state'
@@ -84,7 +83,7 @@ function StatCard({
 }
 
 function CoreStatusCard() {
-  const { coreStatus, data: coreState, isLoading } = useCoreState()
+  const { coreStatus, data: isLoading } = useCoreState()
 
   const statusConfig = {
     running: {
@@ -120,7 +119,6 @@ function CoreStatusCard() {
   }
 
   const config = statusConfig[coreStatus]
-  const StatusIcon = config.icon
 
   return (
     <m.div
@@ -129,7 +127,6 @@ function CoreStatusCard() {
       transition={Spring.smooth(0.3)}
     >
       <Card className="relative overflow-hidden">
-        <div className={`absolute inset-x-0 top-0 h-0.5 ${config.dotColor}`} />
         <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardTitle className="text-muted-foreground text-xs font-medium">
             Core Status
