@@ -379,6 +379,30 @@ export class InstanceStatus {
     }
 }
 
+/**
+ * ObservabilityConfigDetail for frontend
+ */
+export class ObservabilityConfigDetail {
+    "listenAddress": string;
+
+    /** Creates a new ObservabilityConfigDetail instance. */
+    constructor($$source: Partial<ObservabilityConfigDetail> = {}) {
+        if (!("listenAddress" in $$source)) {
+            this["listenAddress"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ObservabilityConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ObservabilityConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ObservabilityConfigDetail($$parsedSource as Partial<ObservabilityConfigDetail>);
+    }
+}
+
 export class PoolMetrics {
     "startCount": number;
     "stopCount": number;
@@ -598,6 +622,98 @@ export class ProxyFetchResponse {
 }
 
 /**
+ * RPCConfigDetail for frontend
+ */
+export class RPCConfigDetail {
+    "listenAddress": string;
+    "maxRecvMsgSize": number;
+    "maxSendMsgSize": number;
+    "keepaliveTimeSeconds": number;
+    "keepaliveTimeoutSeconds": number;
+    "socketMode": string;
+    "tls": RPCTLSConfigDetail;
+
+    /** Creates a new RPCConfigDetail instance. */
+    constructor($$source: Partial<RPCConfigDetail> = {}) {
+        if (!("listenAddress" in $$source)) {
+            this["listenAddress"] = "";
+        }
+        if (!("maxRecvMsgSize" in $$source)) {
+            this["maxRecvMsgSize"] = 0;
+        }
+        if (!("maxSendMsgSize" in $$source)) {
+            this["maxSendMsgSize"] = 0;
+        }
+        if (!("keepaliveTimeSeconds" in $$source)) {
+            this["keepaliveTimeSeconds"] = 0;
+        }
+        if (!("keepaliveTimeoutSeconds" in $$source)) {
+            this["keepaliveTimeoutSeconds"] = 0;
+        }
+        if (!("socketMode" in $$source)) {
+            this["socketMode"] = "";
+        }
+        if (!("tls" in $$source)) {
+            this["tls"] = (new RPCTLSConfigDetail());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RPCConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RPCConfigDetail {
+        const $$createField6_0 = $$createType10;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("tls" in $$parsedSource) {
+            $$parsedSource["tls"] = $$createField6_0($$parsedSource["tls"]);
+        }
+        return new RPCConfigDetail($$parsedSource as Partial<RPCConfigDetail>);
+    }
+}
+
+/**
+ * RPCTLSConfigDetail for frontend
+ */
+export class RPCTLSConfigDetail {
+    "enabled": boolean;
+    "certFile": string;
+    "keyFile": string;
+    "caFile": string;
+    "clientAuth": boolean;
+
+    /** Creates a new RPCTLSConfigDetail instance. */
+    constructor($$source: Partial<RPCTLSConfigDetail> = {}) {
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("certFile" in $$source)) {
+            this["certFile"] = "";
+        }
+        if (!("keyFile" in $$source)) {
+            this["keyFile"] = "";
+        }
+        if (!("caFile" in $$source)) {
+            this["caFile"] = "";
+        }
+        if (!("clientAuth" in $$source)) {
+            this["clientAuth"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RPCTLSConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RPCTLSConfigDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RPCTLSConfigDetail($$parsedSource as Partial<RPCTLSConfigDetail>);
+    }
+}
+
+/**
  * ResourceEntry represents a single resource for the frontend
  */
 export class ResourceEntry {
@@ -645,7 +761,7 @@ export class ResourcePage {
      * Creates a new ResourcePage instance from a string or object.
      */
     static createFrom($$source: any = {}): ResourcePage {
-        const $$createField0_0 = $$createType11;
+        const $$createField0_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("resources" in $$parsedSource) {
             $$parsedSource["resources"] = $$createField0_0($$parsedSource["resources"]);
@@ -672,6 +788,102 @@ export class RetryServerInitRequest {
     static createFrom($$source: any = {}): RetryServerInitRequest {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new RetryServerInitRequest($$parsedSource as Partial<RetryServerInitRequest>);
+    }
+}
+
+/**
+ * RuntimeConfigDetail contains runtime configuration for frontend
+ */
+export class RuntimeConfigDetail {
+    "routeTimeoutSeconds": number;
+    "pingIntervalSeconds": number;
+    "toolRefreshSeconds": number;
+    "toolRefreshConcurrency": number;
+    "clientCheckSeconds": number;
+    "clientInactiveSeconds": number;
+    "serverInitRetryBaseSeconds": number;
+    "serverInitRetryMaxSeconds": number;
+    "serverInitMaxRetries": number;
+    "bootstrapMode": string;
+    "bootstrapConcurrency": number;
+    "bootstrapTimeoutSeconds": number;
+    "defaultActivationMode": string;
+    "exposeTools": boolean;
+    "toolNamespaceStrategy": string;
+    "observability": ObservabilityConfigDetail;
+    "rpc": RPCConfigDetail;
+
+    /** Creates a new RuntimeConfigDetail instance. */
+    constructor($$source: Partial<RuntimeConfigDetail> = {}) {
+        if (!("routeTimeoutSeconds" in $$source)) {
+            this["routeTimeoutSeconds"] = 0;
+        }
+        if (!("pingIntervalSeconds" in $$source)) {
+            this["pingIntervalSeconds"] = 0;
+        }
+        if (!("toolRefreshSeconds" in $$source)) {
+            this["toolRefreshSeconds"] = 0;
+        }
+        if (!("toolRefreshConcurrency" in $$source)) {
+            this["toolRefreshConcurrency"] = 0;
+        }
+        if (!("clientCheckSeconds" in $$source)) {
+            this["clientCheckSeconds"] = 0;
+        }
+        if (!("clientInactiveSeconds" in $$source)) {
+            this["clientInactiveSeconds"] = 0;
+        }
+        if (!("serverInitRetryBaseSeconds" in $$source)) {
+            this["serverInitRetryBaseSeconds"] = 0;
+        }
+        if (!("serverInitRetryMaxSeconds" in $$source)) {
+            this["serverInitRetryMaxSeconds"] = 0;
+        }
+        if (!("serverInitMaxRetries" in $$source)) {
+            this["serverInitMaxRetries"] = 0;
+        }
+        if (!("bootstrapMode" in $$source)) {
+            this["bootstrapMode"] = "";
+        }
+        if (!("bootstrapConcurrency" in $$source)) {
+            this["bootstrapConcurrency"] = 0;
+        }
+        if (!("bootstrapTimeoutSeconds" in $$source)) {
+            this["bootstrapTimeoutSeconds"] = 0;
+        }
+        if (!("defaultActivationMode" in $$source)) {
+            this["defaultActivationMode"] = "";
+        }
+        if (!("exposeTools" in $$source)) {
+            this["exposeTools"] = false;
+        }
+        if (!("toolNamespaceStrategy" in $$source)) {
+            this["toolNamespaceStrategy"] = "";
+        }
+        if (!("observability" in $$source)) {
+            this["observability"] = (new ObservabilityConfigDetail());
+        }
+        if (!("rpc" in $$source)) {
+            this["rpc"] = (new RPCConfigDetail());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuntimeConfigDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RuntimeConfigDetail {
+        const $$createField15_0 = $$createType13;
+        const $$createField16_0 = $$createType14;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("observability" in $$parsedSource) {
+            $$parsedSource["observability"] = $$createField15_0($$parsedSource["observability"]);
+        }
+        if ("rpc" in $$parsedSource) {
+            $$parsedSource["rpc"] = $$createField16_0($$parsedSource["rpc"]);
+        }
+        return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
     }
 }
 
@@ -761,9 +973,9 @@ export class ServerRuntimeStatus {
      * Creates a new ServerRuntimeStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): ServerRuntimeStatus {
-        const $$createField2_0 = $$createType13;
-        const $$createField3_0 = $$createType14;
-        const $$createField4_0 = $$createType15;
+        const $$createField2_0 = $$createType16;
+        const $$createField3_0 = $$createType17;
+        const $$createField4_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("instances" in $$parsedSource) {
             $$parsedSource["instances"] = $$createField2_0($$parsedSource["instances"]);
@@ -958,7 +1170,7 @@ export class StartCause {
      * Creates a new StartCause instance from a string or object.
      */
     static createFrom($$source: any = {}): StartCause {
-        const $$createField3_0 = $$createType17;
+        const $$createField3_0 = $$createType20;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("policy" in $$parsedSource) {
             $$parsedSource["policy"] = $$createField3_0($$parsedSource["policy"]);
@@ -1308,11 +1520,14 @@ const $$createType6 = StartCause.createFrom;
 const $$createType7 = $Create.Nullable($$createType6);
 const $$createType8 = PromptEntry.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = ResourceEntry.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = InstanceStatus.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = PoolStats.createFrom;
-const $$createType15 = PoolMetrics.createFrom;
-const $$createType16 = StartCausePolicy.createFrom;
-const $$createType17 = $Create.Nullable($$createType16);
+const $$createType10 = RPCTLSConfigDetail.createFrom;
+const $$createType11 = ResourceEntry.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = ObservabilityConfigDetail.createFrom;
+const $$createType14 = RPCConfigDetail.createFrom;
+const $$createType15 = InstanceStatus.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = PoolStats.createFrom;
+const $$createType18 = PoolMetrics.createFrom;
+const $$createType19 = StartCausePolicy.createFrom;
+const $$createType20 = $Create.Nullable($$createType19);

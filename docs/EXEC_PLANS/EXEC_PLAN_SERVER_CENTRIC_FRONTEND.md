@@ -12,15 +12,15 @@ After this change, the frontend presents a server-centric configuration experien
 
 - [x] (2026-01-24 09:02Z) Drafted the server-centric frontend ExecPlan aligned with the backend migration.
 - [x] (2026-01-24 09:02Z) Refined UI information architecture and binding expectations for server-centric redesign.
-- [ ] Replace profile/caller hooks, atoms, and bindings with server/client equivalents.
-- [ ] Redesign Configuration page UI to center on servers and clients, including new detail panels.
-- [ ] Update topology visualization and dashboard widgets to show client-tag-server relationships.
-- [ ] Update tools, settings, and connect-IDE flows to use server-centric APIs and copy.
-- [ ] Run UI validation and update docs/screens if needed.
+- [x] (2026-01-24 12:38Z) Replaced profile/caller hooks, atoms, and bindings with server/client equivalents.
+- [x] (2026-01-24 12:38Z) Redesigned Configuration page UI to center on servers and clients, including new detail panels.
+- [x] (2026-01-24 12:38Z) Updated topology visualization and dashboard widgets to show client-tag-server relationships.
+- [x] (2026-01-24 12:38Z) Updated tools, settings, and connect-IDE flows to use server-centric APIs and copy.
+- [x] (2026-01-24 12:38Z) Ran `pnpm -C frontend typecheck` and resolved all errors.
 
 ## Surprises & Discoveries
 
-- Observation: None yet. This section will be updated as implementation uncovers unexpected behavior.
+- Observation: Runtime settings no longer have a read API; the frontend now initializes with defaults and relies on writes + reloads. This should be revisited if a runtime read API returns.
 
 ## Decision Log
 
@@ -42,7 +42,8 @@ After this change, the frontend presents a server-centric configuration experien
 
 ## Outcomes & Retrospective
 
-TBD. This section will summarize outcomes once implementation reaches a stable checkpoint.
+- Delivered server-centric Configuration/Topology/Tools/Settings UI with tags and active clients.
+- `pnpm -C frontend typecheck` passes; remaining work is visual QA in Wails dev runtime.
 
 ## Context and Orientation
 
