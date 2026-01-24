@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TopologyRouteImport } from './routes/topology'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TopologyRoute = TopologyRouteImport.update({
+  id: '/topology',
+  path: '/topology',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsRoute = ToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/logs': typeof LogsRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
+  '/topology': typeof TopologyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/logs': typeof LogsRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
+  '/topology': typeof TopologyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,21 @@ export interface FileRoutesById {
   '/logs': typeof LogsRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
+  '/topology': typeof TopologyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/config' | '/logs' | '/settings' | '/tools'
+  fullPaths: '/' | '/config' | '/logs' | '/settings' | '/tools' | '/topology'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/config' | '/logs' | '/settings' | '/tools'
-  id: '__root__' | '/' | '/config' | '/logs' | '/settings' | '/tools'
+  to: '/' | '/config' | '/logs' | '/settings' | '/tools' | '/topology'
+  id:
+    | '__root__'
+    | '/'
+    | '/config'
+    | '/logs'
+    | '/settings'
+    | '/tools'
+    | '/topology'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,10 +93,18 @@ export interface RootRouteChildren {
   LogsRoute: typeof LogsRoute
   SettingsRoute: typeof SettingsRoute
   ToolsRoute: typeof ToolsRoute
+  TopologyRoute: typeof TopologyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/topology': {
+      id: '/topology'
+      path: '/topology'
+      fullPath: '/topology'
+      preLoaderRoute: typeof TopologyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools': {
       id: '/tools'
       path: '/tools'
@@ -125,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogsRoute: LogsRoute,
   SettingsRoute: SettingsRoute,
   ToolsRoute: ToolsRoute,
+  TopologyRoute: TopologyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

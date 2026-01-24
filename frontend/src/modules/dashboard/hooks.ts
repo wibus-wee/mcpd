@@ -6,14 +6,13 @@ import type { BootstrapProgressResponse } from '@bindings/mcpd/internal/ui'
 import { CoreService, DiscoveryService } from '@bindings/mcpd/internal/ui'
 import useSWR from 'swr'
 
+import { swrPresets } from '@/lib/swr-config'
+
 export function useAppInfo() {
   const swr = useSWR(
     'app-info',
     () => CoreService.GetInfo(),
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 30000,
-    },
+    swrPresets.longCached,
   )
   return {
     ...swr,
@@ -25,10 +24,7 @@ export function useTools() {
   const swr = useSWR(
     'tools',
     () => DiscoveryService.ListTools(),
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 10000,
-    },
+    swrPresets.cached,
   )
   return {
     ...swr,
@@ -43,10 +39,7 @@ export function useResources() {
       const page = await DiscoveryService.ListResources('')
       return page?.resources ?? []
     },
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 10000,
-    },
+    swrPresets.cached,
   )
   return {
     ...swr,
@@ -61,10 +54,7 @@ export function usePrompts() {
       const page = await DiscoveryService.ListPrompts('')
       return page?.prompts ?? []
     },
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 10000,
-    },
+    swrPresets.cached,
   )
   return {
     ...swr,

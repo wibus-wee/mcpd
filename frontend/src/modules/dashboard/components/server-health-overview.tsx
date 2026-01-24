@@ -2,10 +2,12 @@
 // Output: ServerHealthOverview component displaying pool health and metrics
 // Position: Primary dashboard visualization for server pool status
 
+import { Link } from '@tanstack/react-router'
 import {
   ActivityIcon,
   AlertTriangleIcon,
   CheckCircle2Icon,
+  ExternalLinkIcon,
   ServerIcon,
   ZapIcon,
 } from 'lucide-react'
@@ -13,14 +15,14 @@ import { m } from 'motion/react'
 import { useMemo } from 'react'
 import useSWR from 'swr'
 
-import type { ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
-import { RuntimeService } from '@bindings/mcpd/internal/ui'
+import { RuntimeService, ServerInitStatus, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Spring } from '@/lib/spring'
+import { swrPresets } from '@/lib/swr-config'
 
 import { AnimatedNumber, MiniGauge, StackedBar } from './sparkline'
 
@@ -28,11 +30,15 @@ function useRuntimeStatus() {
   return useSWR<ServerRuntimeStatus[]>(
     'runtime-status',
     () => RuntimeService.GetRuntimeStatus(),
-    {
-      refreshInterval: 2000,
-      revalidateOnFocus: false,
-      dedupingInterval: 1000,
-    },
+    swrPresets.fastRealtime,
+  )
+}
+
+function useServerInitStatus() {
+  return useSWR<ServerInitStatus[]>(
+    'server-init-status',
+    () => RuntimeService.GetServerInitStatus(),
+    swrPresets.fastRealtime,
   )
 }
 
@@ -44,6 +50,7 @@ interface AggregatedStats {
   startingInstances: number
   failedInstances: number
   drainingInstances: number
+  suspendedServers: number
   totalCalls: number
   totalErrors: number
   avgDurationMs: number
@@ -51,7 +58,10 @@ interface AggregatedStats {
   utilization: number
 }
 
-function aggregateStats(statuses: ServerRuntimeStatus[]): AggregatedStats {
+function aggregateStats(
+  statuses: ServerRuntimeStatus[],
+  initStatuses?: ServerInitStatus[],
+): AggregatedStats {
   const result: AggregatedStats = {
     totalServers: statuses.length,
     totalInstances: 0,
@@ -60,11 +70,16 @@ function aggregateStats(statuses: ServerRuntimeStatus[]): AggregatedStats {
     startingInstances: 0,
     failedInstances: 0,
     drainingInstances: 0,
+    suspendedServers: 0,
     totalCalls: 0,
     totalErrors: 0,
     avgDurationMs: 0,
     errorRate: 0,
     utilization: 0,
+  }
+
+  if (initStatuses) {
+    result.suspendedServers = initStatuses.filter(s => s.state === 'suspended').length
   }
 
   for (const status of statuses) {
@@ -95,9 +110,17 @@ function aggregateStats(statuses: ServerRuntimeStatus[]): AggregatedStats {
 }
 
 function HealthVerdict({ stats }: { stats: AggregatedStats }) {
-  const { utilization, errorRate, failedInstances, totalServers } = stats
+  const { utilization, errorRate, failedInstances, suspendedServers, totalServers } = stats
 
   const getVerdict = () => {
+    if (suspendedServers > 0) {
+      return {
+        status: 'warning' as const,
+        icon: AlertTriangleIcon,
+        message: `${suspendedServers} server${suspendedServers > 1 ? 's' : ''} suspended`,
+        color: 'text-amber-500',
+      }
+    }
     if (failedInstances > 0) {
       return {
         status: 'warning' as const,
@@ -132,16 +155,28 @@ function HealthVerdict({ stats }: { stats: AggregatedStats }) {
 
   const verdict = getVerdict()
   const Icon = verdict.icon
+  const showLink = verdict.status === 'warning'
 
   return (
     <m.div
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={Spring.smooth(0.3)}
-      className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2"
+      className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2"
     >
-      <Icon className={`size-4 ${verdict.color}`} />
-      <span className="text-sm text-muted-foreground">{verdict.message}</span>
+      <div className="flex items-center gap-2">
+        <Icon className={`size-4 ${verdict.color}`} />
+        <span className="text-sm text-muted-foreground">{verdict.message}</span>
+      </div>
+      {showLink && (
+        <Link
+          to="/tools"
+          className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View details
+          <ExternalLinkIcon className="size-3" />
+        </Link>
+      )}
     </m.div>
   )
 }
@@ -182,11 +217,12 @@ function MetricTile({
 
 export function ServerHealthOverview() {
   const { data: statuses, isLoading } = useRuntimeStatus()
+  const { data: initStatuses } = useServerInitStatus()
 
   const stats = useMemo(() => {
     if (!statuses) return null
-    return aggregateStats(statuses)
-  }, [statuses])
+    return aggregateStats(statuses, initStatuses)
+  }, [statuses, initStatuses])
 
   const poolSegments = useMemo(() => {
     if (!stats) return []

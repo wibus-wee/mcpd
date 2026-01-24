@@ -9,7 +9,8 @@
     "lint": "eslint",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "inspector": "npx @modelcontextprotocol/inspector"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",

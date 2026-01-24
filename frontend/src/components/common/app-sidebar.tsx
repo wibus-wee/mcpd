@@ -7,6 +7,7 @@ import {
   FileSliders,
   LayoutDashboardIcon,
   ScrollTextIcon,
+  ServerIcon,
   SettingsIcon,
   WrenchIcon,
 } from 'lucide-react'
@@ -53,6 +54,11 @@ const navItems: NavItem[] = [
     path: '/config',
     label: 'Configuration',
     icon: FileSliders,
+  },
+  {
+    path: '/topology',
+    label: 'Topology',
+    icon: ServerIcon,
   },
   {
     path: '/settings',
@@ -113,7 +119,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-sidebar-border border-t flex flex-col gap-2 justify-center">
-          <ConnectIdeSheet />
+        <ConnectIdeSheet />
         <m.div
           className="p-2 text-center text-muted-foreground text-xs group-data-[collapsible=icon]:hidden"
           initial={{ opacity: 0 }}

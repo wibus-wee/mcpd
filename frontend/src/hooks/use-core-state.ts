@@ -7,6 +7,8 @@ import { CoreService } from '@bindings/mcpd/internal/ui'
 import { useCallback } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
+import { swrPresets } from '@/lib/swr-config'
+
 export type CoreStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'error'
 type StartCoreOptions = {
   mode?: 'dev' | 'prod'
@@ -25,10 +27,7 @@ export function useCoreState() {
   const swr = useSWR<CoreStateResponse>(
     coreStateKey,
     () => CoreService.GetCoreState(),
-    {
-      refreshInterval: 5000,
-      revalidateOnFocus: true,
-    },
+    swrPresets.realtime,
   )
 
   const coreStatus = toCoreStatus(swr.data?.state)

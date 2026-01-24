@@ -7,7 +7,6 @@ import {
   ExternalLinkIcon,
   FileSliders,
   LayersIcon,
-  Share2Icon,
   UsersIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
@@ -34,7 +33,6 @@ import { Spring } from '@/lib/spring'
 
 import { selectedProfileNameAtom } from './atoms'
 import { CallersList } from './components/callers-list'
-import { ConfigFlow } from './components/config-flow'
 import { ImportMcpServersSheet } from './components/import-mcp-servers-sheet'
 import { ProfileDetailPanel } from './components/profile-detail-panel'
 import { ProfilesList } from './components/profiles-list'
@@ -223,10 +221,6 @@ function ConfigTabs() {
             </Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="topology" className="gap-1.5">
-          <Share2Icon className="size-3.5" />
-          Topology
-        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="profiles" className="flex-1 min-h-0 mt-0">
@@ -235,10 +229,6 @@ function ConfigTabs() {
 
       <TabsContent value="callers" className="flex-1 min-h-0 mt-0">
         <CallersTabContent />
-      </TabsContent>
-
-      <TabsContent value="topology" className="flex-1 min-h-0 mt-0">
-        <ConfigFlow />
       </TabsContent>
     </Tabs>
   )

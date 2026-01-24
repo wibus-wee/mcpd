@@ -48,6 +48,17 @@ export const swrPresets = {
   },
 
   /**
+   * Fast-realtime preset: For high-frequency data that needs very frequent updates.
+   * Use for: Live runtime status, server health metrics
+   */
+  fastRealtime: {
+    refreshInterval: 2000,
+    revalidateOnFocus: false,
+    dedupingInterval: 1000,
+    revalidateOnReconnect: true,
+  },
+
+  /**
    * Static preset: For data that is managed externally (e.g., via events).
    * Completely disables automatic revalidation.
    * Use for: Log entries (updated via Wails events), configuration cache
@@ -59,14 +70,13 @@ export const swrPresets = {
   },
 
   /**
-   * Once preset: Fetches data once and caches indefinitely.
-   * Use for: Static configuration, paths, build info
+   * Long-cached preset: For data that changes very infrequently.
+   * Use for: App info, static configuration
    */
-  once: {
+  longCached: {
     revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    revalidateOnMount: true,
+    dedupingInterval: 30000,
+    revalidateOnReconnect: true,
   },
 } as const satisfies Record<string, SWRConfiguration>
 

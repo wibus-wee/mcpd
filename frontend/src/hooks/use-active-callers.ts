@@ -6,11 +6,10 @@ import type { ActiveCaller } from '@bindings/mcpd/internal/ui'
 import { RuntimeService } from '@bindings/mcpd/internal/ui'
 import useSWR from 'swr'
 
+import { swrPresets } from '@/lib/swr-config'
+
 export const activeCallersKey = 'active-callers'
 
 export function useActiveCallers() {
-  return useSWR<ActiveCaller[]>(activeCallersKey, () => RuntimeService.GetActiveCallers(), {
-    revalidateOnFocus: false,
-    dedupingInterval: 5000,
-  })
+  return useSWR<ActiveCaller[]>(activeCallersKey, () => RuntimeService.GetActiveCallers(), swrPresets.fastCached)
 }
