@@ -3,6 +3,7 @@
 // Position: Overlay sheet triggered from server list or config panel
 
 import type { ServerDetail } from '@bindings/mcpd/internal/ui'
+import { ServerService } from '@bindings/mcpd/internal/ui'
 import { PlusIcon, SaveIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
@@ -138,37 +139,89 @@ export function ServerEditSheet({
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.name.trim()) {
-      toastManager.add({
-        type: 'error',
-        title: 'Validation error',
-        description: 'Server name is required',
-      })
-      return
-    }
-
-    if (formData.transport === 'stdio' && !formData.cmd.trim()) {
-      toastManager.add({
-        type: 'error',
-        title: 'Validation error',
-        description: 'Command is required for stdio transport',
-      })
-      return
-    }
-
-    if (formData.transport === 'streamable_http' && !formData.endpoint.trim()) {
-      toastManager.add({
-        type: 'error',
-        title: 'Validation error',
-        description: 'Endpoint URL is required for HTTP transport',
-      })
-      return
-    }
-
     setIsSubmitting(true)
     try {
-      // TODO: Call backend API when available (CreateServer / UpdateServer)
-      await reloadConfig()
+      const parsedTags = formData.tags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(Boolean)
+      const parsedArgs = formData.args
+        .split(',')
+        .map(arg => arg.trim())
+        .filter(Boolean)
+      const cmd = formData.cmd.trim()
+      const envEntries = formData.env
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [key, ...rest] = line.split('=')
+          return [key?.trim(), rest.join('=').trim()] as const
+        })
+        .filter(([key]) => Boolean(key))
+      const env = envEntries.reduce<Record<string, string>>((acc, [key, value]) => {
+        if (!key) return acc
+        acc[key] = value ?? ''
+        return acc
+      }, {})
+
+      const baseSpec: ServerDetail = server ?? {
+        name: formData.name.trim(),
+        specKey: '',
+        transport: formData.transport,
+        cmd: [],
+        env: {},
+        cwd: '',
+        tags: [],
+        idleSeconds: formData.idleSeconds,
+        maxConcurrent: formData.maxConcurrent,
+        strategy: '',
+        sessionTTLSeconds: 0,
+        disabled: false,
+        minReady: 0,
+        activationMode: formData.activationMode,
+        drainTimeoutSeconds: 0,
+        protocolVersion: '',
+        exposeTools: [],
+        http: null,
+      }
+
+      const nextSpec: ServerDetail = {
+        ...baseSpec,
+        name: isEdit ? baseSpec.name : formData.name.trim(),
+        transport: formData.transport,
+        cmd: formData.transport === 'stdio' ? [cmd, ...parsedArgs].filter(Boolean) : [],
+        env: formData.transport === 'stdio' ? env : {},
+        cwd: formData.transport === 'stdio' ? formData.cwd.trim() : '',
+        tags: parsedTags,
+        idleSeconds: formData.idleSeconds,
+        maxConcurrent: formData.maxConcurrent,
+        activationMode: formData.activationMode,
+        http: formData.transport === 'streamable_http'
+          ? {
+              endpoint: formData.endpoint.trim(),
+              headers: baseSpec.http?.headers ?? {},
+              maxRetries: baseSpec.http?.maxRetries ?? 0,
+            }
+          : null,
+      }
+
+      if (isEdit) {
+        await ServerService.UpdateServer({ spec: nextSpec })
+      } else {
+        await ServerService.CreateServer({ spec: nextSpec })
+      }
+
+      const reloadResult = await reloadConfig()
+      if (!reloadResult.ok) {
+        toastManager.add({
+          type: 'error',
+          title: 'Reload failed',
+          description: reloadResult.message,
+        })
+        return
+      }
+
       toastManager.add({
         type: 'success',
         title: isEdit ? 'Server updated' : 'Server added',
@@ -186,7 +239,7 @@ export function ServerEditSheet({
     } finally {
       setIsSubmitting(false)
     }
-  }, [formData, isEdit, onSaved, onOpenChange])
+  }, [formData, isEdit, onSaved, onOpenChange, server])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"mcpd/internal/domain"
@@ -249,6 +250,49 @@ func mapServerSpecDetail(spec domain.ServerSpec, specKey string) ServerSpecDetai
 		ActivationMode:      string(spec.ActivationMode),
 		DrainTimeoutSeconds: spec.DrainTimeoutSeconds,
 		ProtocolVersion:     spec.ProtocolVersion,
+		ExposeTools:         exposeTools,
+		HTTP:                httpCfg,
+	}
+}
+
+func mapServerSpecDetailToDomain(detail ServerSpecDetail) domain.ServerSpec {
+	env := detail.Env
+	if env == nil {
+		env = make(map[string]string)
+	}
+	exposeTools := detail.ExposeTools
+	if exposeTools == nil {
+		exposeTools = []string{}
+	}
+	var httpCfg *domain.StreamableHTTPConfig
+	if detail.HTTP != nil {
+		headers := detail.HTTP.Headers
+		if headers == nil {
+			headers = make(map[string]string)
+		}
+		httpCfg = &domain.StreamableHTTPConfig{
+			Endpoint:   detail.HTTP.Endpoint,
+			Headers:    headers,
+			MaxRetries: detail.HTTP.MaxRetries,
+		}
+	}
+
+	return domain.ServerSpec{
+		Name:                strings.TrimSpace(detail.Name),
+		Transport:           domain.TransportKind(strings.TrimSpace(detail.Transport)),
+		Cmd:                 append([]string(nil), detail.Cmd...),
+		Env:                 env,
+		Cwd:                 strings.TrimSpace(detail.Cwd),
+		Tags:                append([]string(nil), detail.Tags...),
+		IdleSeconds:         detail.IdleSeconds,
+		MaxConcurrent:       detail.MaxConcurrent,
+		Strategy:            domain.InstanceStrategy(strings.TrimSpace(detail.Strategy)),
+		SessionTTLSeconds:   detail.SessionTTLSeconds,
+		Disabled:            detail.Disabled,
+		MinReady:            detail.MinReady,
+		ActivationMode:      domain.ActivationMode(strings.TrimSpace(detail.ActivationMode)),
+		DrainTimeoutSeconds: detail.DrainTimeoutSeconds,
+		ProtocolVersion:     strings.TrimSpace(detail.ProtocolVersion),
 		ExposeTools:         exposeTools,
 		HTTP:                httpCfg,
 	}

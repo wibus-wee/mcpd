@@ -75,6 +75,32 @@ func (s *ServerService) GetServer(ctx context.Context, name string) (*ServerDeta
 	return &detail, nil
 }
 
+// CreateServer adds a server to the config file.
+func (s *ServerService) CreateServer(ctx context.Context, req CreateServerRequest) error {
+	editor, err := s.deps.catalogEditor()
+	if err != nil {
+		return err
+	}
+	spec := mapServerSpecDetailToDomain(req.Spec)
+	if err := editor.CreateServer(ctx, spec); err != nil {
+		return mapCatalogError(err)
+	}
+	return nil
+}
+
+// UpdateServer updates an existing server in the config file.
+func (s *ServerService) UpdateServer(ctx context.Context, req UpdateServerRequest) error {
+	editor, err := s.deps.catalogEditor()
+	if err != nil {
+		return err
+	}
+	spec := mapServerSpecDetailToDomain(req.Spec)
+	if err := editor.UpdateServer(ctx, spec); err != nil {
+		return mapCatalogError(err)
+	}
+	return nil
+}
+
 // SetServerDisabled updates the disabled state for a server.
 func (s *ServerService) SetServerDisabled(ctx context.Context, req UpdateServerStateRequest) error {
 	editor, err := s.deps.catalogEditor()

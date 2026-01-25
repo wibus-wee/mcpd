@@ -29,6 +29,7 @@ export {
     BootstrapProgressResponse,
     ConfigModeResponse,
     CoreStateResponse,
+    CreateServerRequest,
     DebugSnapshotResponse,
     DeleteServerRequest,
     ImportMcpServersRequest,
@@ -60,6 +61,7 @@ export {
     SubAgentConfigDetail,
     ToolEntry,
     UpdateRuntimeConfigRequest,
+    UpdateServerRequest,
     UpdateServerStateRequest,
     UpdateSubAgentConfigRequest
 } from "./models.js";

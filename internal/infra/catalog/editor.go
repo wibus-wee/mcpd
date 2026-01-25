@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -125,6 +126,58 @@ func (e *Editor) UpdateSubAgentConfig(ctx context.Context, update SubAgentConfig
 	return nil
 }
 
+func (e *Editor) CreateServer(ctx context.Context, spec domain.ServerSpec) error {
+	normalized, err := normalizeEditorServerSpec(spec)
+	if err != nil {
+		return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+	}
+	if errs := validateServerSpec(normalized, 0); len(errs) > 0 {
+		return &EditorError{Kind: EditorErrorInvalidRequest, Message: strings.Join(errs, "; ")}
+	}
+
+	configPath, err := e.configPath(false)
+	if err != nil {
+		return err
+	}
+	update, err := CreateServer(configPath, normalized)
+	if err != nil {
+		if errors.Is(err, ErrServerExists) {
+			return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+		}
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to create server", Err: err}
+	}
+	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+	}
+	return nil
+}
+
+func (e *Editor) UpdateServer(ctx context.Context, spec domain.ServerSpec) error {
+	normalized, err := normalizeEditorServerSpec(spec)
+	if err != nil {
+		return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+	}
+	if errs := validateServerSpec(normalized, 0); len(errs) > 0 {
+		return &EditorError{Kind: EditorErrorInvalidRequest, Message: strings.Join(errs, "; ")}
+	}
+
+	configPath, err := e.configPath(false)
+	if err != nil {
+		return err
+	}
+	update, err := UpdateServer(configPath, normalized)
+	if err != nil {
+		if errors.Is(err, ErrServerNotFound) {
+			return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+		}
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update server", Err: err}
+	}
+	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
+		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+	}
+	return nil
+}
+
 func (e *Editor) SetServerDisabled(ctx context.Context, serverName string, disabled bool) error {
 	serverName = strings.TrimSpace(serverName)
 	if serverName == "" {
@@ -163,6 +216,86 @@ func (e *Editor) DeleteServer(ctx context.Context, serverName string) error {
 		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
+}
+
+func normalizeEditorServerSpec(spec domain.ServerSpec) (domain.ServerSpec, error) {
+	name := strings.TrimSpace(spec.Name)
+	if name == "" {
+		return domain.ServerSpec{}, fmt.Errorf("server name is required")
+	}
+
+	transport := domain.NormalizeTransport(spec.Transport)
+	spec.Name = name
+	spec.Transport = transport
+	spec.Env = normalizeImportEnv(spec.Env)
+	spec.Cwd = strings.TrimSpace(spec.Cwd)
+	spec.Tags = normalizeTags(spec.Tags)
+
+	if spec.Strategy == "" {
+		spec.Strategy = domain.DefaultStrategy
+	}
+	if spec.MaxConcurrent == 0 {
+		spec.MaxConcurrent = domain.DefaultMaxConcurrent
+	}
+	if spec.DrainTimeoutSeconds == 0 {
+		spec.DrainTimeoutSeconds = domain.DefaultDrainTimeoutSeconds
+	}
+	if spec.ActivationMode == "" {
+		spec.ActivationMode = domain.DefaultActivationMode
+	}
+	if spec.ProtocolVersion == "" {
+		if transport == domain.TransportStreamableHTTP {
+			spec.ProtocolVersion = domain.DefaultStreamableHTTPProtocolVersion
+		} else {
+			spec.ProtocolVersion = domain.DefaultProtocolVersion
+		}
+	}
+	if spec.Strategy == domain.StrategyStateful && spec.SessionTTLSeconds == 0 {
+		spec.SessionTTLSeconds = domain.DefaultSessionTTLSeconds
+	}
+
+	switch transport {
+	case domain.TransportStdio:
+		cmd := make([]string, 0, len(spec.Cmd))
+		for _, entry := range spec.Cmd {
+			trimmed := strings.TrimSpace(entry)
+			if trimmed == "" {
+				continue
+			}
+			cmd = append(cmd, trimmed)
+		}
+		spec.Cmd = cmd
+		spec.HTTP = nil
+	case domain.TransportStreamableHTTP:
+		spec.Cmd = nil
+		spec.Env = nil
+		spec.Cwd = ""
+		if spec.HTTP == nil {
+			spec.HTTP = &domain.StreamableHTTPConfig{}
+		}
+		spec.HTTP.Endpoint = strings.TrimSpace(spec.HTTP.Endpoint)
+		if spec.HTTP.Headers != nil {
+			headers := make(map[string]string, len(spec.HTTP.Headers))
+			for key, value := range spec.HTTP.Headers {
+				trimmed := strings.TrimSpace(key)
+				if trimmed == "" {
+					continue
+				}
+				headers[trimmed] = strings.TrimSpace(value)
+			}
+			if len(headers) == 0 {
+				headers = nil
+			}
+			spec.HTTP.Headers = headers
+		}
+		if spec.HTTP.MaxRetries == 0 {
+			spec.HTTP.MaxRetries = domain.DefaultStreamableHTTPMaxRetries
+		}
+	default:
+		return domain.ServerSpec{}, fmt.Errorf("transport must be stdio or streamable_http")
+	}
+
+	return spec, nil
 }
 
 func NormalizeImportRequest(req ImportRequest) (ImportRequest, error) {

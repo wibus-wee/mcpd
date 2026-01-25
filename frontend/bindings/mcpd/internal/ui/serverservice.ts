@@ -15,6 +15,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * CreateServer adds a server to the config file.
+ */
+export function CreateServer(req: $models.CreateServerRequest): $CancellablePromise<void> {
+    return $Call.ByID(1049671687, req);
+}
+
+/**
  * DeleteServer removes a server from the config file.
  */
 export function DeleteServer(req: $models.DeleteServerRequest): $CancellablePromise<void> {
@@ -44,6 +51,13 @@ export function ListServers(): $CancellablePromise<$models.ServerSummary[]> {
  */
 export function SetServerDisabled(req: $models.UpdateServerStateRequest): $CancellablePromise<void> {
     return $Call.ByID(4009478283, req);
+}
+
+/**
+ * UpdateServer updates an existing server in the config file.
+ */
+export function UpdateServer(req: $models.UpdateServerRequest): $CancellablePromise<void> {
+    return $Call.ByID(635162854, req);
 }
 
 // Private type creation functions

@@ -203,6 +203,16 @@ type DeleteServerRequest struct {
 	Server string `json:"server"`
 }
 
+// CreateServerRequest creates a server configuration entry.
+type CreateServerRequest struct {
+	Spec ServerSpecDetail `json:"spec"`
+}
+
+// UpdateServerRequest updates an existing server configuration entry.
+type UpdateServerRequest struct {
+	Spec ServerSpecDetail `json:"spec"`
+}
+
 // UpdateRuntimeConfigRequest updates runtime.yaml configuration.
 type UpdateRuntimeConfigRequest struct {
 	RouteTimeoutSeconds        int    `json:"routeTimeoutSeconds"`

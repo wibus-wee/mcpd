@@ -17,6 +17,9 @@ type ProfileUpdate struct {
 	Data []byte
 }
 
+var ErrServerExists = errors.New("server already exists")
+var ErrServerNotFound = errors.New("server not found")
+
 type serverSpecYAML struct {
 	Name                string              `yaml:"name"`
 	Transport           string              `yaml:"transport,omitempty"`
@@ -108,6 +111,82 @@ func BuildProfileUpdate(path string, servers []domain.ServerSpec) (ProfileUpdate
 		Path: path,
 		Data: merged,
 	}, nil
+}
+
+func CreateServer(path string, server domain.ServerSpec) (ProfileUpdate, error) {
+	if path == "" {
+		return ProfileUpdate{}, errors.New("profile path is required")
+	}
+	serverName := strings.TrimSpace(server.Name)
+	if serverName == "" {
+		return ProfileUpdate{}, errors.New("server name is required")
+	}
+
+	doc, err := loadProfileDocument(path)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	servers, err := parseServersFromDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	for _, existing := range servers {
+		if strings.TrimSpace(existing.Name) == serverName {
+			return ProfileUpdate{}, fmt.Errorf("%w: %s", ErrServerExists, serverName)
+		}
+	}
+
+	servers = append(servers, toServerSpecYAML(server))
+	doc["servers"] = servers
+
+	merged, err := marshalProfileDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	return ProfileUpdate{Path: path, Data: merged}, nil
+}
+
+func UpdateServer(path string, server domain.ServerSpec) (ProfileUpdate, error) {
+	if path == "" {
+		return ProfileUpdate{}, errors.New("profile path is required")
+	}
+	serverName := strings.TrimSpace(server.Name)
+	if serverName == "" {
+		return ProfileUpdate{}, errors.New("server name is required")
+	}
+
+	doc, err := loadProfileDocument(path)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	servers, err := parseServersFromDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	found := false
+	for i := range servers {
+		if strings.TrimSpace(servers[i].Name) == serverName {
+			servers[i] = toServerSpecYAML(server)
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ProfileUpdate{}, fmt.Errorf("%w: %s", ErrServerNotFound, serverName)
+	}
+
+	doc["servers"] = servers
+	merged, err := marshalProfileDocument(doc)
+	if err != nil {
+		return ProfileUpdate{}, err
+	}
+
+	return ProfileUpdate{Path: path, Data: merged}, nil
 }
 
 func SetServerDisabled(path string, serverName string, disabled bool) (ProfileUpdate, error) {
