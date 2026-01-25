@@ -180,6 +180,23 @@ export function ActivityInsights() {
     })
   }, [tools])
 
+  const groupedTools = useMemo(() => {
+    const map = new Map<string, ToolWithUsage[]>()
+    toolsWithUsage.forEach((tool) => {
+      const serverName = tool.serverName ?? 'Unassigned'
+      const list = map.get(serverName)
+      if (list) {
+        list.push(tool)
+      } else {
+        map.set(serverName, [tool])
+      }
+    })
+    return Array.from(map.entries()).map(([serverName, items]) => ({
+      serverName,
+      tools: items,
+    }))
+  }, [toolsWithUsage])
+
   const maxCallCount = useMemo(() => {
     return Math.max(...toolsWithUsage.map(t => t.callCount), 1)
   }, [toolsWithUsage])
@@ -246,7 +263,7 @@ export function ActivityInsights() {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pb-2">
             <h4 className="text-xs font-medium text-muted-foreground">
               Available Tools
             </h4>
@@ -261,15 +278,36 @@ export function ActivityInsights() {
               <p className="text-xs text-muted-foreground">No tools available</p>
             </div>
           ) : (
-            <div className="space-y-0.5">
-              {toolsWithUsage.map((tool, i) => (
-                <TopToolRow
-                  key={tool.name}
-                  tool={tool}
-                  index={i}
-                  maxCount={maxCallCount}
-                />
-              ))}
+            <div className="space-y-3">
+              {(() => {
+                let rowIndex = 0
+                return groupedTools.map((group) => (
+                  <div key={group.serverName} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span className="uppercase tracking-wide">
+                        {group.serverName}
+                      </span>
+                      <Badge variant="outline" size="sm">
+                        {group.tools.length} tools
+                      </Badge>
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.tools.map((tool) => {
+                        const toolIndex = rowIndex
+                        rowIndex += 1
+                        return (
+                          <TopToolRow
+                            key={`${group.serverName}-${tool.qualifiedName}`}
+                            tool={tool}
+                            index={toolIndex}
+                            maxCount={maxCallCount}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()}
             </div>
           )}
         </div>

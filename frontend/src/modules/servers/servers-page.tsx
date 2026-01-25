@@ -169,6 +169,8 @@ export function ServersPage() {
               servers={filteredServers ?? []}
               onRowClick={handleRowClick}
               selectedServerName={selectedServerName}
+              canEdit={isWritable}
+              onDeleted={handleDeleted}
             />
           )}
         </div>

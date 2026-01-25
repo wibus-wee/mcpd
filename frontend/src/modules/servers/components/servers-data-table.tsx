@@ -3,6 +3,7 @@
 // Position: Main table component for servers page
 
 import type { ServerSummary } from '@bindings/mcpd/internal/ui'
+import { ServerService } from '@bindings/mcpd/internal/ui'
 import {
   flexRender,
   getCoreRowModel,
@@ -16,13 +17,24 @@ import {
 import {
   ArrowUpDownIcon,
   MoreHorizontalIcon,
+  PowerIcon,
   ServerIcon,
+  Trash2Icon,
   WrenchIcon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Empty,
   EmptyDescription,
@@ -31,6 +43,12 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuTrigger,
+} from '@/components/ui/menu'
+import {
   Table,
   TableBody,
   TableCell,
@@ -38,17 +56,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { toastManager } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { formatDuration, getElapsedMs } from '@/lib/time'
 import { ServerRuntimeIndicator } from '@/modules/config/components/server-runtime-status'
-import { useRuntimeStatus } from '@/modules/config/hooks'
+import { useRuntimeStatus, useServers } from '@/modules/config/hooks'
 import { useActiveClients } from '@/hooks/use-active-clients'
 import { useToolsByServer } from '@/modules/tools/hooks'
+import { reloadConfig } from '@/modules/config/lib/reload-config'
 
 interface ServersDataTableProps {
   servers: ServerSummary[]
   onRowClick: (server: ServerSummary) => void
   selectedServerName: string | null
+  canEdit: boolean
+  onDeleted?: (serverName: string) => void
 }
 
 function StatusCell({ specKey }: { specKey: string }) {
@@ -149,10 +171,167 @@ function ToolsCell({ specKey }: { specKey: string }) {
   )
 }
 
+interface ServerActionsCellProps {
+  server: ServerSummary
+  canEdit: boolean
+  onDeleted?: (serverName: string) => void
+}
+
+function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProps) {
+  const { mutate: mutateServers } = useServers()
+  const [isWorking, setIsWorking] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  const handleToggleDisabled = async () => {
+    if (!canEdit || isWorking) return
+    setIsWorking(true)
+    try {
+      await ServerService.SetServerDisabled({
+        server: server.name,
+        disabled: !server.disabled,
+      })
+      const reloadResult = await reloadConfig()
+      if (!reloadResult.ok) {
+        toastManager.add({
+          type: 'error',
+          title: 'Reload failed',
+          description: reloadResult.message,
+        })
+        return
+      }
+      await mutateServers()
+      toastManager.add({
+        type: 'success',
+        title: server.disabled ? 'Server enabled' : 'Server disabled',
+        description: 'Changes applied.',
+      })
+    } catch (err) {
+      toastManager.add({
+        type: 'error',
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Update failed.',
+      })
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  const handleDeleteServer = async () => {
+    if (!canEdit || isWorking) return
+    setIsWorking(true)
+    try {
+      await ServerService.DeleteServer({ server: server.name })
+      const reloadResult = await reloadConfig()
+      if (!reloadResult.ok) {
+        toastManager.add({
+          type: 'error',
+          title: 'Reload failed',
+          description: reloadResult.message,
+        })
+        return
+      }
+      await mutateServers()
+      onDeleted?.(server.name)
+      toastManager.add({
+        type: 'success',
+        title: 'Server deleted',
+        description: 'Changes applied.',
+      })
+    } catch (err) {
+      toastManager.add({
+        type: 'error',
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Delete failed.',
+      })
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <Button
+        variant="secondary"
+        size="xs"
+        disabled={!canEdit || isWorking}
+        onClick={(event) => {
+          event.stopPropagation()
+          void handleToggleDisabled()
+        }}
+      >
+        <PowerIcon className="size-3.5" />
+        {server.disabled ? 'Enable' : 'Disable'}
+      </Button>
+      <Menu>
+        <MenuTrigger
+          className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }))}
+          disabled={!canEdit || isWorking}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MoreHorizontalIcon className="size-4" />
+        </MenuTrigger>
+        <MenuPopup align="end">
+          <MenuItem
+            variant="destructive"
+            onClick={(event) => {
+              event.stopPropagation()
+              setDeleteOpen(true)
+            }}
+          >
+            <Trash2Icon className="size-4" />
+            Delete server
+          </MenuItem>
+        </MenuPopup>
+      </Menu>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete server</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the server from configuration. The change is permanent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={(
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Cancel
+                </Button>
+              )}
+            />
+            <AlertDialogClose
+              render={(
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void handleDeleteServer()
+                  }}
+                  disabled={!canEdit || isWorking}
+                >
+                  Delete server
+                </Button>
+              )}
+            />
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
 export function ServersDataTable({
   servers,
   onRowClick,
   selectedServerName,
+  canEdit,
+  onDeleted,
 }: ServersDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -237,23 +416,16 @@ export function ServersDataTable({
       {
         id: 'actions',
         header: '',
-        cell: () => {
-          return (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                // Actions menu will be handled separately
-              }}
-            >
-              <MoreHorizontalIcon className="size-4" />
-            </Button>
-          )
-        },
+        cell: ({ row }) => (
+          <ServerActionsCell
+            server={row.original}
+            canEdit={canEdit}
+            onDeleted={onDeleted}
+          />
+        ),
       },
     ],
-    [],
+    [canEdit, onDeleted],
   )
 
   const table = useReactTable({
