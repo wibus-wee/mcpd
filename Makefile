@@ -8,7 +8,7 @@ LDFLAGS := -X mcpd/internal/app.Version=$(VERSION) -X mcpd/internal/app.Build=$(
 BIN_DIR ?= $(CURDIR)/bin
 WIRE := $(BIN_DIR)/wire
 
-.PHONY: dev obs down reload proto wire tools
+.PHONY: dev obs down reload proto wire tools build
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" ./...
@@ -57,3 +57,6 @@ wails-dev:
 
 wails-build:
 	$(WAILS) build
+
+wails-package:
+	$(WAILS) package

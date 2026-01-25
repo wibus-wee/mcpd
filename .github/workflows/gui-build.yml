@@ -67,11 +67,11 @@ jobs:
 
       - name: Build desktop app
         run: |
-          make build
+          make wails-package
         shell: bash
 
       - name: Upload GUI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gui-${{ matrix.platform }}
-          path: build/bin/
+          path: ./bin/mcpdui.app
