@@ -4,12 +4,11 @@
 
 import { Link, useMatchRoute } from '@tanstack/react-router'
 import {
-  FileSliders,
   LayoutDashboardIcon,
+  NetworkIcon,
   ScrollTextIcon,
   ServerIcon,
   SettingsIcon,
-  WrenchIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
 
@@ -41,9 +40,9 @@ const navItems: NavItem[] = [
     icon: LayoutDashboardIcon,
   },
   {
-    path: '/tools',
-    label: 'Tools',
-    icon: WrenchIcon,
+    path: '/servers',
+    label: 'Servers',
+    icon: ServerIcon,
   },
   {
     path: '/logs',
@@ -51,14 +50,9 @@ const navItems: NavItem[] = [
     icon: ScrollTextIcon,
   },
   {
-    path: '/config',
-    label: 'Configuration',
-    icon: FileSliders,
-  },
-  {
     path: '/topology',
     label: 'Topology',
-    icon: ServerIcon,
+    icon: NetworkIcon,
   },
   {
     path: '/settings',

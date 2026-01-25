@@ -13,6 +13,7 @@ import {
   useServerDetails,
   useServers,
 } from '@/modules/config/hooks'
+import { withSWRPreset } from '@/lib/swr-config'
 
 export interface ServerGroup {
   id: string
@@ -29,7 +30,14 @@ export function useToolsByServer() {
     data: tools,
     isLoading: toolsLoading,
     error: toolsError,
-  } = useSWR<ToolEntry[]>('tools', () => DiscoveryService.ListTools())
+  } = useSWR<ToolEntry[]>(
+    'tools',
+    () => DiscoveryService.ListTools(),
+    withSWRPreset('cached', {
+      refreshInterval: 10000,
+      dedupingInterval: 10000,
+    }),
+  )
 
   const {
     data: runtimeStatus,

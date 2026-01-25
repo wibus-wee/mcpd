@@ -47,6 +47,10 @@ export function useServers() {
   const { data, error, isLoading, mutate } = useSWR<ServerSummary[]>(
     'servers',
     () => ServerService.ListServers(),
+    withSWRPreset('fastCached', {
+      refreshInterval: 5000,
+      dedupingInterval: 5000,
+    }),
   )
 
   useEffect(() => {
@@ -100,6 +104,10 @@ export function useClients() {
   const { data, error, isLoading, mutate } = useSWR<ActiveClient[]>(
     'active-clients',
     () => RuntimeService.GetActiveClients(),
+    withSWRPreset('fastCached', {
+      refreshInterval: 3000,
+      dedupingInterval: 3000,
+    }),
   )
 
   useEffect(() => {

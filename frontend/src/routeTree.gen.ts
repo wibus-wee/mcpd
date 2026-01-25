@@ -12,9 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TopologyRouteImport } from './routes/topology'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ServersRouteImport } from './routes/servers'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsSubagentRouteImport } from './routes/settings/subagent'
+import { Route as SettingsRuntimeRouteImport } from './routes/settings/runtime'
+import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
 
 const TopologyRoute = TopologyRouteImport.update({
   id: '/topology',
@@ -29,6 +35,11 @@ const ToolsRoute = ToolsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServersRoute = ServersRouteImport.update({
+  id: '/servers',
+  path: '/servers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogsRoute = LogsRouteImport.update({
@@ -46,52 +57,124 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSubagentRoute = SettingsSubagentRouteImport.update({
+  id: '/subagent',
+  path: '/subagent',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsRuntimeRoute = SettingsRuntimeRouteImport.update({
+  id: '/runtime',
+  path: '/runtime',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
+  id: '/advanced',
+  path: '/advanced',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
-  '/settings': typeof SettingsRoute
+  '/servers': typeof ServersRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/runtime': typeof SettingsRuntimeRoute
+  '/settings/subagent': typeof SettingsSubagentRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
-  '/settings': typeof SettingsRoute
+  '/servers': typeof ServersRoute
   '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/runtime': typeof SettingsRuntimeRoute
+  '/settings/subagent': typeof SettingsSubagentRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
-  '/settings': typeof SettingsRoute
+  '/servers': typeof ServersRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/runtime': typeof SettingsRuntimeRoute
+  '/settings/subagent': typeof SettingsSubagentRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/config' | '/logs' | '/settings' | '/tools' | '/topology'
+  fullPaths:
+    | '/'
+    | '/config'
+    | '/logs'
+    | '/servers'
+    | '/settings'
+    | '/tools'
+    | '/topology'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/runtime'
+    | '/settings/subagent'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/config' | '/logs' | '/settings' | '/tools' | '/topology'
+  to:
+    | '/'
+    | '/config'
+    | '/logs'
+    | '/servers'
+    | '/tools'
+    | '/topology'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/runtime'
+    | '/settings/subagent'
+    | '/settings'
   id:
     | '__root__'
     | '/'
     | '/config'
     | '/logs'
+    | '/servers'
     | '/settings'
     | '/tools'
     | '/topology'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/runtime'
+    | '/settings/subagent'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfigRoute: typeof ConfigRoute
   LogsRoute: typeof LogsRoute
-  SettingsRoute: typeof SettingsRoute
+  ServersRoute: typeof ServersRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   ToolsRoute: typeof ToolsRoute
   TopologyRoute: typeof TopologyRoute
 }
@@ -119,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/servers': {
+      id: '/servers'
+      path: '/servers'
+      fullPath: '/servers'
+      preLoaderRoute: typeof ServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/logs': {
       id: '/logs'
       path: '/logs'
@@ -140,14 +230,70 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/subagent': {
+      id: '/settings/subagent'
+      path: '/subagent'
+      fullPath: '/settings/subagent'
+      preLoaderRoute: typeof SettingsSubagentRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/runtime': {
+      id: '/settings/runtime'
+      path: '/runtime'
+      fullPath: '/settings/runtime'
+      preLoaderRoute: typeof SettingsRuntimeRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/appearance': {
+      id: '/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/advanced': {
+      id: '/settings/advanced'
+      path: '/advanced'
+      fullPath: '/settings/advanced'
+      preLoaderRoute: typeof SettingsAdvancedRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
+
+interface SettingsRouteChildren {
+  SettingsAdvancedRoute: typeof SettingsAdvancedRoute
+  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsRuntimeRoute: typeof SettingsRuntimeRoute
+  SettingsSubagentRoute: typeof SettingsSubagentRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAdvancedRoute: SettingsAdvancedRoute,
+  SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsRuntimeRoute: SettingsRuntimeRoute,
+  SettingsSubagentRoute: SettingsSubagentRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfigRoute: ConfigRoute,
   LogsRoute: LogsRoute,
-  SettingsRoute: SettingsRoute,
+  ServersRoute: ServersRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   ToolsRoute: ToolsRoute,
   TopologyRoute: TopologyRoute,
 }
