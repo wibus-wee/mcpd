@@ -84,7 +84,7 @@ function StatCard({
 }
 
 function CoreStatusCard() {
-  const { coreStatus, data: isLoading } = useCoreState()
+  const { coreStatus, isLoading } = useCoreState()
 
   const statusConfig = {
     running: {

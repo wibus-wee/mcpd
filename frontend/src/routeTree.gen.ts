@@ -10,11 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TopologyRouteImport } from './routes/topology'
-import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ServersRouteImport } from './routes/servers'
 import { Route as LogsRouteImport } from './routes/logs'
-import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsSubagentRouteImport } from './routes/settings/subagent'
@@ -25,11 +23,6 @@ import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced
 const TopologyRoute = TopologyRouteImport.update({
   id: '/topology',
   path: '/topology',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ToolsRoute = ToolsRouteImport.update({
-  id: '/tools',
-  path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -45,11 +38,6 @@ const ServersRoute = ServersRouteImport.update({
 const LogsRoute = LogsRouteImport.update({
   id: '/logs',
   path: '/logs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfigRoute = ConfigRouteImport.update({
-  id: '/config',
-  path: '/config',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -85,11 +73,9 @@ const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -99,10 +85,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
   '/servers': typeof ServersRoute
-  '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -113,11 +97,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/config': typeof ConfigRoute
   '/logs': typeof LogsRoute
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/tools': typeof ToolsRoute
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -129,11 +111,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/config'
     | '/logs'
     | '/servers'
     | '/settings'
-    | '/tools'
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
@@ -143,10 +123,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/config'
     | '/logs'
     | '/servers'
-    | '/tools'
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
@@ -156,11 +134,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/config'
     | '/logs'
     | '/servers'
     | '/settings'
-    | '/tools'
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
@@ -171,11 +147,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ConfigRoute: typeof ConfigRoute
   LogsRoute: typeof LogsRoute
   ServersRoute: typeof ServersRoute
   SettingsRoute: typeof SettingsRouteWithChildren
-  ToolsRoute: typeof ToolsRoute
   TopologyRoute: typeof TopologyRoute
 }
 
@@ -186,13 +160,6 @@ declare module '@tanstack/react-router' {
       path: '/topology'
       fullPath: '/topology'
       preLoaderRoute: typeof TopologyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tools': {
-      id: '/tools'
-      path: '/tools'
-      fullPath: '/tools'
-      preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -214,13 +181,6 @@ declare module '@tanstack/react-router' {
       path: '/logs'
       fullPath: '/logs'
       preLoaderRoute: typeof LogsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/config': {
-      id: '/config'
-      path: '/config'
-      fullPath: '/config'
-      preLoaderRoute: typeof ConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -290,11 +250,9 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ConfigRoute: ConfigRoute,
   LogsRoute: LogsRoute,
   ServersRoute: ServersRoute,
   SettingsRoute: SettingsRouteWithChildren,
-  ToolsRoute: ToolsRoute,
   TopologyRoute: TopologyRoute,
 }
 export const routeTree = rootRouteImport

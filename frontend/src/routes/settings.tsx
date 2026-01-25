@@ -50,7 +50,6 @@ const navItems: NavItem[] = [
 ]
 
 function SettingsLayout() {
-  const matchRoute = useMatchRoute()
 
   return (
     <div className="flex h-full flex-col">
@@ -77,34 +76,9 @@ function SettingsLayout() {
         <nav className="w-56 shrink-0 border-r">
           <ScrollArea className="h-full">
             <div className="space-y-1 p-3">
-              {navItems.map((item, index) => {
-                const Icon = item.icon
-                const isActive = !!matchRoute({ to: item.path })
-
-                return (
-                  <m.div
-                    key={item.path}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={Spring.smooth(0.3, index * 0.05)}
-                  >
-                    <Link
-                      to={item.path}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                        isActive
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                      )}
-                    >
-                      <Icon className="size-4" />
-                      <div className="min-w-0">
-                        <div className="font-medium">{item.label}</div>
-                      </div>
-                    </Link>
-                  </m.div>
-                )
-              })}
+              {navItems.map((item, index) => (
+                <NavItemComponent key={item.path} item={item} index={index} />
+              ))}
             </div>
           </ScrollArea>
         </nav>
@@ -115,5 +89,35 @@ function SettingsLayout() {
         </div>
       </div>
     </div>
+  )
+}
+
+const NavItemComponent = ({ item, index }: { item: NavItem; index: number }) => {
+  const matchRoute = useMatchRoute()
+  const Icon = item.icon
+  const isActive = !!matchRoute({ to: item.path, fuzzy: false })
+
+  return (
+    <m.div
+      key={item.path}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={Spring.smooth(0.3, index * 0.05)}
+    >
+      <Link
+        to={item.path}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+          isActive
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        )}
+      >
+        <Icon className="size-4" />
+        <div className="min-w-0">
+          <div className="font-medium">{item.label}</div>
+        </div>
+      </Link>
+    </m.div>
   )
 }
