@@ -89,6 +89,11 @@ func (a *Application) Run() error {
 	if a.bootstrapManager != nil {
 		a.bootstrapManager.Bootstrap(a.ctx)
 	}
+	if a.state != nil {
+		if runtime := a.state.RuntimeState(); runtime != nil {
+			runtime.Activate(a.ctx)
+		}
+	}
 	if a.initManager != nil {
 		a.initManager.Start(a.ctx)
 	}
