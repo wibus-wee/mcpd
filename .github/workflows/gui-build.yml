@@ -38,6 +38,7 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           run_install: true
+          version: latest
 
       - name: Cache pnpm modules
         uses: actions/cache@v5
