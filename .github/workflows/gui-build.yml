@@ -67,7 +67,7 @@ jobs:
 
       - name: Build desktop app
         run: |
-          wails3 build -production -platform ${{ matrix.platform }}
+          make build
         shell: bash
 
       - name: Upload GUI artifacts
