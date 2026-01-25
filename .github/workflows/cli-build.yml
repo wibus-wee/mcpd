@@ -1,0 +1,68 @@
+name: "CLI Multi-Platform Build"
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-cli:
+    name: Build CLI (mcpd & mcpdmcp)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # - os: ubuntu-latest
+          #   goos: linux
+          #   goarch: amd64
+          # - os: ubuntu-latest
+          #   goos: linux
+          #   goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+          # - os: windows-latest
+          #   goos: windows
+          #   goarch: amd64
+    env:
+      VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-${{ hashFiles('**/go.sum') }}-${{ matrix.goos }}-${{ matrix.goarch }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build CLI binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          BUILD=$(git rev-parse --short HEAD)
+          LDFLAGS="-X mcpd/internal/app.Version=${VERSION} -X mcpd/internal/app.Build=${BUILD}"
+          go build -ldflags "$LDFLAGS" -o bin/mcpd-${GOOS}-${GOARCH} ./cmd/mcpd
+          go build -ldflags "$LDFLAGS" -o bin/mcpdmcp-${GOOS}-${GOARCH} ./cmd/mcpdmcp
+        shell: bash
+
+      - name: Upload CLI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            bin/mcpd-${{ matrix.goos }}-${{ matrix.goarch }}
+            bin/mcpdmcp-${{ matrix.goos }}-${{ matrix.goarch }}
