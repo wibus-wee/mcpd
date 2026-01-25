@@ -28,14 +28,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          package-manager-cache: false
 
-      - name: Enable Corepack (pnpm)
-        run: corepack enable
+      - name: Install pnpm + dependencies
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: true
+
+      - name: Cache pnpm modules
+        uses: actions/cache@v5
+        env:
+          cache-name: cache-pnpm-modules
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.os }}-
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -46,14 +58,11 @@ jobs:
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 
       - name: Generate Wails bindings
-        run: wails3 generate bindings -ts
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        run: make wails-bindings
 
       - name: Build frontend bundle
-        run: pnpm --dir frontend run build
+        working-directory: frontend
+        run: pnpm run build
 
       - name: Build desktop app
         run: |
