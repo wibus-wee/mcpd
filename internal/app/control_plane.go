@@ -48,8 +48,8 @@ func (c *ControlPlane) Info(ctx context.Context) (domain.ControlPlaneInfo, error
 }
 
 // RegisterClient registers a client with the control plane.
-func (c *ControlPlane) RegisterClient(ctx context.Context, client string, pid int, tags []string) (domain.ClientRegistration, error) {
-	return c.registry.RegisterClient(ctx, client, pid, tags)
+func (c *ControlPlane) RegisterClient(ctx context.Context, client string, pid int, tags []string, server string) (domain.ClientRegistration, error) {
+	return c.registry.RegisterClient(ctx, client, pid, tags, server)
 }
 
 // UnregisterClient unregisters a client.

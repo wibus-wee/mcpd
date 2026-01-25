@@ -31,7 +31,7 @@ func (d *discoveryService) StartClientChangeListener(ctx context.Context) {}
 
 // ListTools lists tools visible to a client.
 func (d *discoveryService) ListTools(ctx context.Context, client string) (domain.ToolSnapshot, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return domain.ToolSnapshot{}, err
 	}
@@ -39,7 +39,7 @@ func (d *discoveryService) ListTools(ctx context.Context, client string) (domain
 	if runtime == nil || runtime.tools == nil {
 		return domain.ToolSnapshot{}, nil
 	}
-	return d.filterToolSnapshot(runtime.tools.Snapshot(), tags), nil
+	return d.filterToolSnapshot(runtime.tools.Snapshot(), visibleSpecKeys), nil
 }
 
 // ListToolCatalog returns the full tool catalog snapshot.
@@ -75,7 +75,7 @@ func (d *discoveryService) ListToolCatalog(ctx context.Context) (domain.ToolCata
 
 // WatchTools streams tool snapshots for a client.
 func (d *discoveryService) WatchTools(ctx context.Context, client string) (<-chan domain.ToolSnapshot, error) {
-	if _, err := d.registry.resolveClientTags(client); err != nil {
+	if _, err := d.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedToolSnapshotChannel(), err
 	}
 	runtime := d.state.RuntimeState()
@@ -118,7 +118,7 @@ func (d *discoveryService) WatchTools(ctx context.Context, client string) (<-cha
 
 // CallTool executes a tool on behalf of a client.
 func (d *discoveryService) CallTool(ctx context.Context, client, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,12 @@ func (d *discoveryService) CallTool(ctx context.Context, client, name string, ar
 	if !ok {
 		return nil, domain.ErrToolNotFound
 	}
-	if !d.isServerVisible(tags, target.ServerType) {
+	visibleSpecSet := toSpecKeySet(visibleSpecKeys)
+	if target.SpecKey != "" {
+		if _, ok := visibleSpecSet[target.SpecKey]; !ok {
+			return nil, domain.ErrToolNotFound
+		}
+	} else if !d.isServerVisible(visibleSpecSet, target.ServerType) {
 		return nil, domain.ErrToolNotFound
 	}
 	ctx = domain.WithRouteContext(ctx, domain.RouteContext{Client: client})
@@ -162,7 +167,7 @@ func (d *discoveryService) CallToolAll(ctx context.Context, name string, args js
 
 // ListResources lists resources visible to a client.
 func (d *discoveryService) ListResources(ctx context.Context, client string, cursor string) (domain.ResourcePage, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return domain.ResourcePage{}, err
 	}
@@ -171,7 +176,7 @@ func (d *discoveryService) ListResources(ctx context.Context, client string, cur
 		return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
 	}
 	snapshot := runtime.resources.Snapshot()
-	filtered := d.filterResourceSnapshot(snapshot, tags)
+	filtered := d.filterResourceSnapshot(snapshot, visibleSpecKeys)
 	return paginateResources(filtered, cursor)
 }
 
@@ -187,7 +192,7 @@ func (d *discoveryService) ListResourcesAll(ctx context.Context, cursor string) 
 
 // WatchResources streams resource snapshots for a client.
 func (d *discoveryService) WatchResources(ctx context.Context, client string) (<-chan domain.ResourceSnapshot, error) {
-	if _, err := d.registry.resolveClientTags(client); err != nil {
+	if _, err := d.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedResourceSnapshotChannel(), err
 	}
 	runtime := d.state.RuntimeState()
@@ -230,7 +235,7 @@ func (d *discoveryService) WatchResources(ctx context.Context, client string) (<
 
 // ReadResource reads a resource on behalf of a client.
 func (d *discoveryService) ReadResource(ctx context.Context, client, uri string) (json.RawMessage, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +247,12 @@ func (d *discoveryService) ReadResource(ctx context.Context, client, uri string)
 	if !ok {
 		return nil, domain.ErrResourceNotFound
 	}
-	if !d.isServerVisible(tags, target.ServerType) {
+	visibleSpecSet := toSpecKeySet(visibleSpecKeys)
+	if target.SpecKey != "" {
+		if _, ok := visibleSpecSet[target.SpecKey]; !ok {
+			return nil, domain.ErrResourceNotFound
+		}
+	} else if !d.isServerVisible(visibleSpecSet, target.ServerType) {
 		return nil, domain.ErrResourceNotFound
 	}
 	ctx = domain.WithRouteContext(ctx, domain.RouteContext{Client: client})
@@ -264,7 +274,7 @@ func (d *discoveryService) ReadResourceAll(ctx context.Context, uri string) (jso
 
 // ListPrompts lists prompts visible to a client.
 func (d *discoveryService) ListPrompts(ctx context.Context, client string, cursor string) (domain.PromptPage, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return domain.PromptPage{}, err
 	}
@@ -273,7 +283,7 @@ func (d *discoveryService) ListPrompts(ctx context.Context, client string, curso
 		return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
 	}
 	snapshot := runtime.prompts.Snapshot()
-	filtered := d.filterPromptSnapshot(snapshot, tags)
+	filtered := d.filterPromptSnapshot(snapshot, visibleSpecKeys)
 	return paginatePrompts(filtered, cursor)
 }
 
@@ -289,7 +299,7 @@ func (d *discoveryService) ListPromptsAll(ctx context.Context, cursor string) (d
 
 // WatchPrompts streams prompt snapshots for a client.
 func (d *discoveryService) WatchPrompts(ctx context.Context, client string) (<-chan domain.PromptSnapshot, error) {
-	if _, err := d.registry.resolveClientTags(client); err != nil {
+	if _, err := d.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedPromptSnapshotChannel(), err
 	}
 	runtime := d.state.RuntimeState()
@@ -332,7 +342,7 @@ func (d *discoveryService) WatchPrompts(ctx context.Context, client string) (<-c
 
 // GetPrompt resolves a prompt for a client.
 func (d *discoveryService) GetPrompt(ctx context.Context, client, name string, args json.RawMessage) (json.RawMessage, error) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +354,12 @@ func (d *discoveryService) GetPrompt(ctx context.Context, client, name string, a
 	if !ok {
 		return nil, domain.ErrPromptNotFound
 	}
-	if !d.isServerVisible(tags, target.ServerType) {
+	visibleSpecSet := toSpecKeySet(visibleSpecKeys)
+	if target.SpecKey != "" {
+		if _, ok := visibleSpecSet[target.SpecKey]; !ok {
+			return nil, domain.ErrPromptNotFound
+		}
+	} else if !d.isServerVisible(visibleSpecSet, target.ServerType) {
 		return nil, domain.ErrPromptNotFound
 	}
 	ctx = domain.WithRouteContext(ctx, domain.RouteContext{Client: client})
@@ -370,11 +385,11 @@ func (d *discoveryService) GetToolSnapshotForClient(client string) (domain.ToolS
 }
 
 func (d *discoveryService) sendFilteredTools(ch chan<- domain.ToolSnapshot, client string, snapshot domain.ToolSnapshot) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return
 	}
-	filtered := d.filterToolSnapshot(snapshot, tags)
+	filtered := d.filterToolSnapshot(snapshot, visibleSpecKeys)
 	select {
 	case ch <- filtered:
 	default:
@@ -382,11 +397,11 @@ func (d *discoveryService) sendFilteredTools(ch chan<- domain.ToolSnapshot, clie
 }
 
 func (d *discoveryService) sendFilteredResources(ch chan<- domain.ResourceSnapshot, client string, snapshot domain.ResourceSnapshot) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return
 	}
-	filtered := d.filterResourceSnapshot(snapshot, tags)
+	filtered := d.filterResourceSnapshot(snapshot, visibleSpecKeys)
 	select {
 	case ch <- filtered:
 	default:
@@ -394,22 +409,22 @@ func (d *discoveryService) sendFilteredResources(ch chan<- domain.ResourceSnapsh
 }
 
 func (d *discoveryService) sendFilteredPrompts(ch chan<- domain.PromptSnapshot, client string, snapshot domain.PromptSnapshot) {
-	tags, err := d.registry.resolveClientTags(client)
+	visibleSpecKeys, err := d.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return
 	}
-	filtered := d.filterPromptSnapshot(snapshot, tags)
+	filtered := d.filterPromptSnapshot(snapshot, visibleSpecKeys)
 	select {
 	case ch <- filtered:
 	default:
 	}
 }
 
-func (d *discoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, tags []string) domain.ToolSnapshot {
+func (d *discoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, visibleSpecKeys []string) domain.ToolSnapshot {
 	if len(snapshot.Tools) == 0 {
 		return domain.ToolSnapshot{}
 	}
-	visibleServers, visibleSpecKeys := d.visibleServers(tags)
+	visibleServers, visibleSpecSet := d.visibleServers(visibleSpecKeys)
 	filtered := make([]domain.ToolDefinition, 0, len(snapshot.Tools))
 	for _, tool := range snapshot.Tools {
 		if tool.ServerName != "" {
@@ -417,7 +432,7 @@ func (d *discoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, tags
 				continue
 			}
 		} else if tool.SpecKey != "" {
-			if _, ok := visibleSpecKeys[tool.SpecKey]; !ok {
+			if _, ok := visibleSpecSet[tool.SpecKey]; !ok {
 				continue
 			}
 		}
@@ -441,11 +456,11 @@ func (d *discoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, tags
 	}
 }
 
-func (d *discoveryService) filterResourceSnapshot(snapshot domain.ResourceSnapshot, tags []string) domain.ResourceSnapshot {
+func (d *discoveryService) filterResourceSnapshot(snapshot domain.ResourceSnapshot, visibleSpecKeys []string) domain.ResourceSnapshot {
 	if len(snapshot.Resources) == 0 {
 		return domain.ResourceSnapshot{}
 	}
-	visibleServers, visibleSpecKeys := d.visibleServers(tags)
+	visibleServers, visibleSpecSet := d.visibleServers(visibleSpecKeys)
 	filtered := make([]domain.ResourceDefinition, 0, len(snapshot.Resources))
 	for _, resource := range snapshot.Resources {
 		if resource.ServerName != "" {
@@ -453,7 +468,7 @@ func (d *discoveryService) filterResourceSnapshot(snapshot domain.ResourceSnapsh
 				continue
 			}
 		} else if resource.SpecKey != "" {
-			if _, ok := visibleSpecKeys[resource.SpecKey]; !ok {
+			if _, ok := visibleSpecSet[resource.SpecKey]; !ok {
 				continue
 			}
 		}
@@ -471,11 +486,11 @@ func (d *discoveryService) filterResourceSnapshot(snapshot domain.ResourceSnapsh
 	}
 }
 
-func (d *discoveryService) filterPromptSnapshot(snapshot domain.PromptSnapshot, tags []string) domain.PromptSnapshot {
+func (d *discoveryService) filterPromptSnapshot(snapshot domain.PromptSnapshot, visibleSpecKeys []string) domain.PromptSnapshot {
 	if len(snapshot.Prompts) == 0 {
 		return domain.PromptSnapshot{}
 	}
-	visibleServers, visibleSpecKeys := d.visibleServers(tags)
+	visibleServers, visibleSpecSet := d.visibleServers(visibleSpecKeys)
 	filtered := make([]domain.PromptDefinition, 0, len(snapshot.Prompts))
 	for _, prompt := range snapshot.Prompts {
 		if prompt.ServerName != "" {
@@ -483,7 +498,7 @@ func (d *discoveryService) filterPromptSnapshot(snapshot domain.PromptSnapshot, 
 				continue
 			}
 		} else if prompt.SpecKey != "" {
-			if _, ok := visibleSpecKeys[prompt.SpecKey]; !ok {
+			if _, ok := visibleSpecSet[prompt.SpecKey]; !ok {
 				continue
 			}
 		}
@@ -501,34 +516,45 @@ func (d *discoveryService) filterPromptSnapshot(snapshot domain.PromptSnapshot, 
 	}
 }
 
-func (d *discoveryService) visibleServers(tags []string) (map[string]struct{}, map[string]struct{}) {
-	catalog := d.state.Catalog()
-	serverSpecKeys := d.state.ServerSpecKeys()
+func (d *discoveryService) visibleServers(visibleSpecKeys []string) (map[string]struct{}, map[string]struct{}) {
 	visibleServers := make(map[string]struct{})
-	visibleSpecKeys := make(map[string]struct{})
-	for name, specKey := range serverSpecKeys {
-		spec, ok := catalog.Specs[name]
+	visibleSpecSet := make(map[string]struct{})
+	specRegistry := d.state.SpecRegistry()
+	for _, specKey := range visibleSpecKeys {
+		spec, ok := specRegistry[specKey]
 		if !ok {
 			continue
 		}
-		if isVisibleToTags(tags, spec.Tags) {
-			visibleServers[name] = struct{}{}
-			visibleSpecKeys[specKey] = struct{}{}
+		if spec.Name != "" {
+			visibleServers[spec.Name] = struct{}{}
 		}
+		visibleSpecSet[specKey] = struct{}{}
 	}
-	return visibleServers, visibleSpecKeys
+	return visibleServers, visibleSpecSet
 }
 
-func (d *discoveryService) isServerVisible(tags []string, serverName string) bool {
+func (d *discoveryService) isServerVisible(visibleSpecKeys map[string]struct{}, serverName string) bool {
 	if serverName == "" {
 		return false
 	}
-	catalog := d.state.Catalog()
-	spec, ok := catalog.Specs[serverName]
+	serverSpecKeys := d.state.ServerSpecKeys()
+	specKey, ok := serverSpecKeys[serverName]
 	if !ok {
 		return false
 	}
-	return isVisibleToTags(tags, spec.Tags)
+	_, ok = visibleSpecKeys[specKey]
+	return ok
+}
+
+func toSpecKeySet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return map[string]struct{}{}
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		set[key] = struct{}{}
+	}
+	return set
 }
 
 func (d *discoveryService) metadataCache() *domain.MetadataCache {

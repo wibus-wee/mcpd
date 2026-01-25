@@ -15,21 +15,25 @@ import (
 )
 
 type logBridge struct {
-	server  *mcp.Server
-	clients *clientManager
-	caller  string
-	logger  *zap.Logger
+	server     *mcp.Server
+	clients    *clientManager
+	caller     string
+	tags       []string
+	serverName string
+	logger     *zap.Logger
 }
 
-func newLogBridge(server *mcp.Server, clients *clientManager, caller string, logger *zap.Logger) *logBridge {
+func newLogBridge(server *mcp.Server, clients *clientManager, caller string, tags []string, serverName string, logger *zap.Logger) *logBridge {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &logBridge{
-		server:  server,
-		clients: clients,
-		caller:  caller,
-		logger:  logger.Named("log_bridge"),
+		server:     server,
+		clients:    clients,
+		caller:     caller,
+		tags:       tags,
+		serverName: serverName,
+		logger:     logger.Named("log_bridge"),
 	}
 }
 
@@ -93,6 +97,8 @@ func (b *logBridge) registerCaller(ctx context.Context) error {
 	_, err = client.Control().RegisterCaller(ctx, &controlv1.RegisterCallerRequest{
 		Caller: b.caller,
 		Pid:    int64(os.Getpid()),
+		Tags:   append([]string(nil), b.tags...),
+		Server: b.serverName,
 	})
 	if err != nil {
 		if status.Code(err) == codes.Unavailable {

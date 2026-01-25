@@ -46,7 +46,7 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 	state := newControlPlaneState(context.Background(), runtimeState, scheduler, initManager, nil, &prevState, zap.NewNop())
 	registry := newClientRegistry(state)
 
-	_, err = registry.RegisterClient(context.Background(), "client-1", 1, nil)
+	_, err = registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
 	require.NoError(t, err)
 	scheduler.minReadyCalls = nil
 
@@ -98,7 +98,7 @@ func TestReloadManager_ApplyUpdate_RemovesServer(t *testing.T) {
 	state := newControlPlaneState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
 	registry := newClientRegistry(state)
 
-	_, err = registry.RegisterClient(context.Background(), "client-1", 1, nil)
+	_, err = registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
 	require.NoError(t, err)
 	scheduler.stopCalls = nil
 

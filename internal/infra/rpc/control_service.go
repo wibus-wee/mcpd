@@ -51,7 +51,10 @@ func (s *ControlService) RegisterCaller(ctx context.Context, req *controlv1.Regi
 	if req.GetPid() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "pid must be > 0")
 	}
-	registration, err := s.control.RegisterClient(ctx, client, int(req.GetPid()), nil)
+	if req.GetServer() != "" && len(req.GetTags()) > 0 {
+		return nil, status.Error(codes.InvalidArgument, "server and tags are mutually exclusive")
+	}
+	registration, err := s.control.RegisterClient(ctx, client, int(req.GetPid()), req.GetTags(), req.GetServer())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "register caller: %v", err)
 	}

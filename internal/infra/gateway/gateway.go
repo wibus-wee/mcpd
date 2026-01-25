@@ -21,6 +21,8 @@ import (
 type Gateway struct {
 	cfg             rpc.ClientConfig
 	caller          string
+	tags            []string
+	serverName      string
 	logger          *zap.Logger
 	server          *mcp.Server
 	clients         *clientManager
@@ -33,14 +35,16 @@ type Gateway struct {
 
 const defaultHeartbeatInterval = 2 * time.Second
 
-func NewGateway(cfg rpc.ClientConfig, caller string, logger *zap.Logger) *Gateway {
+func NewGateway(cfg rpc.ClientConfig, caller string, tags []string, serverName string, logger *zap.Logger) *Gateway {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &Gateway{
-		cfg:    cfg,
-		caller: caller,
-		logger: logger.Named("gateway"),
+		cfg:        cfg,
+		caller:     caller,
+		tags:       tags,
+		serverName: serverName,
+		logger:     logger.Named("gateway"),
 	}
 }
 
@@ -95,7 +99,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 	go g.syncResources(runCtx)
 	go g.syncPrompts(runCtx)
-	go newLogBridge(g.server, g.clients, g.caller, g.logger).Run(runCtx)
+	go newLogBridge(g.server, g.clients, g.caller, g.tags, g.serverName, g.logger).Run(runCtx)
 
 	g.logger.Info("gateway starting (stdio transport)")
 	err := g.server.Run(runCtx, &mcp.StdioTransport{})
@@ -127,6 +131,8 @@ func (g *Gateway) registerCaller(ctx context.Context) error {
 	resp, err := client.Control().RegisterCaller(ctx, &controlv1.RegisterCallerRequest{
 		Caller: g.caller,
 		Pid:    int64(os.Getpid()),
+		Tags:   append([]string(nil), g.tags...),
+		Server: g.serverName,
 	})
 	if err != nil {
 		if status.Code(err) == codes.Unavailable {

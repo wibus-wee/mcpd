@@ -13,6 +13,7 @@ export class ActiveClient {
     "client": string;
     "pid": number;
     "tags": string[];
+    "server"?: string;
     "lastHeartbeat": string;
 
     /** Creates a new ActiveClient instance. */

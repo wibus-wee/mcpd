@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -26,6 +29,8 @@ type gatewayOptions struct {
 	rpcTLSKeyFile       string
 	rpcTLSCAFile        string
 	caller              string
+	tags                []string
+	server              string
 	logger              *zap.Logger
 }
 
@@ -56,6 +61,15 @@ func main() {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			applyGatewayFlagBindings(cmd.Flags(), &opts)
+			if opts.server != "" && len(opts.tags) > 0 {
+				return errors.New("cannot use --server and --tag together")
+			}
+			if opts.server == "" && len(opts.tags) == 0 {
+				return errors.New("server or --tag is required")
+			}
+			if opts.caller == "" {
+				opts.caller = deriveCallerName(opts.server, opts.tags)
+			}
 			ctx, cancel := signalAwareContext(cmd.Context())
 			defer cancel()
 
@@ -73,7 +87,7 @@ func main() {
 				},
 			}
 
-			gw := gateway.NewGateway(clientCfg, opts.caller, opts.logger)
+			gw := gateway.NewGateway(clientCfg, opts.caller, opts.tags, opts.server, opts.logger)
 			return gw.Run(ctx)
 		},
 	}
@@ -88,6 +102,8 @@ func main() {
 	root.PersistentFlags().StringVar(&opts.rpcTLSKeyFile, "rpc-tls-key", "", "client TLS key file")
 	root.PersistentFlags().StringVar(&opts.rpcTLSCAFile, "rpc-tls-ca", "", "RPC CA file")
 	root.PersistentFlags().StringVar(&opts.caller, "caller", "", "caller identifier for profile routing")
+	root.PersistentFlags().StringVar(&opts.server, "server", "", "server name for single-server mode")
+	root.PersistentFlags().StringArrayVar(&opts.tags, "tag", nil, "tag for server visibility (repeatable)")
 
 	if err := root.Execute(); err != nil {
 		opts.logger.Fatal("command failed", zap.Error(err))
@@ -117,8 +133,26 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.rpcTLSCAFile, _ = flags.GetString("rpc-tls-ca")
 		case "caller":
 			opts.caller, _ = flags.GetString("caller")
+		case "server":
+			opts.server, _ = flags.GetString("server")
+		case "tag":
+			opts.tags, _ = flags.GetStringArray("tag")
 		}
 	})
+}
+
+func deriveCallerName(server string, tags []string) string {
+	base := "mcpd-gateway"
+	if server != "" {
+		base = "server-" + server
+	} else if len(tags) > 0 {
+		base = "tag-" + strings.Join(tags, "+")
+	}
+	pid := os.Getpid()
+	if pid > 0 {
+		return fmt.Sprintf("%s-%d", base, pid)
+	}
+	return base
 }
 
 func signalAwareContext(parent context.Context) (context.Context, context.CancelFunc) {

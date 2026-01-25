@@ -39,7 +39,7 @@ func newObservabilityService(state *controlPlaneState, registry *clientRegistry,
 
 // StreamLogs streams logs for a caller.
 func (o *observabilityService) StreamLogs(ctx context.Context, client string, minLevel domain.LogLevel) (<-chan domain.LogEntry, error) {
-	if _, err := o.registry.resolveClientTags(client); err != nil {
+	if _, err := o.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedLogEntryChannel(), err
 	}
 	return o.streamLogs(ctx, minLevel)
@@ -103,7 +103,7 @@ func (o *observabilityService) GetServerInitStatus(ctx context.Context) ([]domai
 
 // WatchRuntimeStatus streams runtime status for a caller.
 func (o *observabilityService) WatchRuntimeStatus(ctx context.Context, client string) (<-chan domain.RuntimeStatusSnapshot, error) {
-	if _, err := o.registry.resolveClientTags(client); err != nil {
+	if _, err := o.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedRuntimeStatusChannel(), err
 	}
 	if o.runtimeStatusIdx == nil {
@@ -153,7 +153,7 @@ func (o *observabilityService) WatchRuntimeStatusAllServers(ctx context.Context)
 
 // WatchServerInitStatus streams server init status for a caller.
 func (o *observabilityService) WatchServerInitStatus(ctx context.Context, client string) (<-chan domain.ServerInitStatusSnapshot, error) {
-	if _, err := o.registry.resolveClientTags(client); err != nil {
+	if _, err := o.registry.resolveVisibleSpecKeys(client); err != nil {
 		return closedServerInitStatusChannel(), err
 	}
 	if o.serverInitIdx == nil {
@@ -304,11 +304,11 @@ func closedServerInitStatusChannel() chan domain.ServerInitStatusSnapshot {
 }
 
 func (o *observabilityService) sendFilteredRuntimeStatus(ch chan<- domain.RuntimeStatusSnapshot, client string, snapshot domain.RuntimeStatusSnapshot) {
-	tags, err := o.registry.resolveClientTags(client)
+	visibleSpecKeys, err := o.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return
 	}
-	filtered := filterRuntimeStatusSnapshot(snapshot, o.visibleSpecKeys(tags))
+	filtered := filterRuntimeStatusSnapshot(snapshot, toSpecKeySet(visibleSpecKeys))
 	select {
 	case ch <- filtered:
 	default:
@@ -316,31 +316,15 @@ func (o *observabilityService) sendFilteredRuntimeStatus(ch chan<- domain.Runtim
 }
 
 func (o *observabilityService) sendFilteredServerInitStatus(ch chan<- domain.ServerInitStatusSnapshot, client string, snapshot domain.ServerInitStatusSnapshot) {
-	tags, err := o.registry.resolveClientTags(client)
+	visibleSpecKeys, err := o.registry.resolveVisibleSpecKeys(client)
 	if err != nil {
 		return
 	}
-	filtered := filterServerInitStatusSnapshot(snapshot, o.visibleSpecKeys(tags))
+	filtered := filterServerInitStatusSnapshot(snapshot, toSpecKeySet(visibleSpecKeys))
 	select {
 	case ch <- filtered:
 	default:
 	}
-}
-
-func (o *observabilityService) visibleSpecKeys(tags []string) map[string]struct{} {
-	catalog := o.state.Catalog()
-	serverSpecKeys := o.state.ServerSpecKeys()
-	visible := make(map[string]struct{})
-	for name, specKey := range serverSpecKeys {
-		spec, ok := catalog.Specs[name]
-		if !ok {
-			continue
-		}
-		if isVisibleToTags(tags, spec.Tags) {
-			visible[specKey] = struct{}{}
-		}
-	}
-	return visible
 }
 
 func filterRuntimeStatusSnapshot(snapshot domain.RuntimeStatusSnapshot, visibleSpecKeys map[string]struct{}) domain.RuntimeStatusSnapshot {

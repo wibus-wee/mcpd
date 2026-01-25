@@ -153,7 +153,7 @@ func (f *fakeControlPlane) Info(ctx context.Context) (domain.ControlPlaneInfo, e
 	return domain.ControlPlaneInfo{}, nil
 }
 
-func (f *fakeControlPlane) RegisterClient(ctx context.Context, client string, pid int, tags []string) (domain.ClientRegistration, error) {
+func (f *fakeControlPlane) RegisterClient(ctx context.Context, client string, pid int, tags []string, server string) (domain.ClientRegistration, error) {
 	if f.registerErr != nil {
 		return domain.ClientRegistration{}, f.registerErr
 	}

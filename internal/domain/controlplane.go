@@ -137,6 +137,7 @@ type ActiveClient struct {
 	Client        string
 	PID           int
 	Tags          []string
+	Server        string
 	LastHeartbeat time.Time
 }
 
@@ -206,7 +207,7 @@ type ClientRegistration struct {
 
 // ControlPlaneRegistry manages client registration and monitoring.
 type ControlPlaneRegistry interface {
-	RegisterClient(ctx context.Context, client string, pid int, tags []string) (ClientRegistration, error)
+	RegisterClient(ctx context.Context, client string, pid int, tags []string, server string) (ClientRegistration, error)
 	UnregisterClient(ctx context.Context, client string) error
 	ListActiveClients(ctx context.Context) ([]ActiveClient, error)
 	WatchActiveClients(ctx context.Context) (<-chan ActiveClientSnapshot, error)

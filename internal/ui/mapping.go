@@ -194,6 +194,7 @@ func mapActiveClients(clients []domain.ActiveClient) []ActiveClient {
 			Client:        client.Client,
 			PID:           client.PID,
 			Tags:          append([]string(nil), client.Tags...),
+			Server:        client.Server,
 			LastHeartbeat: client.LastHeartbeat.Format("2006-01-02T15:04:05.000Z07:00"),
 		}
 	})

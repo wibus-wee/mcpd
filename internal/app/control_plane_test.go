@@ -38,7 +38,7 @@ func TestControlPlane_RegisterUnregister(t *testing.T) {
 		Runtime: domain.RuntimeConfig{},
 	}, sched)
 
-	registration, err := cp.RegisterClient(context.Background(), "client", 1234, nil)
+	registration, err := cp.RegisterClient(context.Background(), "client", 1234, nil, "")
 	require.NoError(t, err)
 	require.Equal(t, "client", registration.Client)
 	require.Equal(t, []minReadyCall{{specKey: specKey, minReady: 1}}, sched.minReadyCalls)

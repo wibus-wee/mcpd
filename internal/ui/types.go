@@ -230,6 +230,7 @@ type ActiveClient struct {
 	Client        string   `json:"client"`
 	PID           int      `json:"pid"`
 	Tags          []string `json:"tags"`
+	Server        string   `json:"server,omitempty"`
 	LastHeartbeat string   `json:"lastHeartbeat"`
 }
 

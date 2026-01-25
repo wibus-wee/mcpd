@@ -55,7 +55,7 @@ func setRuntimeDefaults(v *viper.Viper) {
 }
 
 type rawCatalog struct {
-	Servers          []rawServerSpec          `mapstructure:"servers"`
+	Servers          []rawServerSpec `mapstructure:"servers"`
 	rawRuntimeConfig `mapstructure:",squash"`
 }
 
@@ -107,14 +107,14 @@ type rawRuntimeConfig struct {
 }
 
 type rawSubAgentConfig struct {
-	EnabledTags       []string `mapstructure:"enabledTags"`
-	Model              string `mapstructure:"model"`
-	Provider           string `mapstructure:"provider"`
-	APIKey             string `mapstructure:"apiKey"`
-	APIKeyEnvVar       string `mapstructure:"apiKeyEnvVar"`
-	BaseURL            string `mapstructure:"baseURL"`
-	MaxToolsPerRequest int    `mapstructure:"maxToolsPerRequest"`
-	FilterPrompt       string `mapstructure:"filterPrompt"`
+	EnabledTags        []string `mapstructure:"enabledTags"`
+	Model              string   `mapstructure:"model"`
+	Provider           string   `mapstructure:"provider"`
+	APIKey             string   `mapstructure:"apiKey"`
+	APIKeyEnvVar       string   `mapstructure:"apiKeyEnvVar"`
+	BaseURL            string   `mapstructure:"baseURL"`
+	MaxToolsPerRequest int      `mapstructure:"maxToolsPerRequest"`
+	FilterPrompt       string   `mapstructure:"filterPrompt"`
 }
 
 type rawObservabilityConfig struct {
@@ -632,7 +632,7 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 		Observability:              observabilityCfg,
 		RPC:                        rpcCfg,
 		SubAgent: domain.SubAgentConfig{
-			EnabledTags:       enabledTags,
+			EnabledTags:        enabledTags,
 			Model:              cfg.SubAgent.Model,
 			Provider:           cfg.SubAgent.Provider,
 			APIKey:             cfg.SubAgent.APIKey,

@@ -9,14 +9,14 @@ import (
 // SubAgentConfig contains configuration for the automatic SubAgent LLM provider.
 // This is configured at the runtime level (shared across all profiles).
 type SubAgentConfig struct {
-	EnabledTags       []string `json:"enabledTags,omitempty"`
-	Model              string `json:"model"`        // e.g., "gpt-4"
-	Provider           string `json:"provider"`     // e.g., "openai"
-	APIKey             string `json:"apiKey"`       // optional inline API key
-	APIKeyEnvVar       string `json:"apiKeyEnvVar"` // e.g., "OPENAI_API_KEY"
-	BaseURL            string `json:"baseURL"`      // e.g., "https://api.openai.com/v1" (optional)
-	MaxToolsPerRequest int    `json:"maxToolsPerRequest"`
-	FilterPrompt       string `json:"filterPrompt"` // optional custom prompt
+	EnabledTags        []string `json:"enabledTags,omitempty"`
+	Model              string   `json:"model"`        // e.g., "gpt-4"
+	Provider           string   `json:"provider"`     // e.g., "openai"
+	APIKey             string   `json:"apiKey"`       // optional inline API key
+	APIKeyEnvVar       string   `json:"apiKeyEnvVar"` // e.g., "OPENAI_API_KEY"
+	BaseURL            string   `json:"baseURL"`      // e.g., "https://api.openai.com/v1" (optional)
+	MaxToolsPerRequest int      `json:"maxToolsPerRequest"`
+	FilterPrompt       string   `json:"filterPrompt"` // optional custom prompt
 }
 
 // AutomaticMCPResult is returned by automatic_mcp.

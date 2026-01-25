@@ -44,36 +44,43 @@ export const buildTopology = (
   runtimeStatus: ServerRuntimeStatus[],
 ): LayoutResult => {
   const serverEntries = new Map<string, ServerEntry>()
+  const serverNameIndex = new Map<string, ServerEntry>()
 
   servers.forEach(summary => {
     if (!summary.specKey) return
-    serverEntries.set(summary.specKey, {
+    const entry = {
       specKey: summary.specKey,
       name: summary.name,
       protocolVersion: 'default',
       tags: normalizeTags(summary.tags),
-    })
+    }
+    serverEntries.set(summary.specKey, entry)
+    serverNameIndex.set(summary.name, entry)
   })
 
   serverDetails.forEach(detail => {
     const existing = serverEntries.get(detail.specKey)
-    serverEntries.set(detail.specKey, {
+    const entry = {
       specKey: detail.specKey,
       name: detail.name,
       protocolVersion: detail.protocolVersion || existing?.protocolVersion || 'default',
       tags: normalizeTags(detail.tags ?? existing?.tags),
-    })
+    }
+    serverEntries.set(detail.specKey, entry)
+    serverNameIndex.set(detail.name, entry)
   })
 
   runtimeStatus.forEach(status => {
     if (!status.specKey) return
     if (!serverEntries.has(status.specKey)) {
-      serverEntries.set(status.specKey, {
+      const entry = {
         specKey: status.specKey,
         name: status.serverName || status.specKey,
         protocolVersion: 'default',
         tags: ['untagged'],
-      })
+      }
+      serverEntries.set(status.specKey, entry)
+      serverNameIndex.set(entry.name, entry)
     }
   })
 
@@ -85,6 +92,25 @@ export const buildTopology = (
   })
 
   const allTags = Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  const resolveClientTags = (client: ActiveClient) => {
+    const serverName = client.server?.trim()
+    if (serverName) {
+      const entry = serverNameIndex.get(serverName)
+      const tags = entry?.tags.filter(tag => tag !== 'untagged') ?? []
+      return {
+        mode: 'server' as const,
+        tags,
+        serverSpecKey: entry?.specKey ?? '',
+      }
+    }
+
+    const tags = client.tags && client.tags.length > 0 ? client.tags : allTags
+    return {
+      mode: 'tag' as const,
+      tags,
+      serverSpecKey: '',
+    }
+  }
 
   const nodes: FlowNode[] = []
   const edges: Edge[] = []
@@ -101,8 +127,11 @@ export const buildTopology = (
     ).length
 
     const clientCount = activeClients.filter(client => {
-      const tags = client.tags && client.tags.length > 0 ? client.tags : allTags
-      return tags.includes(tag)
+      const resolved = resolveClientTags(client)
+      if (resolved.mode !== 'tag') {
+        return false
+      }
+      return resolved.tags.includes(tag)
     }).length
 
     nodes.push({
@@ -121,7 +150,8 @@ export const buildTopology = (
   })
 
   const clientEntries = activeClients.map(client => {
-    const tags = client.tags && client.tags.length > 0 ? client.tags : allTags
+    const resolved = resolveClientTags(client)
+    const tags = resolved.tags
     const tagYs = tags
       .map(tag => tagPositions.get(tag))
       .filter((value): value is number => value !== undefined)
@@ -132,13 +162,15 @@ export const buildTopology = (
       client,
       tags,
       desiredY,
+      mode: resolved.mode,
+      serverSpecKey: resolved.serverSpecKey,
     }
   })
 
   clientEntries.sort((a, b) => a.desiredY - b.desiredY)
 
   let lastClientY = -Infinity
-  clientEntries.forEach(({ client, tags, desiredY }) => {
+  clientEntries.forEach(({ client, tags, desiredY, mode, serverSpecKey }) => {
     const resolvedY = Math.max(desiredY, lastClientY + layoutConfig.nodeGap)
     lastClientY = resolvedY
 
@@ -156,6 +188,26 @@ export const buildTopology = (
         tagCount: tags.length,
       },
     })
+
+    if (mode === 'server' && serverSpecKey) {
+      edges.push({
+        id: `edge:${clientId}->server:${serverSpecKey}`,
+        source: clientId,
+        target: `server:${serverSpecKey}`,
+        type: 'smoothstep',
+        animated: true,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: 'var(--chart-3)',
+        },
+        style: {
+          stroke: 'var(--chart-3)',
+          strokeWidth: 1.6,
+          strokeOpacity: 0.7,
+        },
+      })
+      return
+    }
 
     tags.forEach(tag => {
       edges.push({

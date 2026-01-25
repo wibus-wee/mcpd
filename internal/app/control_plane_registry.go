@@ -82,7 +82,7 @@ func (r *clientRegistry) StartMonitor(ctx context.Context) {
 }
 
 // RegisterClient registers a client and returns registration metadata.
-func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid int, tags []string) (domain.ClientRegistration, error) {
+func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid int, tags []string, server string) (domain.ClientRegistration, error) {
 	if client == "" {
 		return domain.ClientRegistration{}, errors.New("client is required")
 	}
@@ -90,7 +90,11 @@ func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid 
 		return domain.ClientRegistration{}, errors.New("pid must be > 0")
 	}
 	normalizedTags := normalizeTags(tags)
-	visibleSpecKeys, visibleServerCount := r.visibleSpecKeys(normalizedTags)
+	normalizedServer := normalizeServerName(server)
+	if normalizedServer != "" && len(normalizedTags) > 0 {
+		return domain.ClientRegistration{}, errors.New("server and tags are mutually exclusive")
+	}
+	visibleSpecKeys, visibleServerCount := r.visibleSpecKeys(normalizedTags, normalizedServer)
 	internalClient := isInternalClientName(client)
 
 	var toActivate []string
@@ -98,12 +102,12 @@ func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid 
 	now := time.Now()
 	var snapshot domain.ActiveClientSnapshot
 	var shouldBroadcast bool
-	var tagsChanged bool
+	var selectorChanged bool
 
 	r.mu.Lock()
 	if existing, ok := r.activeClients[client]; ok {
-		tagsChanged = !tagsEqual(existing.tags, normalizedTags)
-		if existing.pid == pid && !tagsChanged {
+		selectorChanged = !tagsEqual(existing.tags, normalizedTags) || existing.server != normalizedServer
+		if existing.pid == pid && !selectorChanged {
 			existing.lastHeartbeat = now
 			r.activeClients[client] = existing
 			r.mu.Unlock()
@@ -118,6 +122,7 @@ func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid 
 		}
 		existing.pid = pid
 		existing.tags = normalizedTags
+		existing.server = normalizedServer
 		existing.specKeys = visibleSpecKeys
 		existing.lastHeartbeat = now
 		r.activeClients[client] = existing
@@ -130,6 +135,7 @@ func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid 
 		r.activeClients[client] = clientState{
 			pid:           pid,
 			tags:          normalizedTags,
+			server:        normalizedServer,
 			specKeys:      visibleSpecKeys,
 			lastHeartbeat: now,
 		}
@@ -156,7 +162,7 @@ func (r *clientRegistry) RegisterClient(ctx context.Context, client string, pid 
 	if shouldBroadcast {
 		r.broadcastActiveClients(finalizeActiveClientSnapshot(snapshot))
 	}
-	if tagsChanged {
+	if selectorChanged {
 		r.broadcastClientChange(clientChangeEvent{Client: client})
 	}
 
@@ -282,11 +288,21 @@ func (r *clientRegistry) resolveVisibleSpecKeys(client string) ([]string, error)
 	return append([]string(nil), state.specKeys...), nil
 }
 
-func (r *clientRegistry) visibleSpecKeys(tags []string) ([]string, int) {
+func (r *clientRegistry) visibleSpecKeys(tags []string, server string) ([]string, int) {
 	catalog := r.state.Catalog()
 	serverSpecKeys := r.state.ServerSpecKeys()
 	if len(serverSpecKeys) == 0 {
 		return nil, 0
+	}
+	if server != "" {
+		specKey, ok := serverSpecKeys[server]
+		if !ok {
+			return nil, 0
+		}
+		if _, ok := catalog.Specs[server]; !ok {
+			return nil, 0
+		}
+		return []string{specKey}, 1
 	}
 	visible := make(map[string]struct{})
 	serverCount := 0
@@ -404,6 +420,7 @@ func (r *clientRegistry) snapshotActiveClientsLocked(now time.Time) domain.Activ
 			Client:        client,
 			PID:           state.pid,
 			Tags:          append([]string(nil), state.tags...),
+			Server:        state.server,
 			LastHeartbeat: state.lastHeartbeat,
 		})
 	}
@@ -443,7 +460,7 @@ func (r *clientRegistry) ApplyCatalogUpdate(ctx context.Context, update domain.C
 	changedClients := make([]string, 0)
 
 	for client, state := range r.activeClients {
-		nextSpecKeys, _ := visibleSpecKeysForCatalog(update.Snapshot.Catalog, update.Snapshot.Summary.ServerSpecKeys, state.tags)
+		nextSpecKeys, _ := visibleSpecKeysForCatalog(update.Snapshot.Catalog, update.Snapshot.Summary.ServerSpecKeys, state.tags, state.server)
 		if !sameKeySet(state.specKeys, nextSpecKeys) {
 			changedClients = append(changedClients, client)
 			state.specKeys = nextSpecKeys
@@ -560,9 +577,19 @@ func diffKeys(next []string, prev []string) ([]string, []string) {
 	return toActivate, toDeactivate
 }
 
-func visibleSpecKeysForCatalog(catalog domain.Catalog, serverSpecKeys map[string]string, tags []string) ([]string, int) {
+func visibleSpecKeysForCatalog(catalog domain.Catalog, serverSpecKeys map[string]string, tags []string, server string) ([]string, int) {
 	if len(serverSpecKeys) == 0 {
 		return nil, 0
+	}
+	if server != "" {
+		specKey, ok := serverSpecKeys[server]
+		if !ok {
+			return nil, 0
+		}
+		if _, ok := catalog.Specs[server]; !ok {
+			return nil, 0
+		}
+		return []string{specKey}, 1
 	}
 	visible := make(map[string]struct{})
 	serverCount := 0
@@ -579,6 +606,9 @@ func visibleSpecKeysForCatalog(catalog domain.Catalog, serverSpecKeys map[string
 	return keysFromSet(visible), serverCount
 }
 
+func normalizeServerName(server string) string {
+	return strings.TrimSpace(server)
+}
 
 func tagsEqual(a []string, b []string) bool {
 	if len(a) != len(b) {
