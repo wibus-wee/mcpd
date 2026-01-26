@@ -4,17 +4,7 @@ export const SUBAGENT_PROVIDER_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
 ] as const
 
-export type SubAgentFormState = {
-  enabledTags: string[]
-  model: string
-  provider: string
-  apiKeyEnvVar: string
-  baseURL: string
-  maxToolsPerRequest: number
-  filterPrompt: string
-}
-
-export const DEFAULT_SUBAGENT_FORM: SubAgentFormState = {
+export const DEFAULT_SUBAGENT_FORM: SubAgentConfigDetail = {
   enabledTags: [],
   model: '',
   provider: 'openai',
@@ -24,7 +14,7 @@ export const DEFAULT_SUBAGENT_FORM: SubAgentFormState = {
   filterPrompt: '',
 }
 
-export const toSubAgentFormState = (config: SubAgentConfigDetail): SubAgentFormState => ({
+export const toSubAgentFormState = (config: SubAgentConfigDetail): SubAgentConfigDetail => ({
   enabledTags: config.enabledTags ?? [],
   model: config.model,
   provider: config.provider || 'openai',

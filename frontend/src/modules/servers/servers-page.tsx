@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spring } from '@/lib/spring'
-import { ImportMcpServersSheet } from '@/modules/config/components/import-mcp-servers-sheet'
+import { ImportMcpServersSheet } from '@/modules/servers/components/import-mcp-servers-sheet'
 
 import { selectedServerNameAtom } from './atoms'
 import { ServerDetailSheet } from './components/server-detail-sheet'

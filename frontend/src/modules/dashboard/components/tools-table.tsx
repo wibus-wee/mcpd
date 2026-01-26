@@ -2,7 +2,6 @@
 // Output: ToolsTable component displaying available MCP tools
 // Position: Dashboard tools section with search and detail view
 
-import type { ToolEntry } from '@bindings/mcpd/internal/ui'
 import {
   ChevronRightIcon,
   CopyIcon,
@@ -47,30 +46,9 @@ import {
 } from '@/components/ui/tooltip'
 import { formatRelativeTime } from '@/lib/time'
 import { getToolDisplayName, getToolQualifiedName } from '@/lib/tool-names'
+import { parseToolJson, type ToolSchema } from '@/lib/tool-schema'
 
 import { useTools } from '../hooks'
-
-interface ToolSchema {
-  name: string
-  description?: string
-  inputSchema?: {
-    type: string
-    properties?: Record<string, { type: string, description?: string }>
-    required?: string[]
-  }
-}
-
-const parseToolJson = (tool: ToolEntry): ToolSchema => {
-  try {
-    const parsed = typeof tool.toolJson === 'string'
-      ? JSON.parse(tool.toolJson)
-      : tool.toolJson
-    return { name: tool.name, ...parsed }
-  }
-  catch {
-    return { name: tool.name }
-  }
-}
 
 export function ToolsTable() {
   const { tools, isLoading } = useTools()

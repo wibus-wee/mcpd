@@ -18,7 +18,7 @@ import { useCallback } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveClients } from '@/hooks/use-active-clients'
 
-import { useRuntimeStatus, useServerDetails, useServers } from '../config/hooks'
+import { useRuntimeStatus, useServerDetails, useServers } from '../servers/hooks'
 import { FlowEmpty, FlowSkeleton } from './components'
 import { buildTopology } from './layout'
 import { nodeTypes } from './nodes'

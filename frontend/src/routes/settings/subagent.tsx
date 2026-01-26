@@ -4,7 +4,7 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 
-import { useConfigMode } from '@/modules/config/hooks'
+import { useConfigMode } from '@/modules/servers/hooks'
 import { SubAgentSettingsCard } from '@/modules/settings/components/subagent-settings-card'
 import { useSubAgentSettings } from '@/modules/settings/hooks/use-subagent-settings'
 

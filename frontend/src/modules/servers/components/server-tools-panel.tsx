@@ -22,8 +22,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spring } from '@/lib/spring'
 import { getToolDisplayName } from '@/lib/tool-names'
 import { cn } from '@/lib/utils'
-import { ToolDetailPanel } from '@/modules/tools/components/tool-detail-panel'
-import { useToolsByServer } from '@/modules/tools/hooks'
+import { ToolDetailPanel } from '@/modules/servers/components/tool-detail-panel'
+import { useToolsByServer } from '@/modules/servers/hooks'
 
 interface ServerToolsPanelProps {
   serverName: string | null

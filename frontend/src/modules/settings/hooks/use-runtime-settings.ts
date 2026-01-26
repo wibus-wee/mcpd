@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import useSWR, { useSWRConfig } from 'swr'
 
 import { toastManager } from '@/components/ui/toast'
-import { reloadConfig } from '@/modules/config/lib/reload-config'
+import { reloadConfig } from '@/modules/servers/lib/reload-config'
 
 import type { RuntimeFormState } from '../lib/runtime-config'
 import {

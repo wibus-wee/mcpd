@@ -33,7 +33,7 @@ import { useMcpdmcpPath } from '@/hooks/use-mcpdmcp-path'
 import { useRpcAddress } from '@/hooks/use-rpc-address'
 import type { SelectorMode } from '@/lib/mcpdmcp'
 import { buildClientConfig, buildCliSnippet, buildTomlConfig } from '@/lib/mcpdmcp'
-import { useServers } from '@/modules/config/hooks'
+import { useServers } from '@/modules/servers/hooks'
 
 import { useSidebar } from '../ui/sidebar'
 

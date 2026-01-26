@@ -1,16 +1,3 @@
-// Input: selected server name, config hooks, runtime status component, edit callback
-// Output: ServerConfigPanel component - configuration panel for server detail view
-// Position: Right panel in servers page configuration tab
-
-import { ServerService } from '@bindings/mcpd/internal/ui'
-import {
-  AlertTriangleIcon,
-  EditIcon,
-  PowerIcon,
-  ServerIcon,
-  Trash2Icon,
-} from 'lucide-react'
-import { m } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
@@ -40,9 +27,16 @@ import {
 } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertTriangleIcon,
+  EditIcon,
+  PowerIcon,
+  ServerIcon,
+  Trash2Icon,
+} from 'lucide-react'
+import { m } from 'motion/react'
 import { Spring } from '@/lib/spring'
-import { useConfigMode, useServer, useServers } from '@/modules/config/hooks'
-import { reloadConfig } from '@/modules/config/lib/reload-config'
+import { useConfigMode, useServer, useServerOperation, useServers } from '@/modules/servers/hooks'
 import { buildCommandSummary, DetailRow } from '@/modules/shared/server-detail'
 
 interface ServerConfigPanelProps {
@@ -72,80 +66,30 @@ export function ServerConfigPanel({ serverName, onDeleted, onEdit }: ServerConfi
   const { mutate: mutateServers } = useServers()
   const { data: configMode } = useConfigMode()
   const [errorNotice, setErrorNotice] = useState<ErrorState | null>(null)
-  const [isWorking, setIsWorking] = useState(false)
+
+  const { isWorking, toggleDisabled, deleteServer } = useServerOperation(
+    Boolean(configMode?.isWritable),
+    mutateServers,
+    mutateServer,
+    onDeleted,
+    (title, description) => setErrorNotice({ title, description }),
+  )
 
   useEffect(() => {
     setErrorNotice(null)
-    setIsWorking(false)
   }, [serverName])
 
   const canEdit = Boolean(configMode?.isWritable)
 
   const handleToggleDisabled = useCallback(async () => {
-    if (!server || isWorking || !canEdit) {
-      return
-    }
-    setIsWorking(true)
-    setErrorNotice(null)
-
-    try {
-      await ServerService.SetServerDisabled({
-        server: server.name,
-        disabled: !server.disabled,
-      })
-      const reloadResult = await reloadConfig()
-      if (!reloadResult.ok) {
-        setErrorNotice({
-          title: 'Reload failed',
-          description: reloadResult.message,
-        })
-        return
-      }
-      await Promise.all([mutateServer(), mutateServers()])
-    }
-    catch (err) {
-      const message = err instanceof Error ? err.message : 'Update failed.'
-      setErrorNotice({
-        title: 'Update failed',
-        description: message,
-      })
-    }
-    finally {
-      setIsWorking(false)
-    }
-  }, [server, isWorking, canEdit, mutateServer, mutateServers])
+    if (!server) return
+    await toggleDisabled(server)
+  }, [server, toggleDisabled])
 
   const handleDeleteServer = useCallback(async () => {
-    if (!server || isWorking || !canEdit) {
-      return
-    }
-    setIsWorking(true)
-    setErrorNotice(null)
-
-    try {
-      await ServerService.DeleteServer({ server: server.name })
-      const reloadResult = await reloadConfig()
-      if (!reloadResult.ok) {
-        setErrorNotice({
-          title: 'Reload failed',
-          description: reloadResult.message,
-        })
-        return
-      }
-      await Promise.all([mutateServer(), mutateServers()])
-      onDeleted?.()
-    }
-    catch (err) {
-      const message = err instanceof Error ? err.message : 'Delete failed.'
-      setErrorNotice({
-        title: 'Delete failed',
-        description: message,
-      })
-    }
-    finally {
-      setIsWorking(false)
-    }
-  }, [server, isWorking, canEdit, mutateServer, mutateServers, onDeleted])
+    if (!server) return
+    await deleteServer(server)
+  }, [server, deleteServer])
 
   const tags = server?.tags ?? []
   const commandSummary = server ? buildCommandSummary(server) : '--'

@@ -2,24 +2,15 @@
 // Output: SubAgent configuration atoms for runtime settings
 // Position: Global state atoms for SubAgent feature
 
+import type { SubAgentConfigDetail } from '@bindings/mcpd/internal/ui'
 import { SubAgentService } from '@bindings/mcpd/internal/ui'
 import { atomWithRefresh } from 'jotai/utils'
-
-// Runtime-level SubAgent LLM provider configuration (shared across all servers)
-export interface SubAgentConfig {
-  model: string
-  provider: string
-  apiKeyEnvVar: string
-  baseURL: string
-  maxToolsPerRequest: number
-  filterPrompt: string
-}
 
 // Atom to fetch runtime-level SubAgent config
 export const subAgentConfigAtom = atomWithRefresh(async () => {
   try {
     const config = await SubAgentService.GetSubAgentConfig()
-    return config as SubAgentConfig
+    return config as SubAgentConfigDetail
   }
   catch (error) {
     console.error('Failed to fetch SubAgent config:', error)

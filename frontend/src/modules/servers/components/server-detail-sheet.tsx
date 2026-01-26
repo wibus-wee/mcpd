@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spring } from '@/lib/spring'
-import { useToolsByServer } from '@/modules/tools/hooks'
+import { useToolsByServer } from '@/modules/servers/hooks'
 
 import { ServerConfigPanel } from './server-config-panel'
 import { ServerOverviewPanel } from './server-overview-panel'

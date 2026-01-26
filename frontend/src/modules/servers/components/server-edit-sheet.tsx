@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { toastManager } from '@/components/ui/toast'
-import { reloadConfig } from '@/modules/config/lib/reload-config'
+import { reloadConfig } from '@/modules/servers/lib/reload-config'
 
 interface ServerEditSheetProps {
   open: boolean

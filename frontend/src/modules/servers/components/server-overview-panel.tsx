@@ -2,7 +2,6 @@
 // Output: Server overview panel showing health, stats
 // Position: Overview panel component for server module
 
-import type { ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
 import {
   ActivityIcon,
   ClockIcon,
@@ -32,15 +31,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Spring } from '@/lib/spring'
+import { getMetricsSummary, getPoolStats } from '@/lib/server-stats'
 import {
   formatDuration,
   formatLatency,
   formatRelativeTime,
-  getElapsedMs,
 } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { ServerRuntimeSummary } from '@/modules/config/components/server-runtime-status'
-import { useRuntimeStatus, useServer } from '@/modules/config/hooks'
+import { ServerRuntimeSummary } from '@/modules/servers/components/server-runtime-status'
+import { useRuntimeStatus, useServer } from '@/modules/servers/hooks'
 import {
   formatStartReason,
   formatStartTriggerLines,
@@ -53,7 +52,7 @@ interface ServerOverviewPanelProps {
   className?: string
 }
 
-function StatCard({
+function ServerStatCard({
   icon: Icon,
   label,
   value,
@@ -124,40 +123,6 @@ function EmptyState() {
       </EmptyHeader>
     </Empty>
   )
-}
-
-function getPoolStats(runtimeStatus: ServerRuntimeStatus) {
-  const { stats } = runtimeStatus
-  return {
-    total:
-			stats.ready
-			+ stats.busy
-			+ stats.starting
-			+ stats.initializing
-			+ stats.handshaking
-			+ stats.draining
-			+ stats.failed,
-    ready: stats.ready,
-    busy: stats.busy,
-    starting: stats.starting + stats.initializing + stats.handshaking,
-    failed: stats.failed,
-    draining: stats.draining,
-  }
-}
-
-function getMetricsSummary(runtimeStatus: ServerRuntimeStatus) {
-  const { metrics } = runtimeStatus
-  const avgResponseMs
-    = metrics.totalCalls > 0 ? metrics.totalDurationMs / metrics.totalCalls : null
-  const lastCallAgeMs = getElapsedMs(metrics.lastCallAt)
-
-  return {
-    totalCalls: metrics.totalCalls,
-    totalErrors: metrics.totalErrors,
-    avgResponseMs,
-    lastCallAgeMs,
-    startCount: metrics.startCount,
-  }
 }
 
 export function ServerOverviewPanel({
@@ -254,32 +219,32 @@ export function ServerOverviewPanel({
               Pool Stats
             </h3>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <StatCard
+              <ServerStatCard
                 icon={ServerIcon}
                 label="Total Instances"
                 value={poolStats.total}
               />
-              <StatCard
+              <ServerStatCard
                 icon={ActivityIcon}
                 label="Ready"
                 value={poolStats.ready}
                 variant={poolStats.ready > 0 ? 'success' : 'default'}
               />
-              <StatCard
+              <ServerStatCard
                 icon={WrenchIcon}
                 label="Busy"
                 value={poolStats.busy}
                 variant={poolStats.busy > 0 ? 'warning' : 'default'}
               />
               {poolStats.starting > 0 && (
-                <StatCard
+                <ServerStatCard
                   icon={ClockIcon}
                   label="Starting"
                   value={poolStats.starting}
                 />
               )}
               {poolStats.failed > 0 && (
-                <StatCard
+                <ServerStatCard
                   icon={ZapIcon}
                   label="Failed"
                   value={poolStats.failed}
@@ -297,18 +262,18 @@ export function ServerOverviewPanel({
               Recent Metrics
             </h3>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <StatCard
+              <ServerStatCard
                 icon={WrenchIcon}
                 label="Total Calls"
                 value={metricsSummary.totalCalls}
               />
-              <StatCard
+              <ServerStatCard
                 icon={ZapIcon}
                 label="Errors"
                 value={metricsSummary.totalErrors}
                 variant={metricsSummary.totalErrors > 0 ? 'error' : 'default'}
               />
-              <StatCard
+              <ServerStatCard
                 icon={ClockIcon}
                 label="Avg Latency"
                 value={
@@ -317,7 +282,7 @@ export function ServerOverviewPanel({
                     : '--'
                 }
               />
-              <StatCard
+              <ServerStatCard
                 icon={ActivityIcon}
                 label="Last Call"
                 value={

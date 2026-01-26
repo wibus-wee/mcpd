@@ -8,20 +8,6 @@ export type ImportServerDraft = {
   http?: StreamableHTTPDraft
 }
 
-export type ImportServerSpec = {
-  name: string
-  transport?: 'stdio' | 'streamable_http'
-  cmd: string[]
-  env: Record<string, string>
-  cwd: string
-  protocolVersion?: string
-  http?: StreamableHTTPDraft
-}
-
-export type ImportMcpServersRequest = {
-  servers: ImportServerSpec[]
-}
-
 export type StreamableHTTPDraft = {
   endpoint: string
   headers: Record<string, string>

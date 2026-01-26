@@ -23,14 +23,15 @@ import { InputGroup, InputGroupInput } from '@/components/ui/input-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-import type { SubAgentFormState } from '../lib/subagent-config'
+import type { SubAgentConfigDetail } from '@bindings/mcpd/internal/ui'
+
 import { SUBAGENT_PROVIDER_OPTIONS } from '../lib/subagent-config'
 import type { ModelFetchState } from '../lib/subagent-models'
 import { SettingsCard, useSettingsCardContext } from './settings-card'
 
 interface SubAgentSettingsCardProps {
   canEdit: boolean
-  form: UseFormReturn<SubAgentFormState>
+  form: UseFormReturn<SubAgentConfigDetail>
   apiKeyInput: string
   onApiKeyChange: (value: string) => void
   modelInputValue: string
@@ -86,7 +87,7 @@ export const SubAgentSettingsCard = ({
         />
 
         <SettingsCard.Section title="Provider">
-          <SettingsCard.SelectField<SubAgentFormState>
+          <SettingsCard.SelectField<SubAgentConfigDetail>
             name="provider"
             label="Provider"
             description="Currently only OpenAI is supported"
@@ -114,13 +115,13 @@ export const SubAgentSettingsCard = ({
 
         <SettingsCard.Section title="Credentials">
           <ApiKeyField apiKeyInput={apiKeyInput} onApiKeyChange={onApiKeyChange} />
-          <SettingsCard.TextField<SubAgentFormState>
+          <SettingsCard.TextField<SubAgentConfigDetail>
             name="apiKeyEnvVar"
             label="API Key Env Var"
             description="Environment variable name used when no inline key is set"
             placeholder="OPENAI_API_KEY"
           />
-          <SettingsCard.TextField<SubAgentFormState>
+          <SettingsCard.TextField<SubAgentConfigDetail>
             name="baseURL"
             label="Base URL"
             description="Optional override for the provider endpoint"
@@ -130,13 +131,13 @@ export const SubAgentSettingsCard = ({
 
         <SettingsCard.Section title="Behavior">
           <EnabledTagsField availableTags={availableTags} />
-          <SettingsCard.NumberField<SubAgentFormState>
+          <SettingsCard.NumberField<SubAgentConfigDetail>
             name="maxToolsPerRequest"
             label="Max Tools Per Request"
             description="Upper bound on tool candidates per query"
             unit="tools"
           />
-          <SettingsCard.TextareaField<SubAgentFormState>
+          <SettingsCard.TextareaField<SubAgentConfigDetail>
             name="filterPrompt"
             label="Filter Prompt"
             description="Optional prompt override for tool filtering"
@@ -251,7 +252,7 @@ interface EnabledTagsFieldProps {
 }
 
 const EnabledTagsField = ({ availableTags }: EnabledTagsFieldProps) => {
-  const { form, canEdit, isSaving } = useSettingsCardContext<SubAgentFormState>()
+  const { form, canEdit, isSaving } = useSettingsCardContext<SubAgentConfigDetail>()
   const canInteract = canEdit && !isSaving
 
   return (

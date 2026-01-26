@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
-import { ServerRuntimeIndicator } from '@/modules/config/components/server-runtime-status'
+import { ServerRuntimeIndicator } from '@/modules/servers/components/server-runtime-status'
 
 interface ServersListProps {
   servers: ServerSummary[]

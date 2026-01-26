@@ -5,6 +5,7 @@
 import type {
   ActiveClient,
   ServerSummary,
+  SubAgentConfigDetail,
   UpdateSubAgentConfigRequest,
 } from '@bindings/mcpd/internal/ui'
 import { ProxyService, SubAgentService } from '@bindings/mcpd/internal/ui'
@@ -13,10 +14,9 @@ import { useForm } from 'react-hook-form'
 import useSWR from 'swr'
 
 import { toastManager } from '@/components/ui/toast'
-import { useClients, useServers } from '@/modules/config/hooks'
-import { reloadConfig } from '@/modules/config/lib/reload-config'
+import { useClients, useServers } from '@/modules/servers/hooks'
+import { reloadConfig } from '@/modules/servers/lib/reload-config'
 
-import type { SubAgentFormState } from '../lib/subagent-config'
 import {
   DEFAULT_SUBAGENT_FORM,
   toSubAgentFormState,
@@ -51,7 +51,7 @@ const buildAvailableTags = (
 }
 
 export const useSubAgentSettings = ({ canEdit }: UseSubAgentSettingsOptions) => {
-  const form = useForm<SubAgentFormState>({
+  const form = useForm<SubAgentConfigDetail>({
     defaultValues: DEFAULT_SUBAGENT_FORM,
   })
   const { reset, formState, getValues, setValue, watch } = form

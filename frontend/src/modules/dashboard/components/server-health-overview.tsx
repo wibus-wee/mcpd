@@ -2,8 +2,6 @@
 // Output: ServerHealthOverview component displaying pool health and metrics
 // Position: Primary dashboard visualization for server pool status
 
-import type { ServerInitStatus, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
-import { RuntimeService } from '@bindings/mcpd/internal/ui'
 import { Link } from '@tanstack/react-router'
 import {
   ActivityIcon,
@@ -15,99 +13,16 @@ import {
 } from 'lucide-react'
 import { m } from 'motion/react'
 import { useMemo } from 'react'
-import useSWR from 'swr'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Spring } from '@/lib/spring'
-import { swrPresets } from '@/lib/swr-config'
+import { aggregateStats, type AggregatedStats } from '@/lib/server-stats'
 
 import { AnimatedNumber, StackedBar } from './sparkline'
-
-function useRuntimeStatus() {
-  return useSWR<ServerRuntimeStatus[]>(
-    'runtime-status',
-    () => RuntimeService.GetRuntimeStatus(),
-    swrPresets.fastRealtime,
-  )
-}
-
-function useServerInitStatus() {
-  return useSWR<ServerInitStatus[]>(
-    'server-init-status',
-    () => RuntimeService.GetServerInitStatus(),
-    swrPresets.fastRealtime,
-  )
-}
-
-interface AggregatedStats {
-  totalServers: number
-  totalInstances: number
-  readyInstances: number
-  busyInstances: number
-  startingInstances: number
-  failedInstances: number
-  drainingInstances: number
-  suspendedServers: number
-  totalCalls: number
-  totalErrors: number
-  avgDurationMs: number
-  errorRate: number
-  utilization: number
-}
-
-function aggregateStats(
-  statuses: ServerRuntimeStatus[],
-  initStatuses?: ServerInitStatus[],
-): AggregatedStats {
-  const result: AggregatedStats = {
-    totalServers: statuses.length,
-    totalInstances: 0,
-    readyInstances: 0,
-    busyInstances: 0,
-    startingInstances: 0,
-    failedInstances: 0,
-    drainingInstances: 0,
-    suspendedServers: 0,
-    totalCalls: 0,
-    totalErrors: 0,
-    avgDurationMs: 0,
-    errorRate: 0,
-    utilization: 0,
-  }
-
-  if (initStatuses) {
-    result.suspendedServers = initStatuses.filter(s => s.state === 'suspended').length
-  }
-
-  for (const status of statuses) {
-    const { stats } = status
-    result.totalInstances += stats.total
-    result.readyInstances += stats.ready
-    result.busyInstances += stats.busy
-    result.startingInstances += stats.starting + stats.initializing + stats.handshaking
-    result.failedInstances += stats.failed
-    result.drainingInstances += stats.draining
-
-    const { metrics } = status
-    result.totalCalls += metrics.totalCalls
-    result.totalErrors += metrics.totalErrors
-    result.avgDurationMs += metrics.totalDurationMs
-  }
-
-  if (result.totalCalls > 0) {
-    result.avgDurationMs = result.avgDurationMs / result.totalCalls
-    result.errorRate = (result.totalErrors / result.totalCalls) * 100
-  }
-
-  if (result.totalInstances > 0) {
-    result.utilization = (result.busyInstances / result.totalInstances) * 100
-  }
-
-  return result
-}
+import { useRuntimeStatus, useServerInitStatus } from '@/modules/servers/hooks'
 
 function HealthVerdict({ stats }: { stats: AggregatedStats }) {
   const { utilization, errorRate, failedInstances, suspendedServers, totalServers } = stats

@@ -6,7 +6,7 @@ import { m } from 'motion/react'
 
 import { Separator } from '@/components/ui/separator'
 import { Spring } from '@/lib/spring'
-import { useConfigMode } from '@/modules/config/hooks'
+import { useConfigMode } from '@/modules/servers/hooks'
 
 import { RuntimeSettingsCard } from './components/runtime-settings-card'
 import { SettingsHeader } from './components/settings-header'

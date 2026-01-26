@@ -3,7 +3,6 @@
 // Position: Main table component for servers page
 
 import type { ServerSummary } from '@bindings/mcpd/internal/ui'
-import { ServerService } from '@bindings/mcpd/internal/ui'
 import type { ColumnDef, ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import {
   flexRender,
@@ -58,12 +57,11 @@ import { toastManager } from '@/components/ui/toast'
 import { useActiveClients } from '@/hooks/use-active-clients'
 import { formatDuration, getElapsedMs } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { ServerRuntimeIndicator } from '@/modules/config/components/server-runtime-status'
-import { useRuntimeStatus, useServers } from '@/modules/config/hooks'
-import { reloadConfig } from '@/modules/config/lib/reload-config'
+import { ServerRuntimeIndicator } from '@/modules/servers/components/server-runtime-status'
+import { useRuntimeStatus, useServerOperation, useServers } from '@/modules/servers/hooks'
 import type { ServerRuntimeState } from '@/modules/shared/server-status'
 import { ACTIVE_INSTANCE_STATES, hasActiveInstance } from '@/modules/shared/server-status'
-import { useToolsByServer } from '@/modules/tools/hooks'
+import { useToolsByServer } from '@/modules/servers/hooks'
 
 interface ServersDataTableProps {
   servers: ServerSummary[]
@@ -179,77 +177,23 @@ interface ServerActionsCellProps {
 
 function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProps) {
   const { mutate: mutateServers } = useServers()
-  const [isWorking, setIsWorking] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
+  const { isWorking, toggleDisabled, deleteServer } = useServerOperation(
+    canEdit,
+    mutateServers,
+    undefined, // no mutateServer
+    onDeleted,
+    (title, description) => toastManager.add({ type: 'error', title, description }),
+    (title, description) => toastManager.add({ type: 'success', title, description }),
+  )
+
   const handleToggleDisabled = async () => {
-    if (!canEdit || isWorking) return
-    setIsWorking(true)
-    try {
-      await ServerService.SetServerDisabled({
-        server: server.name,
-        disabled: !server.disabled,
-      })
-      const reloadResult = await reloadConfig()
-      if (!reloadResult.ok) {
-        toastManager.add({
-          type: 'error',
-          title: 'Reload failed',
-          description: reloadResult.message,
-        })
-        return
-      }
-      await mutateServers()
-      toastManager.add({
-        type: 'success',
-        title: server.disabled ? 'Server enabled' : 'Server disabled',
-        description: 'Changes applied.',
-      })
-    }
-    catch (err) {
-      toastManager.add({
-        type: 'error',
-        title: 'Update failed',
-        description: err instanceof Error ? err.message : 'Update failed.',
-      })
-    }
-    finally {
-      setIsWorking(false)
-    }
+    await toggleDisabled(server)
   }
 
   const handleDeleteServer = async () => {
-    if (!canEdit || isWorking) return
-    setIsWorking(true)
-    try {
-      await ServerService.DeleteServer({ server: server.name })
-      const reloadResult = await reloadConfig()
-      if (!reloadResult.ok) {
-        toastManager.add({
-          type: 'error',
-          title: 'Reload failed',
-          description: reloadResult.message,
-        })
-        return
-      }
-      await mutateServers()
-      onDeleted?.(server.name)
-      toastManager.add({
-        type: 'success',
-        title: 'Server deleted',
-        description: 'Changes applied.',
-      })
-    }
-    catch (err) {
-      toastManager.add({
-        type: 'error',
-        title: 'Delete failed',
-        description: err instanceof Error ? err.message : 'Delete failed.',
-      })
-    }
-    finally {
-      setIsWorking(false)
-    }
+    await deleteServer(server)
   }
 
   return (
@@ -473,9 +417,9 @@ export function ServersDataTable({
                   {header.isPlaceholder
                     ? null
                     : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
                 </TableHead>
               ))}
             </TableRow>
