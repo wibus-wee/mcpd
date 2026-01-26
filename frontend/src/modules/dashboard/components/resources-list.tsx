@@ -2,7 +2,6 @@
 // Output: ResourcesList component displaying available MCP resources
 // Position: Dashboard resources section with collapsible details
 
-import type { ResourceEntry } from '@bindings/mcpd/internal/ui'
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
@@ -32,25 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 import { useResources } from '../hooks'
-
-interface ResourceSchema {
-  uri: string
-  name?: string
-  description?: string
-  mimeType?: string
-}
-
-const parseResourceJson = (resource: ResourceEntry): ResourceSchema => {
-  try {
-    const parsed = typeof resource.resourceJson === 'string'
-      ? JSON.parse(resource.resourceJson)
-      : resource.resourceJson
-    return { uri: resource.uri, ...parsed }
-  }
-  catch {
-    return { uri: resource.uri }
-  }
-}
+import { parseResourceJson, type ResourceSchema } from '@/lib/tool-schema'
 
 export function ResourcesList() {
   const { resources, isLoading, mutate } = useResources()

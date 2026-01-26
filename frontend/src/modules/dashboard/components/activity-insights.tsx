@@ -158,23 +158,13 @@ export function ActivityInsights() {
 
   const toolsWithUsage = useMemo((): ToolWithUsage[] => {
     return tools.slice(0, 8).map((tool) => {
-      let description: string | undefined
-      try {
-        const parsed = typeof tool.toolJson === 'string'
-          ? JSON.parse(tool.toolJson)
-          : tool.toolJson
-        description = parsed?.description
-      }
-      catch {
-        // ignore parse errors
-      }
       const displayName = getToolDisplayName(tool.name, tool.serverName)
       const qualifiedName = getToolQualifiedName(tool.name, tool.serverName)
       return {
         name: displayName,
         qualifiedName,
         serverName: tool.serverName ?? undefined,
-        description,
+        description: tool.description || undefined,
         callCount: 0,
         percentage: 0,
       }

@@ -1,6 +1,6 @@
 // Shared server statistics aggregation utilities
 import type { ServerInitStatus, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
-import { getElapsedMs } from './time'
+import { formatDuration, formatLatency, getElapsedMs } from './time'
 
 export interface PoolStats {
   total: number
@@ -126,4 +126,88 @@ export function aggregateStats(
   }
 
   return result
+}
+
+/**
+ * Parse a timestamp string to milliseconds since epoch
+ */
+export function parseTimestamp(value: string): number | null {
+  if (!value) {
+    return null
+  }
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) {
+    return null
+  }
+  return parsed
+}
+
+/**
+ * Get the effective start time for an instance (handshakedAt or spawnedAt)
+ */
+export function getInstanceStartedAt(inst: ServerRuntimeStatus['instances'][number]): number | null {
+  const handshakedAt = parseTimestamp(inst.handshakedAt)
+  if (handshakedAt !== null) {
+    return handshakedAt
+  }
+  return parseTimestamp(inst.spawnedAt)
+}
+
+/**
+ * Calculate the oldest uptime across all instances
+ */
+export function getOldestUptimeMs(instances: ServerRuntimeStatus['instances']): number | null {
+  let oldestStartedAt: number | null = null
+  for (const inst of instances) {
+    const startedAt = getInstanceStartedAt(inst)
+    if (startedAt === null) {
+      continue
+    }
+    if (oldestStartedAt === null || startedAt < oldestStartedAt) {
+      oldestStartedAt = startedAt
+    }
+  }
+  if (oldestStartedAt === null) {
+    return null
+  }
+  return Math.max(0, Date.now() - oldestStartedAt)
+}
+
+/**
+ * Render a timeline string for an instance showing uptime, handshake time, and heartbeat
+ */
+export function formatInstanceTimeline(inst: ServerRuntimeStatus['instances'][number]): string | null {
+  const parts: string[] = []
+  const uptimeMs = getElapsedMs(inst.handshakedAt || inst.spawnedAt)
+  if (uptimeMs !== null) {
+    parts.push(`Up ${formatDuration(uptimeMs)}`)
+  }
+
+  const spawnedAt = parseTimestamp(inst.spawnedAt)
+  const handshakedAt = parseTimestamp(inst.handshakedAt)
+  if (spawnedAt !== null && handshakedAt !== null) {
+    const handshakeMs = Math.max(0, handshakedAt - spawnedAt)
+    parts.push(`Handshake ${formatLatency(handshakeMs)}`)
+  }
+
+  const heartbeatAgeMs = getElapsedMs(inst.lastHeartbeatAt)
+  if (heartbeatAgeMs !== null) {
+    parts.push(`Heartbeat ${formatDuration(heartbeatAgeMs)} ago`)
+  }
+
+  if (parts.length === 0) {
+    return null
+  }
+
+  return parts.join(' · ')
+}
+
+/**
+ * Format instance ID with truncation for display
+ */
+export function formatInstanceId(id: string): string {
+  if (id.length <= 12) {
+    return id
+  }
+  return `${id.slice(0, 8)}...${id.slice(-3)}`
 }

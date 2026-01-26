@@ -3,14 +3,12 @@
 // Position: Dashboard status overview section
 
 import {
-  CheckCircle2Icon,
   ClockIcon,
   FileTextIcon,
   LayersIcon,
   Loader2Icon,
   ServerIcon,
   WrenchIcon,
-  XCircleIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
 
@@ -23,6 +21,7 @@ import { Spring } from '@/lib/spring'
 import { formatDuration } from '@/lib/time'
 import { useServers } from '@/modules/servers/hooks'
 
+import { coreStatusConfig } from '@/modules/shared/core-status'
 import { useResources, useTools } from '../hooks'
 import { AnimatedNumber } from './sparkline'
 
@@ -86,40 +85,7 @@ function StatCard({
 function CoreStatusCard() {
   const { coreStatus, isLoading } = useCoreState()
 
-  const statusConfig = {
-    running: {
-      variant: 'success' as const,
-      icon: CheckCircle2Icon,
-      label: 'Running',
-      dotColor: 'bg-emerald-500',
-    },
-    starting: {
-      variant: 'warning' as const,
-      icon: Loader2Icon,
-      label: 'Starting',
-      dotColor: 'bg-amber-500',
-    },
-    stopped: {
-      variant: 'secondary' as const,
-      icon: XCircleIcon,
-      label: 'Stopped',
-      dotColor: 'bg-slate-400',
-    },
-    stopping: {
-      variant: 'warning' as const,
-      icon: Loader2Icon,
-      label: 'Stopping',
-      dotColor: 'bg-amber-500',
-    },
-    error: {
-      variant: 'error' as const,
-      icon: XCircleIcon,
-      label: 'Error',
-      dotColor: 'bg-red-500',
-    },
-  }
-
-  const config = statusConfig[coreStatus]
+  const config = coreStatusConfig[coreStatus]
 
   return (
     <m.div

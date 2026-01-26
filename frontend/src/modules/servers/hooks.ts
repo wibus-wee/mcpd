@@ -12,79 +12,54 @@ import type {
   ToolEntry,
 } from '@bindings/mcpd/internal/ui'
 import { ConfigService, DiscoveryService, RuntimeService, ServerService } from '@bindings/mcpd/internal/ui'
-import { useSetAtom } from 'jotai'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import useSWR from 'swr'
 
 import { withSWRPreset } from '@/lib/swr-config'
+import { swrKeys } from '@/lib/swr-keys'
 
-import {
-  activeClientsAtom,
-  configModeAtom,
-  selectedServerAtom,
-  serversAtom,
-} from './atoms'
 import { reloadConfig } from './lib/reload-config'
 
 export function useConfigMode() {
-  const setConfigMode = useSetAtom(configModeAtom)
-
-  const { data, error, isLoading, mutate } = useSWR<ConfigModeResponse>(
-    'config-mode',
+  return useSWR<ConfigModeResponse | null>(
+    swrKeys.configMode,
     () => ConfigService.GetConfigMode(),
   )
-
-  useEffect(() => {
-    if (data) {
-      setConfigMode(data)
-    }
-  }, [data, setConfigMode])
-
-  return { data, error, isLoading, mutate }
 }
 
 export function useServers() {
-  const setServers = useSetAtom(serversAtom)
-
-  const { data, error, isLoading, mutate } = useSWR<ServerSummary[]>(
-    'servers',
+  return useSWR<ServerSummary[]>(
+    swrKeys.servers,
     () => ServerService.ListServers(),
-    withSWRPreset('fastRealtime', {
+    {
       revalidateOnMount: true,
-    }),
+    },
   )
+}
 
-  useEffect(() => {
-    if (data) {
-      setServers(data)
-    }
-  }, [data, setServers])
-
-  return { data, error, isLoading, mutate }
+export function useTools() {
+  return useSWR<ToolEntry[]>(
+    swrKeys.tools,
+    () => DiscoveryService.ListTools(),
+    {
+      refreshInterval: 10000,
+      dedupingInterval: 10000,
+    },
+  )
 }
 
 export function useServer(name: string | null) {
-  const setSelectedServer = useSetAtom(selectedServerAtom)
-
-  const { data, error, isLoading, mutate } = useSWR<ServerDetail | null>(
-    name ? ['server', name] : null,
+  return useSWR<ServerDetail | null>(
+    name ? [swrKeys.server, name] : null,
     () => (name ? ServerService.GetServer(name) : null),
   )
-
-  useEffect(() => {
-    if (data !== undefined) {
-      setSelectedServer(data)
-    }
-  }, [data, setSelectedServer])
-
-  return { data, error, isLoading, mutate }
 }
 
 export function useServerDetails(servers: ServerSummary[] | undefined) {
   const serverNames = servers?.map(server => server.name) ?? []
 
-  const { data, error, isLoading, mutate } = useSWR<ServerDetail[]>(
-    serverNames.length > 0 ? ['server-details', ...serverNames] : null,
+  return useSWR<ServerDetail[]>(
+    serverNames.length > 0 ? [swrKeys.serverDetails, ...serverNames] : null,
     async () => {
       const results = await Promise.all(
         serverNames.map(name => ServerService.GetServer(name)),
@@ -95,29 +70,14 @@ export function useServerDetails(servers: ServerSummary[] | undefined) {
       )
     },
   )
-
-  return { data, error, isLoading, mutate }
 }
 
 export function useClients() {
-  const setActiveClients = useSetAtom(activeClientsAtom)
-
-  const { data, error, isLoading, mutate } = useSWR<ActiveClient[]>(
+  return useSWR<ActiveClient[]>(
     'active-clients',
     () => RuntimeService.GetActiveClients(),
-    withSWRPreset('fastCached', {
-      refreshInterval: 3000,
-      dedupingInterval: 3000,
-    }),
+    withSWRPreset('cached'),
   )
-
-  useEffect(() => {
-    if (data) {
-      setActiveClients(data)
-    }
-  }, [data, setActiveClients])
-
-  return { data, error, isLoading, mutate }
 }
 
 export function useOpenConfigInEditor() {
@@ -143,23 +103,17 @@ export function useOpenConfigInEditor() {
 
 export function useRuntimeStatus() {
   return useSWR<ServerRuntimeStatus[]>(
-    'runtime-status',
+    swrKeys.runtimeStatus,
     () => RuntimeService.GetRuntimeStatus(),
-    withSWRPreset('fastCached', {
-      refreshInterval: 2000,
-      dedupingInterval: 2000,
-    }),
+    withSWRPreset('cached'),
   )
 }
 
 export function useServerInitStatus() {
   return useSWR<ServerInitStatus[]>(
-    'server-init-status',
+    swrKeys.serverInitStatus,
     () => RuntimeService.GetServerInitStatus(),
-    withSWRPreset('fastCached', {
-      refreshInterval: 2000,
-      dedupingInterval: 2000,
-    }),
+    withSWRPreset('cached'),
   )
 }
 
@@ -174,71 +128,43 @@ export interface ServerGroup {
 }
 
 export function useToolsByServer() {
-  const {
-    data: tools,
-    isLoading: toolsLoading,
-    error: toolsError,
-  } = useSWR<ToolEntry[]>(
-    'tools',
-    () => DiscoveryService.ListTools(),
-    withSWRPreset('cached', {
-      refreshInterval: 10000,
-      dedupingInterval: 10000,
-    }),
-  )
+  const { data: tools, isLoading: toolsLoading, error: toolsError } = useTools()
+  const { data: runtimeStatus, isLoading: runtimeLoading, error: runtimeError } = useRuntimeStatus()
+  const { data: servers, isLoading: serversLoading, error: serversError } = useServers()
+  const { data: serverDetails, isLoading: detailsLoading, error: detailsError } = useServerDetails(servers)
 
-  const {
-    data: runtimeStatus,
-    isLoading: runtimeLoading,
-    error: runtimeError,
-  } = useRuntimeStatus()
-  const {
-    data: servers,
-    isLoading: serversLoading,
-    error: serversError,
-  } = useServers()
-  const {
-    data: serverDetails,
-    isLoading: detailsLoading,
-    error: detailsError,
-  } = useServerDetails(servers)
+  const isLoading = toolsLoading || serversLoading || detailsLoading || runtimeLoading
+  const error = toolsError || serversError || detailsError || runtimeError
 
-  const toolsBySpecKey = useMemo(() => {
-    const map = new Map<string, ToolEntry[]>()
-    if (!tools) return map
-
-    tools.forEach((tool) => {
-      const specKey = tool.specKey || tool.serverName || tool.name
-      if (!specKey) return
-      const bucket = map.get(specKey)
-      if (bucket) {
-        bucket.push(tool)
-      }
-      else {
-        map.set(specKey, [tool])
-      }
-    })
-
-    return map
-  }, [tools])
-
-  const serversFromSummaries = useMemo(() => {
-    const map = new Map<string, { summary: ServerSummary, tags: string[] }>()
-    if (!servers) return map
-
-    servers.forEach((summary) => {
-      if (!summary.specKey) return
-      map.set(summary.specKey, {
-        summary,
-        tags: summary.tags ?? [],
+  // Compute derived data directly from SWR data
+  const { servers: serverGroups, serverMap } = useMemo(() => {
+    const toolsBySpecKey = new Map<string, ToolEntry[]>()
+    if (tools) {
+      tools.forEach((tool: ToolEntry) => {
+        const specKey = tool.specKey || tool.serverName || tool.name
+        if (!specKey) return
+        const bucket = toolsBySpecKey.get(specKey)
+        if (bucket) {
+          bucket.push(tool)
+        } else {
+          toolsBySpecKey.set(specKey, [tool])
+        }
       })
-    })
+    }
 
-    return map
-  }, [servers])
+    const serversFromSummaries = new Map<string, { summary: ServerSummary, tags: string[] }>()
+    if (servers) {
+      servers.forEach((summary: ServerSummary) => {
+        if (!summary.specKey) return
+        serversFromSummaries.set(summary.specKey, {
+          summary,
+          tags: summary.tags ?? [],
+        })
+      })
+    }
 
-  const serverMap = useMemo(() => {
-    const map = new Map<string, ServerGroup>()
+    const serverMap = new Map<string, ServerGroup>()
+    const serverGroups: ServerGroup[] = []
 
     const ensureServer = (
       specKey: string,
@@ -247,7 +173,7 @@ export function useToolsByServer() {
       tags?: string[],
     ) => {
       if (!specKey) return null
-      const existing = map.get(specKey)
+      const existing = serverMap.get(specKey)
       if (existing) {
         if (!existing.serverName && serverName) {
           existing.serverName = serverName
@@ -260,58 +186,49 @@ export function useToolsByServer() {
         }
         return existing
       }
-      const entry: ServerGroup = {
+
+      const newServer: ServerGroup = {
         id: specKey,
         specKey,
         serverName: serverName || specKey,
-        tools: [],
-        tags: tags ?? [],
-        hasToolData: false,
+        tools: toolsBySpecKey.get(specKey) || [],
+        tags: tags || [],
+        hasToolData: (toolsBySpecKey.get(specKey) || []).length > 0,
         specDetail,
       }
-      map.set(specKey, entry)
-      return entry
+      serverMap.set(specKey, newServer)
+      serverGroups.push(newServer)
+      return newServer
     }
 
-    serversFromSummaries.forEach(({ summary, tags }, specKey) => {
-      ensureServer(specKey, summary.name, undefined, tags)
+    // Add servers from server details
+    if (serverDetails) {
+      serverDetails.forEach((detail) => {
+        ensureServer(detail.specKey, detail.name, detail, detail.tags)
+      })
+    }
+
+    // Add servers from summaries
+    if (serversFromSummaries) {
+      serversFromSummaries.forEach(({ summary, tags }) => {
+        ensureServer(summary.specKey, summary.name, undefined, tags)
+      })
+    }
+
+    // Add servers from tools
+    toolsBySpecKey.forEach((_toolList, specKey) => {
+      ensureServer(specKey)
     })
 
-    serverDetails?.forEach((detail) => {
-      ensureServer(detail.specKey, detail.name, detail, detail.tags ?? [])
-    })
-
-    runtimeStatus?.forEach((status) => {
-      ensureServer(status.specKey, status.serverName)
-    })
-
-    toolsBySpecKey.forEach((toolList, specKey) => {
-      const entry = ensureServer(specKey)
-      if (entry) {
-        entry.tools = toolList
-        entry.hasToolData = true
-      }
-    })
-
-    return map
-  }, [runtimeStatus, serverDetails, serversFromSummaries, toolsBySpecKey])
-
-  const groupedServers = useMemo(() => {
-    return Array.from(serverMap.values()).sort((a, b) =>
-      a.serverName.localeCompare(b.serverName),
-    )
-  }, [serverMap])
-
-  const isLoading
-    = toolsLoading || serversLoading || detailsLoading || runtimeLoading
-  const error = toolsError || serversError || detailsError || runtimeError
+    return { servers, serverMap }
+  }, [tools, servers, serverDetails])
 
   return {
-    servers: groupedServers,
+    servers: serverGroups,
     serverMap,
     isLoading,
     error,
-    runtimeStatus,
+    runtimeStatus: runtimeStatus || [],
   }
 }
 
@@ -384,4 +301,30 @@ export function useServerOperation(
     toggleDisabled,
     deleteServer,
   }
+}
+
+export function useFilteredServers(
+  servers: ServerSummary[],
+  searchQuery: string,
+  selectedTags: string[] = [],
+) {
+  return useMemo(() => {
+    let filtered = servers
+
+    if (searchQuery.trim() !== '') {
+      const query = searchQuery.trim().toLowerCase()
+      filtered = filtered.filter(server =>
+        server.name.toLowerCase().includes(query) ||
+        (server.tags?.some(tag => tag.toLowerCase().includes(query)) ?? false),
+      )
+    }
+
+    if (selectedTags.length > 0) {
+      filtered = filtered.filter(server =>
+        selectedTags.every(tag => server.tags?.includes(tag)),
+      )
+    }
+
+    return filtered
+  }, [servers, searchQuery, selectedTags])
 }

@@ -2,7 +2,6 @@
 // Output: AppSidebar component with navigation menu
 // Position: App-specific sidebar for main layout
 
-import { Link, useMatchRoute } from '@tanstack/react-router'
 import {
   LayoutDashboardIcon,
   NetworkIcon,
@@ -13,6 +12,7 @@ import {
 import { m } from 'motion/react'
 
 import { ConnectIdeSheet } from '@/components/common/connect-ide-sheet'
+import { NavItem } from '@/components/common/nav-item'
 import {
   Sidebar,
   SidebarContent,
@@ -21,17 +21,9 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Spring } from '@/lib/spring'
-import { cn } from '@/lib/utils'
-
-interface NavItem {
-  path: string
-  label: string
-  icon: typeof LayoutDashboardIcon
-}
 
 const navItems: NavItem[] = [
   {
@@ -63,7 +55,6 @@ const navItems: NavItem[] = [
 
 export function AppSidebar() {
   'use no memo'
-  const matchRoute = useMatchRoute()
 
   return (
     <Sidebar collapsible="icon">
@@ -75,38 +66,11 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item, index) => {
-                const Icon = item.icon
-                const isActive = !!matchRoute({ to: item.path, fuzzy: true })
-
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <m.div
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={Spring.smooth(0.3, index * 0.05)}
-                    >
-                      <SidebarMenuButton
-                        render={props => (
-                          <Link
-                            to={item.path}
-                            {...props}
-                          />
-                        )}
-                        isActive={isActive}
-                        tooltip={item.label}
-                      >
-                        <Icon className={cn(
-                          'transition-colors',
-                          isActive && 'text-sidebar-accent-foreground',
-                        )}
-                        />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </m.div>
-                  </SidebarMenuItem>
-                )
-              })}
+              {navItems.map((item, index) => (
+                <SidebarMenuItem key={item.path}>
+                  <NavItem item={item} index={index} variant="sidebar" />
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

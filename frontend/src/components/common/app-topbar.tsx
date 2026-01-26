@@ -2,7 +2,7 @@
 // Output: AppTopbar component with status indicator and controls
 // Position: Top bar for app layout showing status and window controls
 
-import { Loader2Icon, MoonIcon, SunIcon } from 'lucide-react'
+import { MoonIcon, SunIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useTheme } from 'next-themes'
 
@@ -11,41 +11,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { useCoreState } from '@/hooks/use-core-state'
+import { coreStatusConfig } from '@/modules/shared/core-status'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
-
-const statusConfig = {
-  stopped: {
-    label: 'Stopped',
-    color: 'bg-muted text-muted-foreground',
-    icon: null,
-  },
-  starting: {
-    label: 'Starting',
-    color: 'bg-warning text-warning-foreground',
-    icon: Loader2Icon,
-  },
-  running: {
-    label: 'Running',
-    color: 'bg-success text-success-foreground',
-    icon: null,
-  },
-  stopping: {
-    label: 'Stopping',
-    color: 'bg-warning text-warning-foreground',
-    icon: Loader2Icon,
-  },
-  error: {
-    label: 'Error',
-    color: 'bg-destructive text-destructive-foreground',
-    icon: null,
-  },
-} as const
 
 export function AppTopbar() {
   const { theme, setTheme } = useTheme()
   const { coreStatus } = useCoreState()
-  const config = statusConfig[coreStatus]
+  const config = coreStatusConfig[coreStatus]
   const StatusIcon = config.icon
 
   return (
@@ -62,11 +35,11 @@ export function AppTopbar() {
           <Badge
             className={cn(
               'flex items-center gap-1.5 px-2.5 py-1',
-              config.color,
+              config.topbarColor,
             )}
           >
             {StatusIcon && (
-              <StatusIcon className="size-3 animate-spin" />
+              <StatusIcon className="size-3" />
             )}
             <span className="font-medium text-white text-xs">{config.label}</span>
           </Badge>

@@ -9,50 +9,12 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { formatDuration, formatLatency, getElapsedMs } from '@/lib/time'
+import { formatDuration, formatLatency, getElapsedMs, getRemainingSeconds } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import type { ServerRuntimeState } from '@/modules/shared/server-status'
-import { serverStateLabels, serverStateVariants } from '@/modules/shared/server-status'
+import { ServerStateBadge, ServerStateCountBadge } from '@/components/custom/status-badge'
+import { formatInstanceId, formatInstanceTimeline, getOldestUptimeMs } from '@/lib/server-stats'
 
 import { useRuntimeStatus, useServerInitStatus } from '../hooks'
-
-function StateBadge({
-  state,
-  size = 'sm',
-  label,
-  className,
-}: {
-  state: string
-  size?: 'sm' | 'default'
-  label?: string
-  className?: string
-}) {
-  const variant = serverStateVariants[state as ServerRuntimeState] ?? 'secondary'
-  const text = label ?? serverStateLabels[state as ServerRuntimeState] ?? state
-  return (
-    <Badge
-      variant={variant}
-      size={size}
-      className={cn('font-medium', className)}
-    >
-      {text}
-    </Badge>
-  )
-}
-
-function StateCountBadge({ state, count }: { state: string, count: number }) {
-  if (count <= 0) {
-    return null
-  }
-  return (
-    <StateBadge
-      state={state}
-      size="sm"
-      label={`${serverStateLabels[state as ServerRuntimeState] ?? state} ${count}`}
-      className="tabular-nums"
-    />
-  )
-}
 
 interface ServerRuntimeIndicatorProps {
   specKey: string
@@ -155,12 +117,12 @@ export function ServerRuntimeDetails({
   const showInitBadge = Boolean(initStatus) && !showInitDetails
   const stateCount
     = stats.ready
-      + stats.busy
-      + stats.starting
-      + stats.initializing
-      + stats.handshaking
-      + stats.draining
-      + stats.failed
+    + stats.busy
+    + stats.starting
+    + stats.initializing
+    + stats.handshaking
+    + stats.draining
+    + stats.failed
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -205,13 +167,13 @@ export function ServerRuntimeDetails({
         <div className="flex flex-wrap items-center gap-2">
           {stateCount > 0 ? (
             <>
-              <StateCountBadge state="ready" count={stats.ready} />
-              <StateCountBadge state="busy" count={stats.busy} />
-              <StateCountBadge state="starting" count={stats.starting} />
-              <StateCountBadge state="initializing" count={stats.initializing} />
-              <StateCountBadge state="handshaking" count={stats.handshaking} />
-              <StateCountBadge state="draining" count={stats.draining} />
-              <StateCountBadge state="failed" count={stats.failed} />
+              <ServerStateCountBadge state="ready" count={stats.ready} />
+              <ServerStateCountBadge state="busy" count={stats.busy} />
+              <ServerStateCountBadge state="starting" count={stats.starting} />
+              <ServerStateCountBadge state="initializing" count={stats.initializing} />
+              <ServerStateCountBadge state="handshaking" count={stats.handshaking} />
+              <ServerStateCountBadge state="draining" count={stats.draining} />
+              <ServerStateCountBadge state="failed" count={stats.failed} />
             </>
           ) : (
             <Badge variant="secondary" size="sm">
@@ -239,14 +201,18 @@ export function ServerRuntimeDetails({
             <div className="max-h-48 overflow-auto space-y-2 text-xs text-muted-foreground">
               {instances.map(inst => (
                 <div key={inst.id} className="flex flex-wrap items-center gap-2">
-                  <StateBadge state={inst.state} size="sm" />
+                  <ServerStateBadge state={inst.state} size="sm" />
                   <span
                     className="font-mono text-foreground/80"
                     title={inst.id}
                   >
                     {formatInstanceId(inst.id)}
                   </span>
-                  {renderInstanceTimeline(inst)}
+                  {formatInstanceTimeline(inst) && (
+                    <span className="text-muted-foreground">
+                      {formatInstanceTimeline(inst)}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -296,13 +262,13 @@ function MetricTile({ label, value }: { label: string, value: string }) {
 export function RuntimeStatusLegend({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-wrap items-center gap-2 text-xs', className)}>
-      <StateBadge state="ready" size="sm" />
-      <StateBadge state="busy" size="sm" />
-      <StateBadge state="starting" size="sm" />
-      <StateBadge state="initializing" size="sm" />
-      <StateBadge state="handshaking" size="sm" />
-      <StateBadge state="draining" size="sm" />
-      <StateBadge state="failed" size="sm" />
+      <ServerStateBadge state="ready" size="sm" />
+      <ServerStateBadge state="busy" size="sm" />
+      <ServerStateBadge state="starting" size="sm" />
+      <ServerStateBadge state="initializing" size="sm" />
+      <ServerStateBadge state="handshaking" size="sm" />
+      <ServerStateBadge state="draining" size="sm" />
+      <ServerStateBadge state="failed" size="sm" />
     </div>
   )
 }
@@ -390,75 +356,6 @@ function buildInstanceSummary(
   }
 
   return { label, title, variant }
-}
-
-function getOldestUptimeMs(instances: ServerRuntimeStatus['instances']): number | null {
-  let oldestStartedAt: number | null = null
-  for (const inst of instances) {
-    const startedAt = getInstanceStartedAt(inst)
-    if (startedAt === null) {
-      continue
-    }
-    if (oldestStartedAt === null || startedAt < oldestStartedAt) {
-      oldestStartedAt = startedAt
-    }
-  }
-  if (oldestStartedAt === null) {
-    return null
-  }
-  return Math.max(0, Date.now() - oldestStartedAt)
-}
-
-function renderInstanceTimeline(inst: ServerRuntimeStatus['instances'][number]) {
-  const parts: string[] = []
-  const uptimeMs = getElapsedMs(inst.handshakedAt || inst.spawnedAt)
-  if (uptimeMs !== null) {
-    parts.push(`Up ${formatDuration(uptimeMs)}`)
-  }
-
-  const spawnedAt = parseTimestamp(inst.spawnedAt)
-  const handshakedAt = parseTimestamp(inst.handshakedAt)
-  if (spawnedAt !== null && handshakedAt !== null) {
-    const handshakeMs = Math.max(0, handshakedAt - spawnedAt)
-    parts.push(`Handshake ${formatLatency(handshakeMs)}`)
-  }
-
-  const heartbeatAgeMs = getElapsedMs(inst.lastHeartbeatAt)
-  if (heartbeatAgeMs !== null) {
-    parts.push(`Heartbeat ${formatDuration(heartbeatAgeMs)} ago`)
-  }
-
-  if (parts.length === 0) {
-    return null
-  }
-
-  return <span>{parts.join(' · ')}</span>
-}
-
-function getInstanceStartedAt(inst: ServerRuntimeStatus['instances'][number]) {
-  const handshakedAt = parseTimestamp(inst.handshakedAt)
-  if (handshakedAt !== null) {
-    return handshakedAt
-  }
-  return parseTimestamp(inst.spawnedAt)
-}
-
-function parseTimestamp(value: string) {
-  if (!value) {
-    return null
-  }
-  const parsed = Date.parse(value)
-  if (Number.isNaN(parsed)) {
-    return null
-  }
-  return parsed
-}
-
-function formatInstanceId(id: string) {
-  if (id.length <= 12) {
-    return id
-  }
-  return `${id.slice(0, 8)}...${id.slice(-3)}`
 }
 
 function InitStatusLine({
@@ -596,14 +493,8 @@ function formatRetryInfo(status: ServerInitStatus) {
     parts.push(`Retries: ${status.retryCount}`)
   }
   if (status.nextRetryAt) {
-    const retryAt = Date.parse(status.nextRetryAt)
-    if (!Number.isNaN(retryAt)) {
-      const remainingSeconds = Math.max(0, Math.round((retryAt - Date.now()) / 1000))
-      parts.push(`Next in ${remainingSeconds}s`)
-    }
-    else {
-      parts.push('Next retry scheduled')
-    }
+    const remainingSeconds = getRemainingSeconds(status.nextRetryAt)
+    parts.push(`Next in ${remainingSeconds}s`)
   }
   if (parts.length === 0) {
     return ''

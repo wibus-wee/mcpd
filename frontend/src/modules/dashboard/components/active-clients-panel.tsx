@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useActiveClients } from '@/hooks/use-active-clients'
 import { Spring } from '@/lib/spring'
-import { formatRelativeTime } from '@/lib/time'
+import { formatRelativeTime, getElapsedMs } from '@/lib/time'
 
 function generateColor(str: string): string {
   let hash = 0
@@ -53,9 +53,8 @@ function ClientRow({
   index: number
 }) {
   const isRecent = useMemo(() => {
-    if (!lastHeartbeat) return false
-    const diff = Date.now() - new Date(lastHeartbeat).getTime()
-    return diff < 30000
+    const elapsed = getElapsedMs(lastHeartbeat)
+    return elapsed !== null && elapsed < 30000
   }, [lastHeartbeat])
 
   return (

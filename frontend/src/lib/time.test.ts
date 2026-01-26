@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatDuration, formatLatency, getElapsedMs } from './time'
+import { formatDuration, formatLatency, getElapsedMs, getRemainingSeconds } from './time'
 
 describe('formatDuration', () => {
   it('returns "0s" for zero or negative values', () => {
@@ -95,6 +95,44 @@ describe('getElapsedMs', () => {
 
     const future = new Date(now + 10000).toISOString()
     expect(getElapsedMs(future)).toBe(0)
+
+    vi.useRealTimers()
+  })
+})
+
+describe('getRemainingSeconds', () => {
+  it('returns 0 for undefined or null input', () => {
+    expect(getRemainingSeconds()).toBe(0)
+    expect(getRemainingSeconds(null)).toBe(0)
+  })
+
+  it('returns 0 for invalid timestamp strings', () => {
+    expect(getRemainingSeconds('')).toBe(0)
+    expect(getRemainingSeconds('invalid')).toBe(0)
+    expect(getRemainingSeconds('not-a-date')).toBe(0)
+  })
+
+  it('returns remaining seconds for future timestamps', () => {
+    const now = Date.now()
+    vi.setSystemTime(now)
+
+    // 10 seconds in the future
+    const tenSecondsFuture = new Date(now + 10000).toISOString()
+    expect(getRemainingSeconds(tenSecondsFuture)).toBe(10)
+
+    // 1 minute in the future
+    const oneMinuteFuture = new Date(now + 60000).toISOString()
+    expect(getRemainingSeconds(oneMinuteFuture)).toBe(60)
+
+    vi.useRealTimers()
+  })
+
+  it('returns 0 for past timestamps (clamped)', () => {
+    const now = Date.now()
+    vi.setSystemTime(now)
+
+    const past = new Date(now - 10000).toISOString()
+    expect(getRemainingSeconds(past)).toBe(0)
 
     vi.useRealTimers()
   })

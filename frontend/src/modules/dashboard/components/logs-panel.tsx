@@ -5,7 +5,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useSetAtom } from 'jotai'
 import { RefreshCwIcon, ScrollTextIcon, TrashIcon } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import { logStreamTokenAtom } from '@/atoms/logs'
 import { Badge } from '@/components/ui/badge'
@@ -112,7 +112,7 @@ const getSegmentsLength = (segments: LogSegment[]) => {
   return segments.reduce((sum, segment) => sum + segment.text.length, 0) + (segments.length - 1)
 }
 
-function LogRow({ segments, level }: { segments: LogSegment[], level?: LogEntry['level'] }) {
+const LogRow = memo(function LogRow({ segments, level }: { segments: LogSegment[], level?: LogEntry['level'] }) {
   const bgClass = level ? levelBgClassName[level] : ''
 
   return (
@@ -128,7 +128,7 @@ function LogRow({ segments, level }: { segments: LogSegment[], level?: LogEntry[
       ))}
     </div>
   )
-}
+})
 
 export function LogsPanel() {
   const { logs, mutate } = useLogs()

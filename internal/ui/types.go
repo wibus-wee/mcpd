@@ -6,12 +6,13 @@ import "encoding/json"
 
 // ToolEntry represents a single tool for the frontend
 type ToolEntry struct {
-	Name       string          `json:"name"`
-	ToolJSON   json.RawMessage `json:"toolJson"`
-	SpecKey    string          `json:"specKey"`
-	ServerName string          `json:"serverName"`
-	Source     string          `json:"source"`
-	CachedAt   string          `json:"cachedAt,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	ToolJSON    json.RawMessage `json:"toolJson"`
+	SpecKey     string          `json:"specKey"`
+	ServerName  string          `json:"serverName"`
+	Source      string          `json:"source"`
+	CachedAt    string          `json:"cachedAt,omitempty"`
 }
 
 // ResourceEntry represents a single resource for the frontend
@@ -145,6 +146,17 @@ type ServerSummary struct {
 
 // ServerDetail contains full server specification for frontend.
 type ServerDetail = ServerSpecDetail
+
+// ServerGroup aggregates server configuration and tool metadata for the frontend.
+type ServerGroup struct {
+	ID          string        `json:"id"`
+	SpecKey     string        `json:"specKey"`
+	ServerName  string        `json:"serverName"`
+	Tools       []ToolEntry   `json:"tools"`
+	Tags        []string      `json:"tags"`
+	HasToolData bool          `json:"hasToolData"`
+	SpecDetail  *ServerDetail `json:"specDetail,omitempty"`
+}
 
 // ServerSpecDetail contains server specification for frontend
 type ServerSpecDetail struct {

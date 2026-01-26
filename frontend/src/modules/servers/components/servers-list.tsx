@@ -8,20 +8,15 @@ import { AnimatePresence, m } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Spring } from '@/lib/spring'
 import { cn } from '@/lib/utils'
+import { ServerEmptyState } from '@/modules/servers/components/server-empty-state'
 import { ServerRuntimeIndicator } from '@/modules/servers/components/server-runtime-status'
+import { useFilteredServers } from '@/modules/servers/hooks'
 
 interface ServersListProps {
   servers: ServerSummary[]
@@ -42,17 +37,10 @@ function ServersListSkeleton() {
 
 function ServersListEmpty() {
   return (
-    <Empty className="py-8">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <ServerIcon className="size-4" />
-        </EmptyMedia>
-        <EmptyTitle className="text-sm">No servers</EmptyTitle>
-        <EmptyDescription className="text-xs">
-          Add MCP servers to start routing tools.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <ServerEmptyState
+      title="No servers"
+      description="Add MCP servers to start routing tools."
+    />
   )
 }
 
@@ -75,25 +63,7 @@ export function ServersList({
 
   const tags = useMemo(() => buildTagIndex(servers), [servers])
 
-  const filteredServers = useMemo(() => {
-    let result = servers
-
-    if (selectedTags.length > 0) {
-      result = result.filter((server) => {
-        const serverTags = server.tags ?? []
-        return selectedTags.some(tag => serverTags.includes(tag))
-      })
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(server =>
-        server.name.toLowerCase().includes(query),
-      )
-    }
-
-    return result
-  }, [servers, selectedTags, searchQuery])
+  const filteredServers = useFilteredServers(servers, searchQuery, selectedTags)
 
   useEffect(() => {
     if (selectedTags.length === 0) return

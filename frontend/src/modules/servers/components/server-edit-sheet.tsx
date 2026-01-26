@@ -7,6 +7,7 @@ import { ServerService } from '@bindings/mcpd/internal/ui'
 import { PlusIcon, SaveIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,8 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { toastManager } from '@/components/ui/toast'
+
+import { formatCommaSeparated, formatEnvironmentVariables, parseCommaSeparated, parseEnvironmentVariables } from '@/lib/parsers'
 import { reloadConfig } from '@/modules/servers/lib/reload-config'
 
 interface ServerEditSheetProps {
@@ -100,20 +103,29 @@ export function ServerEditSheet({
 }: ServerEditSheetProps) {
   const isEdit = Boolean(server)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA)
+
+  const form = useForm<FormData>({
+    defaultValues: INITIAL_FORM_DATA,
+  })
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+  } = form
+
+  const transport = watch('transport')
 
   useEffect(() => {
     if (!open) return
 
     if (server) {
-      const envString = server.env
-        ? Object.entries(server.env)
-            .map(([k, v]) => `${k}=${v}`)
-            .join('\n')
-        : ''
-      const argsString = server.cmd.length > 1 ? server.cmd.slice(1).join(', ') : ''
+      const envString = formatEnvironmentVariables(server.env ?? {})
+      const argsString = server.cmd.length > 1 ? formatCommaSeparated(server.cmd.slice(1)) : ''
 
-      setFormData({
+      reset({
         name: server.name,
         transport: server.transport as 'stdio' | 'streamable_http',
         cmd: server.cmd[0] ?? '',
@@ -121,66 +133,39 @@ export function ServerEditSheet({
         cwd: server.cwd ?? '',
         env: envString,
         endpoint: server.http?.endpoint ?? '',
-        tags: (server.tags ?? []).join(', '),
+        tags: formatCommaSeparated(server.tags ?? []),
         activationMode: (server.activationMode as 'on-demand' | 'always-on') ?? 'on-demand',
         idleSeconds: server.idleSeconds ?? 300,
         maxConcurrent: server.maxConcurrent ?? 5,
       })
+    } else {
+      reset(INITIAL_FORM_DATA)
     }
-    else {
-      setFormData(INITIAL_FORM_DATA)
-    }
-  }, [server, open])
+  }, [server, open, reset])
 
-  const handleFieldChange = useCallback(
-    <K extends keyof FormData>(field: K, value: FormData[K]) => {
-      setFormData(prev => ({ ...prev, [field]: value }))
-    },
-    [],
-  )
-
-  const handleSubmit = useCallback(async () => {
+  const onSubmit = useCallback(async (data: FormData) => {
     setIsSubmitting(true)
     try {
-      const parsedTags = formData.tags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(Boolean)
-      const parsedArgs = formData.args
-        .split(',')
-        .map(arg => arg.trim())
-        .filter(Boolean)
-      const cmd = formData.cmd.trim()
-      const envEntries = formData.env
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [key, ...rest] = line.split('=')
-          return [key?.trim(), rest.join('=').trim()] as const
-        })
-        .filter(([key]) => Boolean(key))
-      const env = envEntries.reduce<Record<string, string>>((acc, [key, value]) => {
-        if (!key) return acc
-        acc[key] = value ?? ''
-        return acc
-      }, {})
+      const filteredTags = parseCommaSeparated(data.tags)
+      const filteredArgs = parseCommaSeparated(data.args)
+      const env = parseEnvironmentVariables(data.env)
+      const cmd = data.cmd.trim()
 
       const baseSpec: ServerDetail = server ?? {
-        name: formData.name.trim(),
+        name: data.name.trim(),
         specKey: '',
-        transport: formData.transport,
+        transport: data.transport,
         cmd: [],
         env: {},
         cwd: '',
         tags: [],
-        idleSeconds: formData.idleSeconds,
-        maxConcurrent: formData.maxConcurrent,
+        idleSeconds: data.idleSeconds,
+        maxConcurrent: data.maxConcurrent,
         strategy: '',
         sessionTTLSeconds: 0,
         disabled: false,
         minReady: 0,
-        activationMode: formData.activationMode,
+        activationMode: data.activationMode,
         drainTimeoutSeconds: 0,
         protocolVersion: '',
         exposeTools: [],
@@ -189,21 +174,21 @@ export function ServerEditSheet({
 
       const nextSpec: ServerDetail = {
         ...baseSpec,
-        name: isEdit ? baseSpec.name : formData.name.trim(),
-        transport: formData.transport,
-        cmd: formData.transport === 'stdio' ? [cmd, ...parsedArgs].filter(Boolean) : [],
-        env: formData.transport === 'stdio' ? env : {},
-        cwd: formData.transport === 'stdio' ? formData.cwd.trim() : '',
-        tags: parsedTags,
-        idleSeconds: formData.idleSeconds,
-        maxConcurrent: formData.maxConcurrent,
-        activationMode: formData.activationMode,
-        http: formData.transport === 'streamable_http'
+        name: isEdit ? baseSpec.name : data.name.trim(),
+        transport: data.transport,
+        cmd: data.transport === 'stdio' ? [cmd, ...filteredArgs].filter(Boolean) : [],
+        env: data.transport === 'stdio' ? env : {},
+        cwd: data.transport === 'stdio' ? data.cwd.trim() : '',
+        tags: filteredTags,
+        idleSeconds: data.idleSeconds,
+        maxConcurrent: data.maxConcurrent,
+        activationMode: data.activationMode,
+        http: data.transport === 'streamable_http'
           ? {
-              endpoint: formData.endpoint.trim(),
-              headers: baseSpec.http?.headers ?? {},
-              maxRetries: baseSpec.http?.maxRetries ?? 0,
-            }
+            endpoint: data.endpoint.trim(),
+            headers: baseSpec.http?.headers ?? {},
+            maxRetries: baseSpec.http?.maxRetries ?? 0,
+          }
           : null,
       }
 
@@ -243,7 +228,7 @@ export function ServerEditSheet({
     finally {
       setIsSubmitting(false)
     }
-  }, [formData, isEdit, onSaved, onOpenChange, server])
+  }, [isEdit, onSaved, onOpenChange, server])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -266,8 +251,7 @@ export function ServerEditSheet({
           >
             <FormField label="Server Name" required>
               <Input
-                value={formData.name}
-                onChange={e => handleFieldChange('name', e.target.value)}
+                {...register('name')}
                 placeholder="my-server"
                 disabled={isEdit}
               />
@@ -280,9 +264,8 @@ export function ServerEditSheet({
 
             <FormField label="Transport Type" required>
               <Select
-                value={formData.transport}
-                onValueChange={v =>
-                  handleFieldChange('transport', v as 'stdio' | 'streamable_http')}
+                value={transport}
+                onValueChange={v => setValue('transport', v as 'stdio' | 'streamable_http')}
               >
                 <SelectTrigger>
                   <SelectValue>
@@ -298,7 +281,7 @@ export function ServerEditSheet({
 
             <Separator />
 
-            {formData.transport === 'stdio' ? (
+            {transport === 'stdio' ? (
               <>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" size="sm">
@@ -311,8 +294,7 @@ export function ServerEditSheet({
 
                 <FormField label="Command" required description="Executable path or command">
                   <Input
-                    value={formData.cmd}
-                    onChange={e => handleFieldChange('cmd', e.target.value)}
+                    {...register('cmd')}
                     placeholder="/usr/bin/node"
                   />
                 </FormField>
@@ -322,16 +304,14 @@ export function ServerEditSheet({
                   description="Comma-separated command arguments"
                 >
                   <Input
-                    value={formData.args}
-                    onChange={e => handleFieldChange('args', e.target.value)}
+                    {...register('args')}
                     placeholder="server.js, --port, 3000"
                   />
                 </FormField>
 
                 <FormField label="Working Directory" description="Execution directory">
                   <Input
-                    value={formData.cwd}
-                    onChange={e => handleFieldChange('cwd', e.target.value)}
+                    {...register('cwd')}
                     placeholder="/path/to/project"
                   />
                 </FormField>
@@ -341,8 +321,7 @@ export function ServerEditSheet({
                   description="One per line: KEY=value"
                 >
                   <Textarea
-                    value={formData.env}
-                    onChange={e => handleFieldChange('env', e.target.value)}
+                    {...register('env')}
                     placeholder="NODE_ENV=production&#10;API_KEY=secret"
                     className="min-h-24"
                   />
@@ -365,8 +344,7 @@ export function ServerEditSheet({
                   description="HTTP endpoint for the MCP server"
                 >
                   <Input
-                    value={formData.endpoint}
-                    onChange={e => handleFieldChange('endpoint', e.target.value)}
+                    {...register('endpoint')}
                     placeholder="http://localhost:3000/mcp"
                   />
                 </FormField>
@@ -377,17 +355,15 @@ export function ServerEditSheet({
 
             <FormField label="Tags" description="Comma-separated tags for organization">
               <Input
-                value={formData.tags}
-                onChange={e => handleFieldChange('tags', e.target.value)}
+                {...register('tags')}
                 placeholder="production, api, core"
               />
             </FormField>
 
             <FormField label="Activation Mode">
               <Select
-                value={formData.activationMode}
-                onValueChange={v =>
-                  handleFieldChange('activationMode', v as 'on-demand' | 'always-on')}
+                value={watch('activationMode')}
+                onValueChange={v => setValue('activationMode', v as 'on-demand' | 'always-on')}
               >
                 <SelectTrigger>
                   <SelectValue>
@@ -413,9 +389,7 @@ export function ServerEditSheet({
               >
                 <Input
                   type="number"
-                  value={formData.idleSeconds}
-                  onChange={e =>
-                    handleFieldChange('idleSeconds', Number.parseInt(e.target.value, 10) || 0)}
+                  {...register('idleSeconds', { valueAsNumber: true })}
                   min={0}
                 />
               </FormField>
@@ -426,9 +400,7 @@ export function ServerEditSheet({
               >
                 <Input
                   type="number"
-                  value={formData.maxConcurrent}
-                  onChange={e =>
-                    handleFieldChange('maxConcurrent', Number.parseInt(e.target.value, 10) || 1)}
+                  {...register('maxConcurrent', { valueAsNumber: true })}
                   min={1}
                 />
               </FormField>
@@ -440,22 +412,22 @@ export function ServerEditSheet({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
             {isSubmitting ? (
               'Saving...'
             ) : isEdit
               ? (
-                  <>
-                    <SaveIcon className="mr-2 size-4" />
-                    Save Changes
-                  </>
-                )
+                <>
+                  <SaveIcon className="mr-2 size-4" />
+                  Save Changes
+                </>
+              )
               : (
-                  <>
-                    <PlusIcon className="mr-2 size-4" />
-                    Add Server
-                  </>
-                )}
+                <>
+                  <PlusIcon className="mr-2 size-4" />
+                  Add Server
+                </>
+              )}
           </Button>
         </SheetFooter>
       </SheetContent>

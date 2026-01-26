@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveClients } from '@/hooks/use-active-clients'
 
 import { useRuntimeStatus, useServerDetails, useServers } from '../servers/hooks'
-import { FlowEmpty, FlowSkeleton } from './components'
+import { FlowEmpty, FlowSkeleton } from './components.tsx'
 import { buildTopology } from './layout'
 import { nodeTypes } from './nodes'
 import type { FlowNode } from './types'

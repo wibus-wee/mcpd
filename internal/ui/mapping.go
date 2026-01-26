@@ -18,11 +18,12 @@ func mapToolEntries(snapshot domain.ToolSnapshot) ([]ToolEntry, error) {
 			return nil, fmt.Errorf("marshal tool %q: %w", tool.Name, err)
 		}
 		entries = append(entries, ToolEntry{
-			Name:       tool.Name,
-			ToolJSON:   raw,
-			SpecKey:    tool.SpecKey,
-			ServerName: tool.ServerName,
-			Source:     string(domain.ToolSourceLive),
+			Name:        tool.Name,
+			Description: tool.Description,
+			ToolJSON:    raw,
+			SpecKey:     tool.SpecKey,
+			ServerName:  tool.ServerName,
+			Source:      string(domain.ToolSourceLive),
 		})
 	}
 	return entries, nil
@@ -41,12 +42,13 @@ func mapToolCatalogEntries(snapshot domain.ToolCatalogSnapshot) ([]ToolEntry, er
 			cachedAt = entry.CachedAt.UTC().Format(time.RFC3339Nano)
 		}
 		entries = append(entries, ToolEntry{
-			Name:       tool.Name,
-			ToolJSON:   raw,
-			SpecKey:    tool.SpecKey,
-			ServerName: tool.ServerName,
-			Source:     string(entry.Source),
-			CachedAt:   cachedAt,
+			Name:        tool.Name,
+			Description: tool.Description,
+			ToolJSON:    raw,
+			SpecKey:     tool.SpecKey,
+			ServerName:  tool.ServerName,
+			Source:      string(entry.Source),
+			CachedAt:    cachedAt,
 		})
 	}
 	return entries, nil

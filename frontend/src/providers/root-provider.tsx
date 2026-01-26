@@ -25,6 +25,7 @@ import { coreStateKey, useCoreState } from '@/hooks/use-core-state'
 import type { LogEntry } from '@/hooks/use-logs'
 import { logsKey, maxLogEntries } from '@/hooks/use-logs'
 import { jotaiStore } from '@/lib/jotai'
+import { swrKeys } from '@/lib/swr-keys'
 import { Spring } from '@/lib/spring'
 
 const logSourceValues = new Set<LogEntry['source']>(['core', 'downstream', 'ui'])
@@ -112,7 +113,7 @@ function WailsEventsBridge() {
     const unbind = Events.On('runtime:status', (event) => {
       const data = event?.data as { statuses?: ServerRuntimeStatus[] } | undefined
       if (data?.statuses) {
-        mutate('runtime-status', data.statuses, { revalidate: false })
+        mutate(swrKeys.runtimeStatus, data.statuses, { revalidate: false })
       }
     })
     return () => unbind()
@@ -123,7 +124,7 @@ function WailsEventsBridge() {
     const unbind = Events.On('server-init:status', (event) => {
       const data = event?.data as { statuses?: ServerInitStatus[] } | undefined
       if (data?.statuses) {
-        mutate('server-init-status', data.statuses, { revalidate: false })
+        mutate(swrKeys.serverInitStatus, data.statuses, { revalidate: false })
       }
     })
     return () => unbind()
@@ -161,7 +162,7 @@ function WailsEventsBridge() {
         return
       }
       if (cancelled) {
-        await LogService.StopLogStream().catch(() => {})
+        await LogService.StopLogStream().catch(() => { })
         return
       }
 
@@ -214,7 +215,7 @@ function WailsEventsBridge() {
         unbind?.()
         unbind = undefined
         stopRef.current = null
-        LogService.StopLogStream().catch(() => {})
+        LogService.StopLogStream().catch(() => { })
       }
     }
 

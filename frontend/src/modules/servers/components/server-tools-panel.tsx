@@ -9,19 +9,13 @@ import { useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spring } from '@/lib/spring'
 import { getToolDisplayName } from '@/lib/tool-names'
 import { cn } from '@/lib/utils'
+import { ServerEmptyState } from '@/modules/servers/components/server-empty-state'
 import { ToolDetailPanel } from '@/modules/servers/components/tool-detail-panel'
 import { useToolsByServer } from '@/modules/servers/hooks'
 
@@ -50,7 +44,7 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
     const query = searchQuery.toLowerCase()
     return tools.filter((tool) => {
       const displayName = getToolDisplayName(tool.name, serverName ?? undefined)
-      const description = tool.toolJson?.description ?? ''
+      const description = tool.description ?? ''
       return (
         displayName.toLowerCase().includes(query)
         || description.toLowerCase().includes(query)
@@ -60,17 +54,11 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
 
   if (!serverName) {
     return (
-      <Empty className="h-full">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <WrenchIcon className="size-4" />
-          </EmptyMedia>
-          <EmptyTitle>No Server Selected</EmptyTitle>
-          <EmptyDescription>
-            Select a server to browse its available tools
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <ServerEmptyState
+        icon={WrenchIcon}
+        title="No Server Selected"
+        description="Select a server to browse its available tools"
+      />
     )
   }
 
@@ -94,17 +82,11 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
 
   if (tools.length === 0) {
     return (
-      <Empty className="h-full">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <WrenchIcon className="size-4" />
-          </EmptyMedia>
-          <EmptyTitle>No Tools Available</EmptyTitle>
-          <EmptyDescription>
-            This server has not registered any tools yet
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <ServerEmptyState
+        icon={WrenchIcon}
+        title="No Tools Available"
+        description="This server has not registered any tools yet"
+      />
     )
   }
 

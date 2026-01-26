@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { ServerRuntimeState } from '@/modules/shared/server-status'
 import { serverStateLabels, serverStateVariants } from '@/modules/shared/server-status'
-import type { VariantProps } from 'class-variance-authority'
-import type { badgeVariants } from '@/components/ui/badge'
+import { coreStatusVariants } from '@/modules/shared/core-status'
 
 /**
  * Core application status types
@@ -19,18 +18,9 @@ export type CoreStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'erro
  */
 export type ServerState = ServerRuntimeState
 
-type BadgeVariant = VariantProps<typeof badgeVariants>['variant']
-
 /**
  * Variants for core application status
  */
-const coreStatusVariants: Record<CoreStatus, BadgeVariant> = {
-  stopped: 'secondary',
-  starting: 'info',
-  running: 'success',
-  stopping: 'warning',
-  error: 'error',
-}
 
 /**
  * Props for CoreStatusBadge

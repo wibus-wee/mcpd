@@ -46,21 +46,13 @@ import {
 } from '@/components/ui/tooltip'
 import { formatRelativeTime } from '@/lib/time'
 import { getToolDisplayName, getToolQualifiedName } from '@/lib/tool-names'
-import { parseToolJson, type ToolSchema } from '@/lib/tool-schema'
+import { parseToolJson } from '@/lib/tool-schema'
 
 import { useTools } from '../hooks'
 
 export function ToolsTable() {
   const { tools, isLoading } = useTools()
   const [search, setSearch] = useState('')
-
-  const parsedTools = useMemo(() => {
-    const map = new Map<string, ToolSchema>()
-    tools.forEach((tool) => {
-      map.set(tool.name, parseToolJson(tool))
-    })
-    return map
-  }, [tools])
 
   const filteredTools = useMemo(() => {
     if (!search) return tools
@@ -136,9 +128,9 @@ export function ToolsTable() {
                   </TableRow>
                 ) : (
                   filteredTools.map((tool) => {
-                    const parsed = parsedTools.get(tool.name) ?? { name: tool.name }
                     const displayName = getToolDisplayName(tool.name, tool.serverName)
                     const qualifiedName = getToolQualifiedName(tool.name, tool.serverName)
+                    const schema = parseToolJson(tool)
                     const isCached = tool.source === 'cache'
                     const cachedLabel = tool.cachedAt
                       ? `Cached ${formatRelativeTime(tool.cachedAt)}`
@@ -168,7 +160,7 @@ export function ToolsTable() {
                           </div>
                         </TableCell>
                         <TableCell className="max-w-60 truncate py-1.5  text-muted-foreground">
-                          {parsed.description || '--'}
+                          {tool.description || '--'}
                         </TableCell>
                         <TableCell className="py-1.5">
                           <div className="flex items-center gap-0.5">
@@ -203,7 +195,7 @@ export function ToolsTable() {
                                     {displayName}
                                   </DialogTitle>
                                   <DialogDescription className="">
-                                    {parsed.description || 'No description available'}
+                                    {tool.description || 'No description available'}
                                   </DialogDescription>
                                 </DialogHeader>
                                 {tool.serverName && (
@@ -217,11 +209,11 @@ export function ToolsTable() {
                                   </div>
                                 )}
                                 <Separator />
-                                {parsed.inputSchema?.properties && (
+                                {schema.inputSchema?.properties && (
                                   <div className="space-y-3 p-8">
                                     <h4 className="font-medium ">Parameters</h4>
                                     <Accordion>
-                                      {Object.entries(parsed.inputSchema.properties).map(
+                                      {Object.entries(schema.inputSchema.properties).map(
                                         ([key, value]) => (
                                           <AccordionItem key={key} value={key}>
                                             <AccordionTrigger>
@@ -230,7 +222,7 @@ export function ToolsTable() {
                                                 <Badge variant="outline" size="sm">
                                                   {value.type}
                                                 </Badge>
-                                                {parsed.inputSchema?.required?.includes(key) && (
+                                                {schema.inputSchema?.required?.includes(key) && (
                                                   <Badge variant="error" size="sm">
                                                     required
                                                   </Badge>

@@ -113,11 +113,12 @@ func emitToolsUpdated(app *application.App, snapshot domain.ToolSnapshot) {
 			continue
 		}
 		tools = append(tools, ToolEntry{
-			Name:       t.Name,
-			ToolJSON:   raw,
-			SpecKey:    t.SpecKey,
-			ServerName: t.ServerName,
-			Source:     string(domain.ToolSourceLive),
+			Name:        t.Name,
+			Description: t.Description,
+			ToolJSON:    raw,
+			SpecKey:     t.SpecKey,
+			ServerName:  t.ServerName,
+			Source:      string(domain.ToolSourceLive),
 		})
 	}
 	event := ToolsUpdatedEvent{

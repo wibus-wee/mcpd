@@ -2,7 +2,7 @@
 // Output: Data table with sorting, filtering, and row selection
 // Position: Main table component for servers page
 
-import type { ServerSummary } from '@bindings/mcpd/internal/ui'
+import type { ServerSummary, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
 import type { ColumnDef, ColumnFiltersState, SortingState } from '@tanstack/react-table'
 import {
   flexRender,
@@ -19,7 +19,7 @@ import {
   Trash2Icon,
   WrenchIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, memo } from 'react'
 
 import {
   AlertDialog,
@@ -71,28 +71,22 @@ interface ServersDataTableProps {
   onDeleted?: (serverName: string) => void
 }
 
-function StatusCell({ specKey }: { specKey: string }) {
-  const { data: statusList } = useRuntimeStatus()
-  const status = statusList?.find(s => s.specKey === specKey)
-
+const StatusCell = memo(function StatusCell({ status }: { status: ServerRuntimeStatus | undefined }) {
   // Determine overall state from instances
   const hasActive = hasActiveInstance(status?.instances)
   const state = hasActive ? 'running' : (status?.instances?.length ?? 0) > 0 ? 'idle' : 'stopped'
 
   return (
     <div className="flex items-center gap-2">
-      <ServerRuntimeIndicator specKey={specKey} />
+      {status?.specKey && <ServerRuntimeIndicator specKey={status.specKey} />}
       <span className="text-xs text-muted-foreground capitalize">
         {state}
       </span>
     </div>
   )
-}
+})
 
-function LoadCell({ specKey }: { specKey: string }) {
-  const { data: statusList } = useRuntimeStatus()
-  const status = statusList?.find(s => s.specKey === specKey)
-
+const LoadCell = memo(function LoadCell({ status }: { status: ServerRuntimeStatus | undefined }) {
   if (!status || !hasActiveInstance(status?.instances)) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
@@ -103,38 +97,28 @@ function LoadCell({ specKey }: { specKey: string }) {
   const loadPercent = total > 0 ? Math.round((busy / total) * 100) : 0
 
   return <span className="text-xs tabular-nums">{loadPercent}%</span>
-}
+})
 
-function ClientsCell({ serverName }: { serverName: string }) {
-  const { data: clients } = useActiveClients()
-
-  if (!clients) {
-    return <span className="text-xs text-muted-foreground">-</span>
-  }
-
-  const count = clients.filter(c => c.server === serverName).length
+const ClientsCell = memo(function ClientsCell({ count }: { count: number }) {
   return (
     <span className="text-xs tabular-nums">
       {count}
     </span>
   )
-}
+})
 
-function UptimeCell({ specKey }: { specKey: string }) {
-  const { data: statusList } = useRuntimeStatus()
-  const status = statusList?.find(s => s.specKey === specKey)
-
+const UptimeCell = memo(function UptimeCell({ status }: { status: ServerRuntimeStatus | undefined }) {
   if (!status || !status.instances?.length) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
   // Find the oldest running instance
-  const activeInstances = status.instances.filter(i => ACTIVE_INSTANCE_STATES.has(i.state as ServerRuntimeState))
+  const activeInstances = status.instances.filter((i: any) => ACTIVE_INSTANCE_STATES.has(i.state as ServerRuntimeState))
   if (activeInstances.length === 0) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
-  const oldestInstance = activeInstances.reduce((oldest, current) => {
+  const oldestInstance = activeInstances.reduce((oldest: any, current: any) => {
     return current.spawnedAt < oldest.spawnedAt ? current : oldest
   })
 
@@ -147,7 +131,7 @@ function UptimeCell({ specKey }: { specKey: string }) {
       {formatDuration(elapsed)}
     </span>
   )
-}
+})
 
 function ToolsCell({ specKey }: { specKey: string }) {
   const { serverMap } = useToolsByServer()
@@ -284,6 +268,31 @@ export function ServersDataTable({
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
+  const { data: statusList } = useRuntimeStatus()
+  const { data: clients } = useActiveClients()
+
+  // Create index Maps - O(n) once
+  const statusMap = useMemo(() => {
+    const map = new Map<string, ServerRuntimeStatus>()
+    statusList?.forEach(status => {
+      if (status.specKey) {
+        map.set(status.specKey, status)
+      }
+    })
+    return map
+  }, [statusList])
+
+  const clientsMap = useMemo(() => {
+    const map = new Map<string, number>()
+    clients?.forEach(client => {
+      if (client.server) {
+        const count = map.get(client.server) ?? 0
+        map.set(client.server, count + 1)
+      }
+    })
+    return map
+  }, [clients])
+
   const columns = useMemo<ColumnDef<ServerSummary>[]>(
     () => [
       {
@@ -327,7 +336,7 @@ export function ServersDataTable({
       {
         id: 'status',
         header: 'Status',
-        cell: ({ row }) => <StatusCell specKey={row.original.specKey} />,
+        cell: ({ row }) => <StatusCell status={statusMap.get(row.original.specKey)} />,
       },
       {
         accessorKey: 'toolCount',
@@ -349,17 +358,17 @@ export function ServersDataTable({
       {
         id: 'load',
         header: 'Load',
-        cell: ({ row }) => <LoadCell specKey={row.original.specKey} />,
+        cell: ({ row }) => <LoadCell status={statusMap.get(row.original.specKey)} />,
       },
       {
         id: 'clients',
         header: 'Clients',
-        cell: ({ row }) => <ClientsCell serverName={row.original.name} />,
+        cell: ({ row }) => <ClientsCell count={clientsMap.get(row.original.name) ?? 0} />,
       },
       {
         id: 'uptime',
         header: 'Uptime',
-        cell: ({ row }) => <UptimeCell specKey={row.original.specKey} />,
+        cell: ({ row }) => <UptimeCell status={statusMap.get(row.original.specKey)} />,
       },
       {
         id: 'actions',
@@ -373,7 +382,7 @@ export function ServersDataTable({
         ),
       },
     ],
-    [canEdit, onDeleted],
+    [canEdit, onDeleted, statusMap, clientsMap],
   )
 
   const table = useReactTable({

@@ -9,5 +9,4 @@ For universal UI primitives, use `components/ui/` instead.
 ## Files
 
 - **refresh-button.tsx**: IconButton with rotation animation on click/loading
-- **list-item.tsx**: Clickable list row with chevron indicator
 - **section-header.tsx**: Section title with optional action button

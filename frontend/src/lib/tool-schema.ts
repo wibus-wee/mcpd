@@ -1,5 +1,5 @@
 // Shared tool schema parsing utilities
-import type { ToolEntry } from '@bindings/mcpd/internal/ui'
+import type { ToolEntry, ResourceEntry } from '@bindings/mcpd/internal/ui'
 
 export interface ToolSchema {
   name?: string
@@ -16,6 +16,13 @@ export interface ToolSchema {
   }
 }
 
+export interface ResourceSchema {
+  uri: string
+  name?: string
+  description?: string
+  mimeType?: string
+}
+
 /**
  * Parses tool JSON from ToolEntry, handling both string and object formats
  */
@@ -27,6 +34,20 @@ export function parseToolJson(tool: ToolEntry): ToolSchema {
     return { name: tool.name, ...parsed }
   } catch {
     return { name: tool.name }
+  }
+}
+
+/**
+ * Parses resource JSON from ResourceEntry, handling both string and object formats
+ */
+export function parseResourceJson(resource: ResourceEntry): ResourceSchema {
+  try {
+    const parsed = typeof resource.resourceJson === 'string'
+      ? JSON.parse(resource.resourceJson)
+      : resource.resourceJson
+    return { uri: resource.uri, ...parsed }
+  } catch {
+    return { uri: resource.uri }
   }
 }
 

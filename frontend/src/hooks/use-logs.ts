@@ -4,6 +4,8 @@
 
 import useSWR from 'swr'
 
+import { swrKeys } from '@/lib/swr-keys'
+
 export type LogSource = 'core' | 'downstream' | 'ui' | 'unknown'
 
 export interface LogEntry {
@@ -18,7 +20,7 @@ export interface LogEntry {
   fields: Record<string, unknown>
 }
 
-export const logsKey = 'logs'
+export const logsKey = swrKeys.logs
 export const maxLogEntries = 1000
 
 export function useLogs() {

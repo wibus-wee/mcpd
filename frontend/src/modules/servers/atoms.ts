@@ -3,31 +3,28 @@
 // Position: Global state for servers management
 
 import type {
-  ActiveClient,
   ConfigModeResponse,
   ServerDetail,
-  ServerSummary,
+  ToolEntry,
 } from '@bindings/mcpd/internal/ui'
 import { atom } from 'jotai'
+
+export interface ServerGroup {
+  id: string
+  specKey: string
+  serverName: string
+  tools: ToolEntry[]
+  tags: string[]
+  hasToolData: boolean
+  specDetail?: ServerDetail
+}
 
 // Config mode and path
 export const configModeAtom = atom<ConfigModeResponse | null>(null)
 
-// Server list
-export const serversAtom = atom<ServerSummary[]>([])
-
-// Selected server name
-export const selectedServerNameAtom = atom<string | null>(null)
-
 // Selected server detail
 export const selectedServerAtom = atom<ServerDetail | null>(null)
-
-// Active clients
-export const activeClientsAtom = atom<ActiveClient[]>([])
 
 // Loading states
 export const configLoadingAtom = atom(false)
 export const serverLoadingAtom = atom(false)
-
-// Server selection and tab state
-export const activeTabAtom = atom<'overview' | 'tools' | 'configuration'>('overview')

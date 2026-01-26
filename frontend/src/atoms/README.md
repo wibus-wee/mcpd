@@ -8,5 +8,4 @@
 
 ## Files
 
-- **navigation.ts**: 侧边栏与导航相关的 UI 状态 atoms
 - **logs.ts**: 日志流相关的 UI 状态 atoms

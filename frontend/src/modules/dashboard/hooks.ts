@@ -1,16 +1,18 @@
-// Input: SWR, CoreService/DiscoveryService bindings
-// Output: Dashboard data fetching hooks (useAppInfo, useTools, useResources, usePrompts, useBootstrapProgress)
-// Position: Data fetching hooks for dashboard module
-
 import type { BootstrapProgressResponse } from '@bindings/mcpd/internal/ui'
 import { CoreService, DiscoveryService } from '@bindings/mcpd/internal/ui'
 import useSWR from 'swr'
 
 import { swrPresets } from '@/lib/swr-config'
+import { swrKeys } from '@/lib/swr-keys'
+
+/**
+ * Bootstrap progress states - derived from BootstrapProgressResponse.state
+ */
+export type BootstrapState = BootstrapProgressResponse['state']
 
 export function useAppInfo() {
   const swr = useSWR(
-    'app-info',
+    swrKeys.appInfo,
     () => CoreService.GetInfo(),
     swrPresets.longCached,
   )
@@ -22,7 +24,7 @@ export function useAppInfo() {
 
 export function useTools() {
   const swr = useSWR(
-    'tools',
+    swrKeys.tools,
     () => DiscoveryService.ListTools(),
     swrPresets.cached,
   )
@@ -34,38 +36,37 @@ export function useTools() {
 
 export function useResources() {
   const swr = useSWR(
-    'resources',
+    swrKeys.resources,
     async () => {
       const page = await DiscoveryService.ListResources('')
-      return page?.resources ?? []
+      return page
     },
     swrPresets.cached,
   )
   return {
     ...swr,
-    resources: swr.data ?? [],
+    resources: swr.data?.resources ?? [],
+    nextCursor: swr.data?.nextCursor,
+    hasNextPage: Boolean(swr.data?.nextCursor),
   }
 }
 
 export function usePrompts() {
   const swr = useSWR(
-    'prompts',
+    swrKeys.prompts,
     async () => {
       const page = await DiscoveryService.ListPrompts('')
-      return page?.prompts ?? []
+      return page
     },
     swrPresets.cached,
   )
   return {
     ...swr,
-    prompts: swr.data ?? [],
+    prompts: swr.data?.prompts ?? [],
+    nextCursor: swr.data?.nextCursor,
+    hasNextPage: Boolean(swr.data?.nextCursor),
   }
 }
-
-/**
- * Bootstrap progress states
- */
-export type BootstrapState = 'pending' | 'running' | 'completed' | 'failed'
 
 /**
  * Hook to fetch and track bootstrap progress.
@@ -73,7 +74,7 @@ export type BootstrapState = 'pending' | 'running' | 'completed' | 'failed'
  */
 export function useBootstrapProgress(enabled = true) {
   const swr = useSWR<BootstrapProgressResponse | null>(
-    enabled ? 'bootstrap-progress' : null,
+    enabled ? swrKeys.bootstrapProgress : null,
     () => CoreService.GetBootstrapProgress(),
     {
       refreshInterval: (data) => {

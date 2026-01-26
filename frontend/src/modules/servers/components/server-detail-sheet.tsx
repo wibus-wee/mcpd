@@ -2,9 +2,10 @@
 // Output: 60% width sheet with tabs for Overview/Tools/Config
 // Position: Detail panel for selected server
 
-import type { ServerSummary } from '@bindings/mcpd/internal/ui'
 import { LayoutGridIcon, SettingsIcon, WrenchIcon } from 'lucide-react'
 import { m } from 'motion/react'
+import { useAtom } from 'jotai'
+import { useNavigate } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -14,33 +15,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spring } from '@/lib/spring'
 import { useToolsByServer } from '@/modules/servers/hooks'
 
+import { selectedServerAtom } from '../atoms'
+
 import { ServerConfigPanel } from './server-config-panel'
 import { ServerOverviewPanel } from './server-overview-panel'
 import { ServerToolsPanel } from './server-tools-panel'
+import type { ServerTab } from '../constants'
 
 interface ServerDetailSheetProps {
-  server: ServerSummary | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeleted?: () => void
   onEdit?: () => void
+  initialTab?: ServerTab
 }
 
 export function ServerDetailSheet({
-  server,
   open,
   onOpenChange,
   onDeleted,
   onEdit,
+  initialTab = 'overview',
 }: ServerDetailSheetProps) {
+  const navigate = useNavigate({ from: '/servers' })
   const { serverMap } = useToolsByServer()
+  const [selectedServer] = useAtom(selectedServerAtom)
 
-  if (!server) return null
+  const handleTabChange = (value: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, tab: value as ServerTab }),
+      replace: true,
+    })
+  }
+
+  if (!selectedServer) return null
 
   // Find tool count for this server
   let toolCount = 0
   for (const serverGroup of serverMap.values()) {
-    if (serverGroup.specKey === server.specKey) {
+    if (serverGroup.specKey === selectedServer.specKey) {
       toolCount = serverGroup.tools?.length ?? 0
       break
     }
@@ -68,11 +81,11 @@ export function ServerDetailSheet({
             <div className="space-y-2 min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold tracking-tight truncate">
-                  {server.name}
+                  {selectedServer.name}
                 </h2>
-                {server.tags && server.tags.length > 0 && (
+                {selectedServer.tags && selectedServer.tags.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
-                    {server.tags.map(tag => (
+                    {selectedServer.tags.map(tag => (
                       <Badge key={tag} variant="secondary" size="sm">
                         {tag}
                       </Badge>
@@ -90,7 +103,7 @@ export function ServerDetailSheet({
         <Separator />
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0 w-full">
+        <Tabs value={initialTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 w-full">
           <TabsList variant="underline" className="px-4 border-b w-full">
             <TabsTrigger value="overview">
               <LayoutGridIcon className="size-4" />
@@ -109,19 +122,18 @@ export function ServerDetailSheet({
           <ScrollArea className="flex-1">
             <TabsContent value="overview" className="m-0 p-0">
               <ServerOverviewPanel
-                serverName={server.name}
                 className="p-6 pt-2"
               />
             </TabsContent>
 
             <TabsContent value="tools" className="m-0 p-0 h-full">
-              <ServerToolsPanel serverName={server.name} />
+              <ServerToolsPanel serverName={selectedServer.name} />
             </TabsContent>
 
             <TabsContent value="configuration" className="m-0 p-0">
               <div className="p-6 pt-2">
                 <ServerConfigPanel
-                  serverName={server.name}
+                  serverName={selectedServer.name}
                   onDeleted={handleDelete}
                   onEdit={onEdit}
                 />

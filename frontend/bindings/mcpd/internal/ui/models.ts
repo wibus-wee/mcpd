@@ -1344,6 +1344,7 @@ export class SubAgentConfigDetail {
  */
 export class ToolEntry {
     "name": string;
+    "description": string;
     "toolJson": json$0.RawMessage;
     "specKey": string;
     "serverName": string;
@@ -1354,6 +1355,9 @@ export class ToolEntry {
     constructor($$source: Partial<ToolEntry> = {}) {
         if (!("name" in $$source)) {
             this["name"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
         }
         if (!("toolJson" in $$source)) {
             this["toolJson"] = null;

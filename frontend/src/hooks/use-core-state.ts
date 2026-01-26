@@ -8,6 +8,7 @@ import { useCallback } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
 import { swrPresets } from '@/lib/swr-config'
+import { swrKeys } from '@/lib/swr-keys'
 
 export type CoreStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'error'
 type StartCoreOptions = {
@@ -17,7 +18,7 @@ type StartCoreOptions = {
   healthzEnabled?: boolean
 }
 
-export const coreStateKey = 'core-state'
+export const coreStateKey = swrKeys.coreState
 
 const toCoreStatus = (state?: string): CoreStatus => {
   return state ? (state as CoreStatus) : 'stopped'

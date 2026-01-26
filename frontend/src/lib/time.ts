@@ -35,6 +35,13 @@ export const getElapsedMs = (timestamp?: string | null): number | null => {
   return Math.max(0, Date.now() - parsed)
 }
 
+export const getRemainingSeconds = (targetTimestamp?: string | null): number => {
+  if (!targetTimestamp) return 0
+  const parsed = Date.parse(targetTimestamp)
+  if (Number.isNaN(parsed)) return 0
+  return Math.max(0, Math.round((parsed - Date.now()) / 1000))
+}
+
 export function formatRelativeTime(timestamp?: string): string {
   if (!timestamp) {
     return '—'

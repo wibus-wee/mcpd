@@ -10,6 +10,7 @@ import {
   ZapIcon,
 } from 'lucide-react'
 import { m } from 'motion/react'
+import { useAtom } from 'jotai'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,34 +22,20 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Spring } from '@/lib/spring'
 import { getMetricsSummary, getPoolStats } from '@/lib/server-stats'
 import {
   formatDuration,
   formatLatency,
-  formatRelativeTime,
 } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { ServerInstancesTable } from '@/modules/servers/components/server-instances-table'
 import { ServerRuntimeSummary } from '@/modules/servers/components/server-runtime-status'
-import { useRuntimeStatus, useServer } from '@/modules/servers/hooks'
-import {
-  formatStartReason,
-  formatStartTriggerLines,
-  resolvePolicyLabel,
-  resolveStartCause,
-} from '@/modules/shared/server-start'
+import { useRuntimeStatus } from '@/modules/servers/hooks'
+
+import { selectedServerAtom } from '../atoms'
 
 interface ServerOverviewPanelProps {
-  serverName: string | null
   className?: string
 }
 
@@ -90,25 +77,6 @@ function ServerStatCard({
   )
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-6 p-6">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-5 w-32" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
-      </div>
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-24 w-full" />
-    </div>
-  )
-}
-
 function EmptyState() {
   return (
     <Empty className="py-16">
@@ -126,34 +94,13 @@ function EmptyState() {
 }
 
 export function ServerOverviewPanel({
-  serverName,
   className,
 }: ServerOverviewPanelProps) {
-  const { data: server, isLoading } = useServer(serverName)
+  const [server] = useAtom(selectedServerAtom)
   const { data: runtimeStatus } = useRuntimeStatus()
 
-  if (!serverName) {
-    return <EmptyState />
-  }
-
-  if (isLoading) {
-    return <LoadingSkeleton />
-  }
-
   if (!server) {
-    return (
-      <Empty className="py-16">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <ServerIcon className="size-4" />
-          </EmptyMedia>
-          <EmptyTitle className="text-sm">Server not found</EmptyTitle>
-          <EmptyDescription className="text-xs">
-            The selected server could not be loaded.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    )
+    return <EmptyState />
   }
 
   const serverRuntimeStatus = runtimeStatus?.find(
@@ -174,7 +121,7 @@ export function ServerOverviewPanel({
   return (
     <ScrollArea className={cn('h-full', className)}>
       <m.div
-        key={serverName}
+        key={server.name}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={Spring.smooth(0.3)}
@@ -304,75 +251,7 @@ export function ServerOverviewPanel({
               </CardTitle>
             </CardHeader>
             <CardContent className="p-1 -mt-2">
-              <div className="overflow-x-auto scrollbar-none">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Instance</TableHead>
-                      <TableHead>Cause</TableHead>
-                      <TableHead>Trigger</TableHead>
-                      <TableHead>Policy</TableHead>
-                      <TableHead>Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedInstances.map((instance) => {
-                      const resolvedCause = resolveStartCause(
-                        instance.lastStartCause,
-                        specDetail?.activationMode,
-                        specDetail?.minReady,
-                      )
-                      const triggerLines = formatStartTriggerLines(resolvedCause)
-                      const relativeTime = formatRelativeTime(
-                        resolvedCause?.timestamp,
-                      )
-                      const policyLabel = resolvePolicyLabel(
-                        resolvedCause,
-                        specDetail?.activationMode,
-                        specDetail?.minReady,
-                      )
-                      return (
-                        <TableRow key={instance.id}>
-                          <TableCell className="font-mono text-xs">
-                            {instance.id}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {formatStartReason(
-                              resolvedCause,
-                              specDetail?.activationMode,
-                              specDetail?.minReady,
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {triggerLines.length > 0 ? (
-                              <div className="space-y-1">
-                                {triggerLines.map(line => (
-                                  <p
-                                    key={line}
-                                    className="text-xs text-muted-foreground"
-                                  >
-                                    {line}
-                                  </p>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                —
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {policyLabel}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground tabular-nums">
-                            {relativeTime}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <ServerInstancesTable instances={sortedInstances} specDetail={specDetail} />
             </CardContent>
           </Card>
         )}

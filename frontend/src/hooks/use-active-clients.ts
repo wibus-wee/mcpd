@@ -7,8 +7,9 @@ import { RuntimeService } from '@bindings/mcpd/internal/ui'
 import useSWR from 'swr'
 
 import { withSWRPreset } from '@/lib/swr-config'
+import { swrKeys } from '@/lib/swr-keys'
 
-export const activeClientsKey = 'active-clients'
+export const activeClientsKey = swrKeys.activeClients
 
 export function useActiveClients() {
   return useSWR<ActiveClient[]>(

@@ -3,12 +3,13 @@
 // Position: Main page for servers module
 
 import type { ServerDetail, ServerSummary } from '@bindings/mcpd/internal/ui'
-import { useAtom } from 'jotai'
+import { useNavigate } from '@tanstack/react-router'
 import { PlusIcon, SearchIcon } from 'lucide-react'
 import { m } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSetAtom } from 'jotai'
 
-import { RefreshButton } from '@/components/custom'
+import { RefreshButton } from '@/components/custom/refresh-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,17 +19,25 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spring } from '@/lib/spring'
 import { ImportMcpServersSheet } from '@/modules/servers/components/import-mcp-servers-sheet'
 
-import { selectedServerNameAtom } from './atoms'
+import { selectedServerAtom } from './atoms'
+
 import { ServerDetailSheet } from './components/server-detail-sheet'
 import { ServerEditSheet } from './components/server-edit-sheet'
 import { ServersDataTable } from './components/servers-data-table'
-import { useConfigMode, useServer, useServers } from './hooks'
+import { useFilteredServers, useConfigMode, useServer, useServers } from './hooks'
+import type { ServerTab } from './constants'
 
-export function ServersPage() {
-  const [selectedServerName, setSelectedServerName] = useAtom(selectedServerNameAtom)
+interface ServersPageProps {
+  initialTab?: ServerTab
+  initialServer?: string
+}
+
+export function ServersPage({ initialTab = 'overview', initialServer }: ServersPageProps) {
+  const navigate = useNavigate()
   const { data: servers, isLoading, mutate } = useServers()
   const { data: configMode } = useConfigMode()
-  const { data: selectedServer } = useServer(selectedServerName)
+  const { data: selectedServer } = useServer(initialServer || null)
+  const setSelectedServer = useSetAtom(selectedServerAtom)
 
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<ServerDetail | null>(null)
@@ -39,16 +48,12 @@ export function ServersPage() {
   const isWritable = configMode?.isWritable ?? false
   const serverCount = servers?.length ?? 0
 
-  const filteredServers = servers?.filter((server) => {
-    if (!searchQuery.trim()) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      server.name.toLowerCase().includes(query)
-      || server.tags?.some(tag => tag.toLowerCase().includes(query))
-    )
-  })
+  const filteredServers = useFilteredServers(servers ?? [], searchQuery)
 
-  const selectedServerData = servers?.find(s => s.name === selectedServerName)
+  // Update selectedServerAtom when selectedServer changes
+  useEffect(() => {
+    setSelectedServer(selectedServer || null)
+  }, [selectedServer, setSelectedServer])
 
   const handleAddServer = () => {
     setEditingServer(null)
@@ -74,7 +79,10 @@ export function ServersPage() {
   }
 
   const handleRowClick = (server: ServerSummary) => {
-    setSelectedServerName(server.name)
+    navigate({
+      to: '/servers',
+      search: { tab: initialTab, server: server.name },
+    })
     setDetailSheetOpen(true)
   }
 
@@ -83,7 +91,10 @@ export function ServersPage() {
   }
 
   const handleDeleted = () => {
-    setSelectedServerName(null)
+    navigate({
+      to: '/servers',
+      search: { tab: initialTab, server: undefined },
+    })
     setDetailSheetOpen(false)
   }
 
@@ -167,7 +178,7 @@ export function ServersPage() {
             <ServersDataTable
               servers={filteredServers ?? []}
               onRowClick={handleRowClick}
-              selectedServerName={selectedServerName}
+              selectedServerName={initialServer || null}
               canEdit={isWritable}
               onDeleted={handleDeleted}
             />
@@ -177,11 +188,11 @@ export function ServersPage() {
 
       {/* Detail Sheet */}
       <ServerDetailSheet
-        server={selectedServerData ?? null}
         open={detailSheetOpen}
         onOpenChange={handleDetailSheetClose}
         onDeleted={handleDeleted}
         onEdit={handleEditServer}
+        initialTab={initialTab}
       />
 
       {/* Edit Sheet */}

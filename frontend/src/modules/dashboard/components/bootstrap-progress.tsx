@@ -206,12 +206,12 @@ export function BootstrapProgressPanel({ className }: BootstrapProgressPanelProp
                     <TooltipTrigger
                       render={<div className="truncate text-xs text-error/80 cursor-default" />}
                     >
-                      <span className="font-medium">{specKey}:</span> {error}
+                      <span className="font-medium">{specKey}:</span> {String(error)}
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-xs">
                       <div className="space-y-1">
                         <div className="font-medium">{specKey}</div>
-                        <div className="text-xs opacity-80">{error}</div>
+                        <div className="text-xs opacity-80">{String(error)}</div>
                       </div>
                     </TooltipContent>
                   </Tooltip>

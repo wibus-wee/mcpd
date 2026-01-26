@@ -11,20 +11,12 @@ export type ModelFetchState = 'idle' | 'loading' | 'ready' | 'error'
 export const MODELS_DEV_API_URL = 'https://models.dev/api.json'
 export const MODEL_FETCH_TIMEOUT_MS = 15_000
 
-const DEFAULT_PROVIDER_BASE_URLS: Record<string, string> = {
-  openai: 'https://api.openai.com/v1',
-}
-
 const normalizeProvider = (value: string) =>
   value.toLowerCase().replaceAll(/[^a-z0-9]/g, '')
 
-export const resolveProviderBaseURL = (provider: string, baseURL: string) => {
+export const resolveProviderBaseURL = (_provider: string, baseURL: string) => {
   const trimmedBaseURL = baseURL.trim().replace(/\/+$/, '')
-  if (trimmedBaseURL) {
-    return trimmedBaseURL
-  }
-  const normalized = normalizeProvider(provider)
-  return DEFAULT_PROVIDER_BASE_URLS[normalized] ?? ''
+  return trimmedBaseURL
 }
 
 export const buildModelsURL = (baseURL: string) =>

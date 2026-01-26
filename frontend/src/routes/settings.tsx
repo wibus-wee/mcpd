@@ -2,25 +2,18 @@
 // Output: Settings layout route with sidebar navigation
 // Position: /settings layout route for nested settings pages
 
-import { createFileRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { BugIcon, PaletteIcon, ServerIcon, SettingsIcon } from 'lucide-react'
 import { m } from 'motion/react'
 
+import { NavItem } from '@/components/common/nav-item'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Spring } from '@/lib/spring'
-import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout,
 })
-
-interface NavItem {
-  path: string
-  label: string
-  icon: typeof SettingsIcon
-  description: string
-}
 
 const navItems: NavItem[] = [
   {
@@ -76,7 +69,7 @@ function SettingsLayout() {
           <ScrollArea className="h-full">
             <div className="space-y-1 p-3">
               {navItems.map((item, index) => (
-                <NavItemComponent key={item.path} item={item} index={index} />
+                <NavItem key={item.path} item={item} index={index} variant="inline" />
               ))}
             </div>
           </ScrollArea>
@@ -88,35 +81,5 @@ function SettingsLayout() {
         </div>
       </div>
     </div>
-  )
-}
-
-const NavItemComponent = ({ item, index }: { item: NavItem, index: number }) => {
-  const matchRoute = useMatchRoute()
-  const Icon = item.icon
-  const isActive = !!matchRoute({ to: item.path, fuzzy: false })
-
-  return (
-    <m.div
-      key={item.path}
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={Spring.smooth(0.3, index * 0.05)}
-    >
-      <Link
-        to={item.path}
-        className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-          isActive
-            ? 'bg-primary/10 text-primary'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        )}
-      >
-        <Icon className="size-4" />
-        <div className="min-w-0">
-          <div className="font-medium">{item.label}</div>
-        </div>
-      </Link>
-    </m.div>
   )
 }
