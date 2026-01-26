@@ -69,7 +69,7 @@ export function Sparkline({
       i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`,
     ).join(' ')
 
-    return `${linePath} L ${points.at(-1).x} ${height - padding} L ${padding} ${height - padding} Z`
+    return `${linePath} L ${points.at(-1)?.x} ${height - padding} L ${padding} ${height - padding} Z`
   }, [data, width, height, fillColor])
 
   if (data.length < 2) {
@@ -111,7 +111,7 @@ export function Sparkline({
             const range = max - min || 1
             const padding = 2
             const effectiveHeight = height - padding * 2
-            return padding + effectiveHeight - ((data.at(-1) - min) / range) * effectiveHeight
+            return padding + effectiveHeight - ((data.at(-1) ?? 0 - min) / range) * effectiveHeight
           })()}
           r={2}
           fill={strokeColor}
