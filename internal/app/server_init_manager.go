@@ -478,7 +478,10 @@ func (m *ServerInitializationManager) runSpec(ctx context.Context, specKey strin
 func (m *ServerInitializationManager) applyResult(specKey string, target, ready, failed int, err error) {
 	state := domain.ServerInitStarting
 	switch {
-	case ready >= target:
+	case target == 0 && err == nil && failed == 0:
+		// On-demand server with no activation: metadata ready, no instances needed.
+		state = domain.ServerInitReady
+	case ready >= target && target > 0:
 		state = domain.ServerInitReady
 	case ready > 0:
 		state = domain.ServerInitDegraded
@@ -506,10 +509,12 @@ func (m *ServerInitializationManager) applyResult(specKey string, target, ready,
 func deriveInitState(status domain.ServerInitStatus, ready, failed int) domain.ServerInitState {
 	target := status.MinReady
 	if target <= 0 {
-		if ready > 0 {
+		// On-demand server with no activation: metadata ready, no instances needed.
+		// Return ready regardless of instance count (0 is valid).
+		if failed == 0 {
 			return domain.ServerInitReady
 		}
-		return domain.ServerInitPending
+		return domain.ServerInitFailed
 	}
 
 	if status.State == domain.ServerInitSuspended && ready < target {

@@ -160,6 +160,31 @@ func TestBasicScheduler_StatefulWithBindingSkipsIdle(t *testing.T) {
 	require.Equal(t, domain.InstanceStateReady, inst.State)
 }
 
+func TestBasicScheduler_IdleReapIgnoresIdleSecondsWhenMinReadyZero(t *testing.T) {
+	// When minReady=0, instances should be reaped immediately regardless of IdleSeconds.
+	// This is important for on-demand servers after bootstrap completes.
+	lc := &fakeLifecycle{}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		IdleSeconds:     3600, // 1 hour, normally would not be reaped
+		MinReady:        0,
+		Strategy:        domain.StrategyStateless,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, SchedulerOptions{})
+	require.NoError(t, err)
+
+	inst, err := s.Acquire(context.Background(), "svc", "")
+	require.NoError(t, err)
+	require.NoError(t, s.Release(context.Background(), inst))
+
+	// Even with IdleSeconds=3600, instance should be reaped because minReady=0
+	s.reapIdle()
+	require.Equal(t, domain.InstanceStateStopped, inst.State)
+}
+
 func TestBasicScheduler_StatefulSessionTTLLimitsBindings(t *testing.T) {
 	lc := &fakeLifecycle{}
 	spec := domain.ServerSpec{

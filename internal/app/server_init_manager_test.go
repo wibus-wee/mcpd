@@ -121,6 +121,31 @@ func TestServerInitializationManager_RetrySpecResets(t *testing.T) {
 	require.Equal(t, 0, status.RetryCount)
 }
 
+func TestServerInitializationManager_OnDemandReadyWithoutInstances(t *testing.T) {
+	// On-demand server with minReady=0 should report ready immediately
+	// because the spec/metadata is loaded successfully, no instances needed.
+	spec := domain.ServerSpec{Name: "ondemand", MinReady: 0, ActivationMode: domain.ActivationOnDemand}
+	specKey := specKeyFor(t, spec)
+	scheduler := newInitSchedulerStub(map[string][]setResult{
+		specKey: {
+			{ready: 0, failed: 0}, // No instances, no error
+		},
+	})
+
+	runtime := initRuntimeConfig(2)
+	runtime.DefaultActivationMode = domain.ActivationOnDemand
+	manager := NewServerInitializationManager(scheduler, newTestState(map[string]domain.ServerSpec{spec.Name: spec}, runtime), zap.NewNop())
+	ctx := t.Context()
+
+	manager.Start(ctx)
+
+	// Should be ready with 0 instances since target is 0 (on-demand not activated)
+	status := waitForStatus(t, manager, specKey, domain.ServerInitReady, 0)
+	require.Equal(t, 0, status.MinReady)
+	require.Equal(t, 0, status.Failed)
+	require.Empty(t, status.LastError)
+}
+
 func waitForStatus(t *testing.T, manager *ServerInitializationManager, specKey string, state domain.ServerInitState, ready int) domain.ServerInitStatus {
 	t.Helper()
 

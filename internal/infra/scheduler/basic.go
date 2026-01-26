@@ -781,7 +781,9 @@ func (s *BasicScheduler) reapIdle() {
 				continue
 			}
 			idleFor := now.Sub(inst.instance.LastActive)
-			if idleFor >= time.Duration(spec.IdleSeconds)*time.Second {
+			// When minReady=0 (on-demand servers with no activation), reap immediately
+			// regardless of IdleSeconds to clean up after bootstrap/temporary usage.
+			if minReady == 0 || idleFor >= time.Duration(spec.IdleSeconds)*time.Second {
 				inst.instance.State = domain.InstanceStateDraining
 				s.logger.Info("idle reap",
 					telemetry.EventField(telemetry.EventIdleReap),
