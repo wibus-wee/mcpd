@@ -175,7 +175,7 @@ func (l *Loader) LoadRuntimeConfig(ctx context.Context, path string) (domain.Run
 	if len(errs) > 0 {
 		return domain.RuntimeConfig{}, errors.New(strings.Join(errs, "; "))
 	}
-	return runtime, ctx.Err()
+	return runtime, nil
 }
 
 func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) {

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"go.uber.org/zap"
@@ -107,8 +108,15 @@ func formatEnv(env map[string]string) []string {
 	if len(env) == 0 {
 		return nil
 	}
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	out := make([]string, 0, len(env))
-	for k, v := range env {
+	for _, k := range keys {
+		v := env[k]
 		out = append(out, fmt.Sprintf("%s=%s", k, v))
 	}
 	return out

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+	"mcpd/internal/infra/mcpcodec"
 )
 
 func TestToolIndex_SnapshotPrefixedTool(t *testing.T) {
@@ -291,11 +292,11 @@ func TestToolIndex_SetBootstrapWaiterDoesNotDeadlock(t *testing.T) {
 }
 
 func TestIsObjectSchema(t *testing.T) {
-	require.True(t, isObjectSchema(map[string]any{"type": "object"}))
-	require.True(t, isObjectSchema(json.RawMessage(`{"type":["null","object"]}`)))
-	require.False(t, isObjectSchema(json.RawMessage(`{"type":"string"}`)))
-	require.False(t, isObjectSchema(nil))
-	require.False(t, isObjectSchema("not json"))
+	require.True(t, mcpcodec.IsObjectSchema(map[string]any{"type": "object"}))
+	require.True(t, mcpcodec.IsObjectSchema(json.RawMessage(`{"type":["null","object"]}`)))
+	require.False(t, mcpcodec.IsObjectSchema(json.RawMessage(`{"type":"string"}`)))
+	require.False(t, mcpcodec.IsObjectSchema(nil))
+	require.False(t, mcpcodec.IsObjectSchema("not json"))
 }
 
 func TestToolIndex_FlatNamespaceConflictsFailRefresh(t *testing.T) {

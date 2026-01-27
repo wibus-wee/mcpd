@@ -16,12 +16,14 @@ import (
 )
 
 type clientConn struct {
-	conn       mcp.Connection
-	pending    map[string]chan callResult
-	emitter    domain.ListChangeEmitter
-	serverType string
-	specKey    string
-	logger     *zap.Logger
+	conn        mcp.Connection
+	pending     map[string]chan callResult
+	emitter     domain.ListChangeEmitter
+	sampling    domain.SamplingHandler
+	elicitation domain.ElicitationHandler
+	serverType  string
+	specKey     string
+	logger      *zap.Logger
 
 	mu        sync.Mutex
 	capsMu    sync.RWMutex
@@ -33,10 +35,12 @@ type clientConn struct {
 }
 
 type clientConnOptions struct {
-	Logger            *zap.Logger
-	ListChangeEmitter domain.ListChangeEmitter
-	ServerType        string
-	SpecKey           string
+	Logger             *zap.Logger
+	ListChangeEmitter  domain.ListChangeEmitter
+	SamplingHandler    domain.SamplingHandler
+	ElicitationHandler domain.ElicitationHandler
+	ServerType         string
+	SpecKey            string
 }
 
 type callResult struct {
@@ -51,14 +55,16 @@ func newClientConn(conn mcp.Connection, opts clientConnOptions) *clientConn {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &clientConn{
-		conn:       conn,
-		pending:    make(map[string]chan callResult),
-		emitter:    opts.ListChangeEmitter,
-		serverType: opts.ServerType,
-		specKey:    opts.SpecKey,
-		logger:     logger,
-		cancel:     cancel,
-		closed:     make(chan struct{}),
+		conn:        conn,
+		pending:     make(map[string]chan callResult),
+		emitter:     opts.ListChangeEmitter,
+		sampling:    opts.SamplingHandler,
+		elicitation: opts.ElicitationHandler,
+		serverType:  opts.ServerType,
+		specKey:     opts.SpecKey,
+		logger:      logger,
+		cancel:      cancel,
+		closed:      make(chan struct{}),
 	}
 	go c.readLoop(ctx)
 	return c
@@ -169,6 +175,7 @@ func (c *clientConn) readLoop(ctx context.Context) {
 func (c *clientConn) dispatchResponse(resp *jsonrpc.Response) {
 	key, err := idKey(resp.ID)
 	if err != nil {
+		c.logger.Debug("drop response with invalid id", zap.Error(err))
 		return
 	}
 	c.mu.Lock()
@@ -176,16 +183,63 @@ func (c *clientConn) dispatchResponse(resp *jsonrpc.Response) {
 	delete(c.pending, key)
 	c.mu.Unlock()
 	if ch == nil {
+		c.logger.Debug("drop response with no pending call", zap.String("id", key))
 		return
 	}
 	ch <- callResult{resp: resp}
 }
 
 func (c *clientConn) handleServerCall(ctx context.Context, req *jsonrpc.Request) {
-	resp := &jsonrpc.Response{ID: req.ID, Error: errors.New("method not supported")}
+	var resp *jsonrpc.Response
+	switch req.Method {
+	case "sampling/createMessage":
+		resp = c.handleSamplingCall(ctx, req)
+	case "elicitation/create":
+		resp = c.handleElicitationCall(ctx, req)
+	default:
+		resp = newMethodNotFoundResponse(req.ID)
+	}
 	if err := c.conn.Write(ctx, resp); err != nil {
 		c.logger.Warn("respond to server call failed", zap.String("method", req.Method), zap.Error(err))
 	}
+}
+
+func (c *clientConn) handleSamplingCall(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+	if c.sampling == nil {
+		return newMethodNotFoundResponse(req.ID)
+	}
+	var params domain.SamplingRequest
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: fmt.Errorf("decode sampling params: %w", err)}
+	}
+	result, err := c.sampling.CreateMessage(ctx, &params)
+	if err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: err}
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: fmt.Errorf("encode sampling result: %w", err)}
+	}
+	return &jsonrpc.Response{ID: req.ID, Result: raw}
+}
+
+func (c *clientConn) handleElicitationCall(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+	if c.elicitation == nil {
+		return newMethodNotFoundResponse(req.ID)
+	}
+	var params domain.ElicitationRequest
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: fmt.Errorf("decode elicitation params: %w", err)}
+	}
+	result, err := c.elicitation.Elicit(ctx, &params)
+	if err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: err}
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return &jsonrpc.Response{ID: req.ID, Error: fmt.Errorf("encode elicitation result: %w", err)}
+	}
+	return &jsonrpc.Response{ID: req.ID, Result: raw}
 }
 
 func (c *clientConn) handleNotification(req *jsonrpc.Request) {
@@ -281,4 +335,28 @@ func idKey(id jsonrpc.ID) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported id type %T", raw)
 	}
+}
+
+func newMethodNotFoundResponse(id jsonrpc.ID) *jsonrpc.Response {
+	payload := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id.Raw(),
+		"error": map[string]any{
+			"code":    -32601,
+			"message": "method not found",
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return &jsonrpc.Response{ID: id, Error: errors.New("method not found")}
+	}
+	msg, err := jsonrpc.DecodeMessage(raw)
+	if err != nil {
+		return &jsonrpc.Response{ID: id, Error: errors.New("method not found")}
+	}
+	resp, ok := msg.(*jsonrpc.Response)
+	if !ok {
+		return &jsonrpc.Response{ID: id, Error: errors.New("method not found")}
+	}
+	return resp
 }

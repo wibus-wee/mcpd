@@ -329,3 +329,23 @@ func (f *fakeControlPlane) IsSubAgentEnabled() bool {
 func (f *fakeControlPlane) IsSubAgentEnabledForClient(client string) bool {
 	return false
 }
+
+func (f *fakeControlPlane) CallToolTask(ctx context.Context, client, name string, args json.RawMessage, routingKey string, opts domain.TaskCreateOptions) (domain.Task, error) {
+	return domain.Task{}, nil
+}
+
+func (f *fakeControlPlane) GetTask(ctx context.Context, client, taskID string) (domain.Task, error) {
+	return domain.Task{}, nil
+}
+
+func (f *fakeControlPlane) ListTasks(ctx context.Context, client, cursor string, limit int) (domain.TaskPage, error) {
+	return domain.TaskPage{}, nil
+}
+
+func (f *fakeControlPlane) GetTaskResult(ctx context.Context, client, taskID string) (domain.TaskResult, error) {
+	return domain.TaskResult{}, nil
+}
+
+func (f *fakeControlPlane) CancelTask(ctx context.Context, client, taskID string) (domain.Task, error) {
+	return domain.Task{}, nil
+}

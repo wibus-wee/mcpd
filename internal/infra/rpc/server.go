@@ -21,6 +21,7 @@ import (
 	controlv1 "mcpd/pkg/api/control/v1"
 )
 
+// Server hosts the gRPC control plane and health endpoints.
 type Server struct {
 	cfg        domain.RPCConfig
 	control    domain.ControlPlane
@@ -32,6 +33,7 @@ type Server struct {
 	address    string
 }
 
+// NewServer constructs a gRPC server for the control plane.
 func NewServer(control domain.ControlPlane, cfg domain.RPCConfig, logger *zap.Logger) *Server {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -43,6 +45,7 @@ func NewServer(control domain.ControlPlane, cfg domain.RPCConfig, logger *zap.Lo
 	}
 }
 
+// Run starts the server and blocks until it stops or the context is canceled.
 func (s *Server) Run(ctx context.Context) error {
 	if s.control == nil {
 		return errors.New("control plane is nil")
@@ -131,6 +134,7 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
+// Stop gracefully shuts down the server, falling back to a hard stop on timeout.
 func (s *Server) Stop(ctx context.Context) error {
 	if s.grpcServer == nil {
 		return nil

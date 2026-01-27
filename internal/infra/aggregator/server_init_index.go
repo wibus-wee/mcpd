@@ -52,7 +52,7 @@ func NewServerInitIndex(cp domain.ServerInitStatusReader, logger *zap.Logger) *S
 	return idx
 }
 
-// Subscribe returns a channel that receives server init status snapshots
+// Subscribe returns a channel that receives server init status snapshots and closes on context cancel.
 func (idx *ServerInitIndex) Subscribe(ctx context.Context) <-chan domain.ServerInitStatusSnapshot {
 	ch := make(chan domain.ServerInitStatusSnapshot, 1)
 
@@ -69,6 +69,7 @@ func (idx *ServerInitIndex) Subscribe(ctx context.Context) <-chan domain.ServerI
 		<-ctx.Done()
 		idx.mu.Lock()
 		delete(idx.subs, ch)
+		close(ch)
 		idx.mu.Unlock()
 	}()
 
@@ -118,22 +119,11 @@ func (idx *ServerInitIndex) Refresh(ctx context.Context) error {
 
 // broadcast sends the snapshot to all subscribers (non-blocking)
 func (idx *ServerInitIndex) broadcast(snapshot domain.ServerInitStatusSnapshot) {
-	subs := idx.copySubscribers()
-	for _, ch := range subs {
+	idx.mu.RLock()
+	for ch := range idx.subs {
 		sendServerInitStatusSnapshot(ch, snapshot)
 	}
-}
-
-// copySubscribers creates a copy of the subscriber list
-func (idx *ServerInitIndex) copySubscribers() []chan domain.ServerInitStatusSnapshot {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
-	channels := make([]chan domain.ServerInitStatusSnapshot, 0, len(idx.subs))
-	for ch := range idx.subs {
-		channels = append(channels, ch)
-	}
-	return channels
+	idx.mu.RUnlock()
 }
 
 // computeServerInitStatusHash generates a hash based on status content

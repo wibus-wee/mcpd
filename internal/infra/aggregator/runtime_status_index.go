@@ -53,7 +53,7 @@ func NewRuntimeStatusIndex(scheduler domain.Scheduler, logger *zap.Logger) *Runt
 	return idx
 }
 
-// Subscribe returns a channel that receives runtime status snapshots
+// Subscribe returns a channel that receives runtime status snapshots and closes on context cancel.
 func (idx *RuntimeStatusIndex) Subscribe(ctx context.Context) <-chan domain.RuntimeStatusSnapshot {
 	ch := make(chan domain.RuntimeStatusSnapshot, 1)
 
@@ -70,6 +70,7 @@ func (idx *RuntimeStatusIndex) Subscribe(ctx context.Context) <-chan domain.Runt
 		<-ctx.Done()
 		idx.mu.Lock()
 		delete(idx.subs, ch)
+		close(ch)
 		idx.mu.Unlock()
 	}()
 
@@ -166,22 +167,11 @@ func (idx *RuntimeStatusIndex) Refresh(ctx context.Context) error {
 
 // broadcast sends the snapshot to all subscribers (non-blocking)
 func (idx *RuntimeStatusIndex) broadcast(snapshot domain.RuntimeStatusSnapshot) {
-	subs := idx.copySubscribers()
-	for _, ch := range subs {
+	idx.mu.RLock()
+	for ch := range idx.subs {
 		sendRuntimeStatusSnapshot(ch, snapshot)
 	}
-}
-
-// copySubscribers creates a copy of the subscriber list
-func (idx *RuntimeStatusIndex) copySubscribers() []chan domain.RuntimeStatusSnapshot {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
-	channels := make([]chan domain.RuntimeStatusSnapshot, 0, len(idx.subs))
-	for ch := range idx.subs {
-		channels = append(channels, ch)
-	}
-	return channels
+	idx.mu.RUnlock()
 }
 
 // computeRuntimeStatusETag generates an ETag based on status content

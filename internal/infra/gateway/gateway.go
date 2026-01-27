@@ -166,7 +166,10 @@ func (g *Gateway) unregisterCaller(ctx context.Context) error {
 
 func (g *Gateway) toolHandler(name string) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := json.RawMessage(req.Params.Arguments)
+		var args json.RawMessage
+		if req != nil && req.Params != nil {
+			args = json.RawMessage(req.Params.Arguments)
+		}
 		resp, err := g.callTool(ctx, name, args)
 		if err != nil {
 			return nil, err
@@ -657,7 +660,7 @@ func (g *Gateway) automaticMCPHandler() mcp.ToolHandler {
 			SessionID    string `json:"sessionId"`
 			ForceRefresh bool   `json:"forceRefresh"`
 		}
-		if req.Params.Arguments != nil {
+		if req != nil && req.Params != nil && req.Params.Arguments != nil {
 			if err := json.Unmarshal(req.Params.Arguments, &params); err != nil {
 				return nil, err
 			}
@@ -732,7 +735,7 @@ func (g *Gateway) automaticEvalHandler() mcp.ToolHandler {
 			Arguments  json.RawMessage `json:"arguments"`
 			RoutingKey string          `json:"routingKey"`
 		}
-		if req.Params.Arguments != nil {
+		if req != nil && req.Params != nil && req.Params.Arguments != nil {
 			if err := json.Unmarshal(req.Params.Arguments, &params); err != nil {
 				return nil, err
 			}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -68,16 +67,16 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 		specKeys = map[string]string{}
 	}
 	toolIndex := &ToolIndex{
-		router:        rt,
-		specs:         specs,
-		specKeys:      specKeys,
-		cfg:           cfg,
-		metadataCache: metadataCache,
-		logger:        logger.Named("tool_index"),
-		health:        health,
-		gate:          gate,
-		listChanges:   listChanges,
-		specKeySet:    specKeySet(specKeys),
+		router:          rt,
+		specs:           specs,
+		specKeys:        specKeys,
+		cfg:             cfg,
+		metadataCache:   metadataCache,
+		logger:          logger.Named("tool_index"),
+		health:          health,
+		gate:            gate,
+		listChanges:     listChanges,
+		specKeySet:      specKeySet(specKeys),
 		serverSnapshots: map[string]serverToolSnapshot{},
 	}
 	toolIndex.index = NewGenericIndex(GenericIndexOptions[domain.ToolSnapshot, domain.ToolTarget, serverCache]{
@@ -520,11 +519,11 @@ func (a *ToolIndex) cachedServerCache(serverType string, spec domain.ServerSpec)
 		if !allowed(tool.Name) {
 			continue
 		}
-		if !isObjectSchema(tool.InputSchema) {
+		if !mcpcodec.IsObjectSchema(tool.InputSchema) {
 			a.logger.Warn("skip cached tool with invalid input schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
 			continue
 		}
-		if tool.OutputSchema != nil && !isObjectSchema(tool.OutputSchema) {
+		if tool.OutputSchema != nil && !mcpcodec.IsObjectSchema(tool.OutputSchema) {
 			a.logger.Warn("skip cached tool with invalid output schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
 			continue
 		}
@@ -570,11 +569,11 @@ func (a *ToolIndex) fetchServerTools(ctx context.Context, serverType string, spe
 		if tool.Name == "" {
 			continue
 		}
-		if !isObjectSchema(tool.InputSchema) {
+		if !mcpcodec.IsObjectSchema(tool.InputSchema) {
 			a.logger.Warn("skip tool with invalid input schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
 			continue
 		}
-		if tool.OutputSchema != nil && !isObjectSchema(tool.OutputSchema) {
+		if tool.OutputSchema != nil && !mcpcodec.IsObjectSchema(tool.OutputSchema) {
 			a.logger.Warn("skip tool with invalid output schema", zap.String("serverType", serverType), zap.String("tool", tool.Name))
 			continue
 		}
@@ -664,64 +663,6 @@ func allowedTools(spec domain.ServerSpec) func(string) bool {
 	}
 }
 
-func isObjectSchema(schema any) bool {
-	if schema == nil {
-		return false
-	}
-
-	switch value := schema.(type) {
-	case map[string]any:
-		return hasObjectType(value["type"])
-	case json.RawMessage:
-		return hasObjectTypeJSON(value)
-	case []byte:
-		return hasObjectTypeJSON(value)
-	case string:
-		return hasObjectTypeJSON([]byte(value))
-	default:
-		raw, err := json.Marshal(value)
-		if err != nil {
-			return false
-		}
-		return hasObjectTypeJSON(raw)
-	}
-}
-
-type schemaTypeField struct {
-	Type any `json:"type"`
-}
-
-func hasObjectTypeJSON(raw []byte) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	var schema schemaTypeField
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		return false
-	}
-	return hasObjectType(schema.Type)
-}
-
-func hasObjectType(value any) bool {
-	switch typed := value.(type) {
-	case string:
-		return strings.EqualFold(typed, "object")
-	case []any:
-		for _, item := range typed {
-			if str, ok := item.(string); ok && strings.EqualFold(str, "object") {
-				return true
-			}
-		}
-	case []string:
-		for _, item := range typed {
-			if strings.EqualFold(item, "object") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func decodeListToolsResult(raw json.RawMessage) (*mcp.ListToolsResult, error) {
 	resp, err := decodeJSONRPCResponse(raw)
 	if err != nil {
@@ -744,6 +685,11 @@ func decodeListToolsResult(raw json.RawMessage) (*mcp.ListToolsResult, error) {
 }
 
 func decodeToolResult(raw json.RawMessage) (*mcp.CallToolResult, error) {
+	if protoErr, err := decodeProtocolError(raw); err != nil {
+		return nil, err
+	} else if protoErr != nil {
+		return nil, protoErr
+	}
 	resp, err := decodeJSONRPCResponse(raw)
 	if err != nil {
 		return errorResult(err), nil
@@ -762,6 +708,35 @@ func decodeToolResult(raw json.RawMessage) (*mcp.CallToolResult, error) {
 		return errorResult(fmt.Errorf("decode tools/call result: %w", err)), nil
 	}
 	return &result, nil
+}
+
+type wireError struct {
+	Code    int64           `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+type wireResponse struct {
+	Error  *wireError      `json:"error,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
+}
+
+func decodeProtocolError(raw json.RawMessage) (*domain.ProtocolError, error) {
+	var wire wireResponse
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	if wire.Error == nil {
+		return nil, nil
+	}
+	if wire.Error.Code != domain.ErrCodeURLElicitationRequired {
+		return nil, nil
+	}
+	return &domain.ProtocolError{
+		Code:    wire.Error.Code,
+		Message: wire.Error.Message,
+		Data:    wire.Error.Data,
+	}, nil
 }
 
 func decodeJSONRPCResponse(raw json.RawMessage) (*jsonrpc.Response, error) {

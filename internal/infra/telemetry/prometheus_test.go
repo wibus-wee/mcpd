@@ -17,6 +17,9 @@ func TestNewPrometheusMetrics(t *testing.T) {
 	assert.NotNil(t, m.routeDuration)
 	assert.NotNil(t, m.instanceStarts)
 	assert.NotNil(t, m.instanceStops)
+	assert.NotNil(t, m.instanceStartDuration)
+	assert.NotNil(t, m.instanceStartResults)
+	assert.NotNil(t, m.instanceStopResults)
 	assert.NotNil(t, m.activeInstances)
 	assert.NotNil(t, m.poolCapacityRatio)
 	assert.NotNil(t, m.subAgentTokens)
@@ -54,6 +57,9 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 	assert.Contains(t, names, "mcpd_route_duration_seconds")
 	assert.Contains(t, names, "mcpd_instance_starts_total")
 	assert.Contains(t, names, "mcpd_instance_stops_total")
+	assert.Contains(t, names, "mcpd_instance_start_duration_seconds")
+	assert.Contains(t, names, "mcpd_instance_start_result_total")
+	assert.Contains(t, names, "mcpd_instance_stop_result_total")
 	assert.Contains(t, names, "mcpd_active_instances")
 	assert.Contains(t, names, "mcpd_pool_capacity_ratio")
 	assert.Contains(t, names, "mcpd_subagent_tokens_total")
@@ -119,9 +125,21 @@ func TestPrometheusMetrics_ObserveRoute(t *testing.T) {
 
 func TestPrometheusMetrics_ObserveInstanceStart(t *testing.T) {
 	m := &PrometheusMetrics{
-		routeDuration:   prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route2"}, []string{"server_type", "client", "status", "reason"}),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts2"}, []string{"server_type"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops2"}, []string{"server_type"}),
+		routeDuration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route2"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts2"}, []string{"server_type"}),
+		instanceStops:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops2"}, []string{"server_type"}),
+		instanceStartDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{Name: "test_start_duration"},
+			[]string{"server_type", "result"},
+		),
+		instanceStartResults: prometheus.NewCounterVec(
+			prometheus.CounterOpts{Name: "test_start_results"},
+			[]string{"server_type", "result"},
+		),
+		instanceStopResults: prometheus.NewCounterVec(
+			prometheus.CounterOpts{Name: "test_stop_results"},
+			[]string{"server_type", "result"},
+		),
 		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active2"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {
@@ -132,9 +150,21 @@ func TestPrometheusMetrics_ObserveInstanceStart(t *testing.T) {
 
 func TestPrometheusMetrics_ObserveInstanceStop(t *testing.T) {
 	m := &PrometheusMetrics{
-		routeDuration:   prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route3"}, []string{"server_type", "client", "status", "reason"}),
-		instanceStarts:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts3"}, []string{"server_type"}),
-		instanceStops:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops3"}, []string{"server_type"}),
+		routeDuration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route3"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts3"}, []string{"server_type"}),
+		instanceStops:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops3"}, []string{"server_type"}),
+		instanceStartDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{Name: "test_start_duration3"},
+			[]string{"server_type", "result"},
+		),
+		instanceStartResults: prometheus.NewCounterVec(
+			prometheus.CounterOpts{Name: "test_start_results3"},
+			[]string{"server_type", "result"},
+		),
+		instanceStopResults: prometheus.NewCounterVec(
+			prometheus.CounterOpts{Name: "test_stop_results3"},
+			[]string{"server_type", "result"},
+		),
 		activeInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_active3"}, []string{"server_type"}),
 	}
 	assert.NotPanics(t, func() {

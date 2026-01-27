@@ -13,27 +13,37 @@ import (
 	"mcpd/internal/domain"
 )
 
+// StreamableHTTPTransport connects to MCP servers over streamable HTTP.
 type StreamableHTTPTransport struct {
-	logger            *zap.Logger
-	listChangeEmitter domain.ListChangeEmitter
+	logger             *zap.Logger
+	listChangeEmitter  domain.ListChangeEmitter
+	samplingHandler    domain.SamplingHandler
+	elicitationHandler domain.ElicitationHandler
 }
 
+// StreamableHTTPTransportOptions configures the streamable HTTP transport.
 type StreamableHTTPTransportOptions struct {
-	Logger            *zap.Logger
-	ListChangeEmitter domain.ListChangeEmitter
+	Logger             *zap.Logger
+	ListChangeEmitter  domain.ListChangeEmitter
+	SamplingHandler    domain.SamplingHandler
+	ElicitationHandler domain.ElicitationHandler
 }
 
+// NewStreamableHTTPTransport creates a streamable HTTP transport for MCP.
 func NewStreamableHTTPTransport(opts StreamableHTTPTransportOptions) *StreamableHTTPTransport {
 	logger := opts.Logger
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &StreamableHTTPTransport{
-		logger:            logger,
-		listChangeEmitter: opts.ListChangeEmitter,
+		logger:             logger,
+		listChangeEmitter:  opts.ListChangeEmitter,
+		samplingHandler:    opts.SamplingHandler,
+		elicitationHandler: opts.ElicitationHandler,
 	}
 }
 
+// Connect establishes a streamable HTTP connection for the given server spec.
 func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, spec domain.ServerSpec, streams domain.IOStreams) (domain.Conn, error) {
 	if spec.HTTP == nil {
 		return nil, fmt.Errorf("server %s: streamable http config is required", spec.Name)
@@ -81,10 +91,12 @@ func (t *StreamableHTTPTransport) Connect(ctx context.Context, specKey string, s
 	}
 
 	return newClientConn(mcpConn, clientConnOptions{
-		Logger:            t.logger.Named("mcp_http_conn"),
-		ListChangeEmitter: t.listChangeEmitter,
-		ServerType:        spec.Name,
-		SpecKey:           specKey,
+		Logger:             t.logger.Named("mcp_http_conn"),
+		ListChangeEmitter:  t.listChangeEmitter,
+		SamplingHandler:    t.samplingHandler,
+		ElicitationHandler: t.elicitationHandler,
+		ServerType:         spec.Name,
+		SpecKey:            specKey,
 	}), nil
 }
 
@@ -118,14 +130,18 @@ type headerRoundTripper struct {
 }
 
 func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	cloned := req.Clone(req.Context())
+	if cloned.Header == nil {
+		cloned.Header = make(http.Header)
+	}
 	// Explicitly overwrite any existing values with configured headers.
 	for key, values := range h.headers {
-		req.Header.Del(key)
+		cloned.Header.Del(key)
 		for _, value := range values {
-			req.Header.Add(key, value)
+			cloned.Header.Add(key, value)
 		}
 	}
-	return h.base.RoundTrip(req)
+	return h.base.RoundTrip(cloned)
 }
 
 func effectiveMaxRetries(value int) int {

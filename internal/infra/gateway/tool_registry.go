@@ -2,12 +2,12 @@ package gateway
 
 import (
 	"encoding/json"
-	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
+	"mcpd/internal/infra/mcpcodec"
 	controlv1 "mcpd/pkg/api/control/v1"
 )
 
@@ -64,11 +64,11 @@ func (r *toolRegistry) ApplySnapshot(snapshot *controlv1.ToolsSnapshot) {
 			r.logger.Warn("tool name mismatch", zap.String("tool", tool.Name), zap.String("expected", def.Name))
 			tool.Name = def.Name
 		}
-		if !isObjectSchema(tool.InputSchema) {
+		if !mcpcodec.IsObjectSchema(tool.InputSchema) {
 			r.logger.Warn("skip tool with invalid input schema", zap.String("tool", tool.Name))
 			continue
 		}
-		if tool.OutputSchema != nil && !isObjectSchema(tool.OutputSchema) {
+		if tool.OutputSchema != nil && !mcpcodec.IsObjectSchema(tool.OutputSchema) {
 			r.logger.Warn("skip tool with invalid output schema", zap.String("tool", tool.Name))
 			continue
 		}
@@ -89,25 +89,4 @@ func (r *toolRegistry) ApplySnapshot(snapshot *controlv1.ToolsSnapshot) {
 
 	r.registered = next
 	r.etag = snapshot.Etag
-}
-
-func isObjectSchema(schema any) bool {
-	if schema == nil {
-		return false
-	}
-
-	raw, err := json.Marshal(schema)
-	if err != nil {
-		return false
-	}
-	var obj map[string]any
-	if err := json.Unmarshal(raw, &obj); err != nil {
-		return false
-	}
-	if typ, ok := obj["type"]; ok {
-		if val, ok := typ.(string); ok {
-			return strings.EqualFold(val, "object")
-		}
-	}
-	return false
 }

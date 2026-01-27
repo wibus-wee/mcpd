@@ -67,6 +67,7 @@ type GenericIndex[Snapshot any, Target any, Cache any] struct {
 	failureThreshold  int
 
 	mu          sync.Mutex
+	subsMu      sync.RWMutex
 	started     bool
 	ticker      *time.Ticker
 	stop        chan struct{}
@@ -208,18 +209,21 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Snapshot() Snapshot {
 func (g *GenericIndex[Snapshot, Target, Cache]) Subscribe(ctx context.Context) <-chan Snapshot {
 	ch := make(chan Snapshot, 1)
 
-	g.mu.Lock()
+	g.subsMu.Lock()
 	g.subs[ch] = struct{}{}
-	g.mu.Unlock()
+	g.subsMu.Unlock()
 
 	state := g.state.Load().(genericIndexState[Snapshot, Target])
 	g.sendSnapshot(ch, state.snapshot)
 
 	go func() {
 		<-ctx.Done()
-		g.mu.Lock()
-		delete(g.subs, ch)
-		g.mu.Unlock()
+		g.subsMu.Lock()
+		if _, ok := g.subs[ch]; ok {
+			delete(g.subs, ch)
+			close(ch)
+		}
+		g.subsMu.Unlock()
 	}()
 
 	return ch
@@ -259,7 +263,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 		return nil
 	}
 
-	jobs := make(chan string)
+	jobs := make(chan string, len(serverTypes))
 	var wg sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
@@ -287,12 +291,10 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 		}()
 	}
 
-	go func() {
-		for _, serverType := range serverTypes {
-			jobs <- serverType
-		}
-		close(jobs)
-	}()
+	for _, serverType := range serverTypes {
+		jobs <- serverType
+	}
+	close(jobs)
 
 	go func() {
 		wg.Wait()
@@ -411,10 +413,11 @@ func (g *GenericIndex[Snapshot, Target, Cache]) rebuildSnapshot() {
 }
 
 func (g *GenericIndex[Snapshot, Target, Cache]) broadcast(snapshot Snapshot) {
-	subs := g.copySubscribers()
-	for _, ch := range subs {
+	g.subsMu.RLock()
+	for ch := range g.subs {
 		g.sendSnapshot(ch, snapshot)
 	}
+	g.subsMu.RUnlock()
 }
 
 func (g *GenericIndex[Snapshot, Target, Cache]) copyServerCache() map[string]Cache {
@@ -424,17 +427,6 @@ func (g *GenericIndex[Snapshot, Target, Cache]) copyServerCache() map[string]Cac
 	out := make(map[string]Cache, len(g.serverCache))
 	for key, cache := range g.serverCache {
 		out[key] = cache
-	}
-	return out
-}
-
-func (g *GenericIndex[Snapshot, Target, Cache]) copySubscribers() []chan Snapshot {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	out := make([]chan Snapshot, 0, len(g.subs))
-	for ch := range g.subs {
-		out = append(out, ch)
 	}
 	return out
 }

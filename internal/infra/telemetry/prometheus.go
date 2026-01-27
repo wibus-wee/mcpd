@@ -13,6 +13,9 @@ type PrometheusMetrics struct {
 	routeDuration           *prometheus.HistogramVec
 	instanceStarts          *prometheus.CounterVec
 	instanceStops           *prometheus.CounterVec
+	instanceStartDuration   *prometheus.HistogramVec
+	instanceStartResults    *prometheus.CounterVec
+	instanceStopResults     *prometheus.CounterVec
 	activeInstances         *prometheus.GaugeVec
 	poolCapacityRatio       *prometheus.GaugeVec
 	subAgentTokens          *prometheus.CounterVec
@@ -48,6 +51,28 @@ func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
 				Help: "Total number of instance stops",
 			},
 			[]string{"server_type"},
+		),
+		instanceStartDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "mcpd_instance_start_duration_seconds",
+				Help:    "Duration of instance start attempts in seconds",
+				Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10, 30},
+			},
+			[]string{"server_type", "result"},
+		),
+		instanceStartResults: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpd_instance_start_result_total",
+				Help: "Total number of instance start results",
+			},
+			[]string{"server_type", "result"},
+		),
+		instanceStopResults: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpd_instance_stop_result_total",
+				Help: "Total number of instance stop results",
+			},
+			[]string{"server_type", "result"},
 		),
 		activeInstances: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -100,10 +125,21 @@ func (p *PrometheusMetrics) ObserveRoute(metric domain.RouteMetric) {
 
 func (p *PrometheusMetrics) ObserveInstanceStart(serverType string, duration time.Duration, err error) {
 	p.instanceStarts.WithLabelValues(serverType).Inc()
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	p.instanceStartResults.WithLabelValues(serverType, result).Inc()
+	p.instanceStartDuration.WithLabelValues(serverType, result).Observe(duration.Seconds())
 }
 
 func (p *PrometheusMetrics) ObserveInstanceStop(serverType string, err error) {
 	p.instanceStops.WithLabelValues(serverType).Inc()
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	p.instanceStopResults.WithLabelValues(serverType, result).Inc()
 }
 
 func (p *PrometheusMetrics) SetActiveInstances(serverType string, count int) {
