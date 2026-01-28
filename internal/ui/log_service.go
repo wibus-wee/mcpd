@@ -14,9 +14,8 @@ type LogService struct {
 	deps   *ServiceDeps
 	logger *zap.Logger
 
-	logMu        sync.Mutex
-	logCancel    context.CancelFunc
-	logStreaming bool
+	logMu      sync.Mutex
+	logSession *logSession
 }
 
 func NewLogService(deps *ServiceDeps) *LogService {
@@ -26,11 +25,23 @@ func NewLogService(deps *ServiceDeps) *LogService {
 	}
 }
 
+type logSession struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	done     chan struct{}
+	doneOnce sync.Once
+	minLevel domain.LogLevel
+}
+
+func (s *logSession) markDone() {
+	s.doneOnce.Do(func() {
+		close(s.done)
+	})
+}
+
 // StartLogStream starts log streaming via Wails events.
 func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error {
 	s.logger.Info("StartLogStream called", zap.String("minLevel", minLevel))
-	s.logMu.Lock()
-	defer s.logMu.Unlock()
 
 	manager := s.deps.manager()
 	if manager == nil {
@@ -38,15 +49,15 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 		return NewError(ErrCodeInternal, "Manager not initialized")
 	}
 
-	if s.logStreaming {
-		s.logger.Warn("StartLogStream: Log stream already active")
-		return NewError(ErrCodeInvalidState, "Log stream already active")
-	}
-
 	cp, err := manager.GetControlPlane()
 	if err != nil {
 		s.logger.Error("StartLogStream failed: GetControlPlane error", zap.Error(err))
 		return err
+	}
+
+	if ctx == nil {
+		s.logger.Warn("StartLogStream received nil context, falling back to Background")
+		ctx = context.Background()
 	}
 
 	s.logger.Info("Context status before creating streamCtx",
@@ -57,35 +68,45 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 	select {
 	case <-ctx.Done():
 		s.logger.Error("Input context is already cancelled!", zap.Error(ctx.Err()))
-		s.logStreaming = false
 		return NewError(ErrCodeInternal, "Input context already cancelled")
 	default:
 	}
 
-	streamCtx, cancel := context.WithCancel(context.Background())
-	s.logCancel = cancel
-	s.logStreaming = true
-
 	level := domain.LogLevel(minLevel)
 	s.logger.Info("Calling ControlPlane.StreamLogsAllServers", zap.String("level", string(level)))
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	session := &logSession{
+		ctx:      streamCtx,
+		cancel:   cancel,
+		done:     make(chan struct{}),
+		minLevel: level,
+	}
+	prev := s.replaceLogSession(session)
+	if prev != nil {
+		s.logger.Info("Restarting log stream with new session",
+			zap.String("minLevel", string(level)),
+		)
+	}
 
 	logCh, err := cp.StreamLogsAllServers(streamCtx, level)
 	if err != nil {
 		s.logger.Error("StreamLogs failed", zap.Error(err))
-		s.logStreaming = false
-		s.logCancel = nil
+		s.finishLogSession(session)
 		return MapDomainError(err)
 	}
 
 	s.logger.Info("StreamLogs channel created successfully")
 
-	go s.handleLogStream(streamCtx, logCh)
+	go s.handleLogStream(session, logCh)
 
 	s.logger.Info("log stream started, background goroutine launched", zap.String("minLevel", minLevel))
 	return nil
 }
 
-func (s *LogService) handleLogStream(ctx context.Context, logCh <-chan domain.LogEntry) {
+func (s *LogService) handleLogStream(session *logSession, logCh <-chan domain.LogEntry) {
+	ctx := session.ctx
+	defer s.finishLogSession(session)
 	s.logger.Info("handleLogStream: goroutine started, waiting for log entries",
 		zap.Bool("ctx.Done", ctx.Done() != nil),
 		zap.Any("ctx.Err", ctx.Err()),
@@ -96,10 +117,6 @@ func (s *LogService) handleLogStream(ctx context.Context, logCh <-chan domain.Lo
 	case entry, ok := <-logCh:
 		if !ok {
 			s.logger.Error("handleLogStream: channel was already closed!")
-			s.logMu.Lock()
-			s.logStreaming = false
-			s.logCancel = nil
-			s.logMu.Unlock()
 			return
 		}
 		count++
@@ -115,18 +132,10 @@ func (s *LogService) handleLogStream(ctx context.Context, logCh <-chan domain.Lo
 	for {
 		select {
 		case <-ctx.Done():
-			s.logMu.Lock()
-			s.logStreaming = false
-			s.logCancel = nil
-			s.logMu.Unlock()
 			s.logger.Info("log stream stopped by context", zap.Int("totalEntriesProcessed", count))
 			return
 		case entry, ok := <-logCh:
 			if !ok {
-				s.logMu.Lock()
-				s.logStreaming = false
-				s.logCancel = nil
-				s.logMu.Unlock()
 				s.logger.Info("log stream channel closed", zap.Int("totalEntriesProcessed", count))
 				return
 			}
@@ -147,12 +156,37 @@ func (s *LogService) handleLogStream(ctx context.Context, logCh <-chan domain.Lo
 
 // StopLogStream stops log streaming.
 func (s *LogService) StopLogStream() {
+	session := s.currentLogSession()
+	if session != nil {
+		session.cancel()
+	}
+}
+
+func (s *LogService) currentLogSession() *logSession {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
+	return s.logSession
+}
 
-	if s.logCancel != nil {
-		s.logCancel()
-		s.logCancel = nil
+func (s *LogService) replaceLogSession(next *logSession) *logSession {
+	s.logMu.Lock()
+	prev := s.logSession
+	s.logSession = next
+	s.logMu.Unlock()
+
+	// Cancel the previous session immediately; the active session is canceled
+	// by StopLogStream or by its parent context.
+	if prev != nil {
+		prev.cancel()
 	}
-	s.logStreaming = false
+	return prev
+}
+
+func (s *LogService) finishLogSession(session *logSession) {
+	s.logMu.Lock()
+	if s.logSession == session {
+		s.logSession = nil
+	}
+	s.logMu.Unlock()
+	session.markDone()
 }
