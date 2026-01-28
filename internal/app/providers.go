@@ -208,7 +208,7 @@ func provideControlPlaneState(
 }
 
 // NewRPCServer constructs the RPC server.
-func NewRPCServer(control domain.ControlPlane, state *domain.CatalogState, logger *zap.Logger) *rpc.Server {
+func NewRPCServer(control rpc.ControlPlaneAPI, state *domain.CatalogState, logger *zap.Logger) *rpc.Server {
 	return rpc.NewServer(control, state.Summary.Runtime.RPC, logger)
 }
 

@@ -13,7 +13,7 @@
 - [x] (2025-03-07 10:30Z) 引入 aggregator 的泛型索引核心，并重构 ToolIndex/ResourceIndex/PromptIndex 使用该核心，保持行为与测试一致。
 - [x] (2025-03-07 11:10Z) 移除单文件配置模式，仅支持 profile store 目录；更新 loader、CLI 文案、测试与文档示例。
 - [x] (2025-03-07 13:00Z) 将 UI 层配置编辑逻辑迁移至 `internal/infra/catalog` 的 Editor，WailsService 仅做转发。
-- [x] (2025-03-07 13:00Z) 拆分 ControlPlane 为职责明确的服务模块，保持 `domain.ControlPlane` 接口不变。
+- [x] (2025-03-07 13:00Z) 拆分 ControlPlane 为职责明确的服务模块，后续移除聚合接口并以小接口组合替代。
 - [x] (2025-03-07 13:00Z) 统一映射与常量：提取通用映射函数与文件权限/缓冲区/时间常量。
 - [x] (2025-03-07 13:10Z) 运行 `make fmt`、`go vet ./...` 与 `make test`（`make vet` 目标不存在）。
 
@@ -66,7 +66,7 @@ RPC 映射在 `internal/infra/rpc/mapping.go`，UI 侧转换分散在 `internal/
 
 然后实现 catalog Editor，负责配置模式检查、目录路径解析、写入 ProfileUpdate 等；WailsService 改为调用 Editor 的方法，不再直接读写文件或判断模式。
 
-接着拆分 ControlPlane：定义 core 结构，拆出 caller registry、discovery、observability 等子服务，ControlPlane 作为 facade 组合这些服务并实现 `domain.ControlPlane`。
+接着拆分 ControlPlane：定义 core 结构，拆出 caller registry、discovery、observability 等子服务；ControlPlane 作为 facade 组合这些服务，并由调用方以小接口组合依赖。
 
 最后整理映射与常量：新增通用 slice 映射函数；为 UI 映射建立集中函数；提取文件权限、缓冲区大小、时间默认值为命名常量并更新调用点。
 

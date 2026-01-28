@@ -24,7 +24,7 @@ import (
 // Server hosts the gRPC control plane and health endpoints.
 type Server struct {
 	cfg        domain.RPCConfig
-	control    domain.ControlPlane
+	control    ControlPlaneAPI
 	logger     *zap.Logger
 	grpcServer *grpc.Server
 	listener   net.Listener
@@ -34,7 +34,7 @@ type Server struct {
 }
 
 // NewServer constructs a gRPC server for the control plane.
-func NewServer(control domain.ControlPlane, cfg domain.RPCConfig, logger *zap.Logger) *Server {
+func NewServer(control ControlPlaneAPI, cfg domain.RPCConfig, logger *zap.Logger) *Server {
 	if logger == nil {
 		logger = zap.NewNop()
 	}

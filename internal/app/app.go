@@ -7,7 +7,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"mcpd/internal/domain"
 	"mcpd/internal/infra/telemetry"
 )
 
@@ -22,7 +21,7 @@ type App struct {
 // ServeConfig describes how to start the core application.
 type ServeConfig struct {
 	ConfigPath    string
-	OnReady       func(domain.ControlPlane) // Called when Core is ready (after RPC server starts)
+	OnReady       func(ControlPlaneAPI) // Called when Core is ready (after RPC server starts).
 	Observability *ObservabilityOptions
 }
 

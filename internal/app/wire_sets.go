@@ -49,7 +49,7 @@ var ReloadableAppSet = wire.NewSet(
 	NewControlPlane,
 	NewRPCServer,
 	NewReloadManager,
-	wire.Bind(new(domain.ControlPlane), new(*ControlPlane)),
+	wire.Bind(new(ControlPlaneAPI), new(*ControlPlane)),
 )
 
 // AppSet wires the full application dependency set.

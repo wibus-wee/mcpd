@@ -16,7 +16,7 @@ import (
 type Application struct {
 	ctx           context.Context
 	configPath    string
-	onReady       func(domain.ControlPlane)
+	onReady       func(ControlPlaneAPI)
 	observability *ObservabilityOptions
 
 	logger           *zap.Logger

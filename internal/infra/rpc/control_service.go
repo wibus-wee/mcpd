@@ -18,11 +18,11 @@ import (
 
 type ControlService struct {
 	controlv1.UnimplementedControlPlaneServiceServer
-	control domain.ControlPlane
+	control ControlPlaneAPI
 	logger  *zap.Logger
 }
 
-func NewControlService(control domain.ControlPlane, logger *zap.Logger) *ControlService {
+func NewControlService(control ControlPlaneAPI, logger *zap.Logger) *ControlService {
 	if logger == nil {
 		logger = zap.NewNop()
 	}

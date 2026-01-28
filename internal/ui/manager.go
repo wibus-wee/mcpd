@@ -11,7 +11,6 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"mcpd/internal/app"
-	"mcpd/internal/domain"
 )
 
 // CoreState represents the lifecycle state of the Core.
@@ -34,7 +33,7 @@ type Manager struct {
 
 	// Core application and control plane
 	coreApp           *app.App
-	controlPlane      domain.ControlPlane
+	controlPlane      app.ControlPlaneAPI
 	configPath        string
 	lastObservability *app.ObservabilityOptions
 
@@ -231,7 +230,7 @@ func (m *Manager) runCore(cfg app.ServeConfig) {
 	}
 }
 
-func (m *Manager) handleControlPlaneReady(cp domain.ControlPlane) {
+func (m *Manager) handleControlPlaneReady(cp app.ControlPlaneAPI) {
 	m.SetControlPlane(cp)
 
 	if cp == nil {
@@ -453,9 +452,9 @@ func (m *Manager) GetState() (CoreState, int64, error) {
 	return m.coreState, uptime, m.coreError
 }
 
-// GetControlPlane returns the ControlPlane interface from Core
+// GetControlPlane returns the ControlPlane API from Core.
 // Returns error if Core is not running.
-func (m *Manager) GetControlPlane() (domain.ControlPlane, error) {
+func (m *Manager) GetControlPlane() (app.ControlPlaneAPI, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -470,9 +469,9 @@ func (m *Manager) GetControlPlane() (domain.ControlPlane, error) {
 	return m.controlPlane, nil
 }
 
-// SetControlPlane sets the ControlPlane instance
+// SetControlPlane sets the ControlPlane instance.
 // This should be called after Core successfully starts.
-func (m *Manager) SetControlPlane(cp domain.ControlPlane) {
+func (m *Manager) SetControlPlane(cp app.ControlPlaneAPI) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.controlPlane = cp

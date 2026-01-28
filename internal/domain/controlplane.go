@@ -193,8 +193,8 @@ type ServerInitStatusSnapshot struct {
 	GeneratedAt time.Time          `json:"generatedAt"`
 }
 
-// ControlPlaneInfoProvider exposes basic control plane metadata.
-type ControlPlaneInfoProvider interface {
+// InfoAPI exposes basic control plane metadata.
+type InfoAPI interface {
 	Info(ctx context.Context) (ControlPlaneInfo, error)
 }
 
@@ -205,16 +205,16 @@ type ClientRegistration struct {
 	VisibleServerCount int
 }
 
-// ControlPlaneRegistry manages client registration and monitoring.
-type ControlPlaneRegistry interface {
+// RegistryAPI manages client registration and monitoring.
+type RegistryAPI interface {
 	RegisterClient(ctx context.Context, client string, pid int, tags []string, server string) (ClientRegistration, error)
 	UnregisterClient(ctx context.Context, client string) error
 	ListActiveClients(ctx context.Context) ([]ActiveClient, error)
 	WatchActiveClients(ctx context.Context) (<-chan ActiveClientSnapshot, error)
 }
 
-// ControlPlaneDiscovery exposes tools, resources, and prompts.
-type ControlPlaneDiscovery interface {
+// DiscoveryAPI exposes tools, resources, and prompts.
+type DiscoveryAPI interface {
 	ListTools(ctx context.Context, client string) (ToolSnapshot, error)
 	ListToolCatalog(ctx context.Context) (ToolCatalogSnapshot, error)
 	WatchTools(ctx context.Context, client string) (<-chan ToolSnapshot, error)
@@ -237,8 +237,8 @@ type ServerInitStatusReader interface {
 	GetServerInitStatus(ctx context.Context) ([]ServerInitStatus, error)
 }
 
-// ControlPlaneObservability exposes runtime status and log streaming.
-type ControlPlaneObservability interface {
+// ObservabilityAPI exposes runtime status and log streaming.
+type ObservabilityAPI interface {
 	StreamLogs(ctx context.Context, client string, minLevel LogLevel) (<-chan LogEntry, error)
 	StreamLogsAllServers(ctx context.Context, minLevel LogLevel) (<-chan LogEntry, error)
 	GetPoolStatus(ctx context.Context) ([]PoolInfo, error)
@@ -250,23 +250,27 @@ type ControlPlaneObservability interface {
 	WatchServerInitStatusAllServers(ctx context.Context) (<-chan ServerInitStatusSnapshot, error)
 }
 
-// ControlPlaneBootstrap exposes bootstrap status.
-type ControlPlaneBootstrap interface {
+// BootstrapAPI exposes bootstrap status.
+type BootstrapAPI interface {
 	GetBootstrapProgress(ctx context.Context) (BootstrapProgress, error)
 	WatchBootstrapProgress(ctx context.Context) (<-chan BootstrapProgress, error)
 }
 
-// ControlPlaneAutomation exposes automatic tool filtering and execution.
-type ControlPlaneAutomation interface {
+// AutomationAPI exposes automatic tool filtering and execution.
+type AutomationAPI interface {
 	AutomaticMCP(ctx context.Context, client string, params AutomaticMCPParams) (AutomaticMCPResult, error)
 	AutomaticEval(ctx context.Context, client string, params AutomaticEvalParams) (json.RawMessage, error)
+}
+
+// SubAgentStatusAPI exposes SubAgent availability checks.
+type SubAgentStatusAPI interface {
 	IsSubAgentEnabled() bool
 	IsSubAgentEnabledForClient(client string) bool
 }
 
-// ControlPlaneTasks exposes task orchestration APIs.
+// TasksAPI exposes task orchestration APIs.
 // TODO: Implement tasks once MCP protocol support is available in the upstream go-sdk.
-type ControlPlaneTasks interface {
+type TasksAPI interface {
 	CallToolTask(ctx context.Context, client, name string, args json.RawMessage, routingKey string, opts TaskCreateOptions) (Task, error)
 	GetTask(ctx context.Context, client, taskID string) (Task, error)
 	ListTasks(ctx context.Context, client, cursor string, limit int) (TaskPage, error)
@@ -274,19 +278,7 @@ type ControlPlaneTasks interface {
 	CancelTask(ctx context.Context, client, taskID string) (Task, error)
 }
 
-// ControlPlaneStore exposes profile storage access.
-type ControlPlaneStore interface {
+// StoreAPI exposes profile storage access.
+type StoreAPI interface {
 	GetCatalog() Catalog
-}
-
-// ControlPlane groups all control plane capabilities.
-type ControlPlane interface {
-	ControlPlaneInfoProvider
-	ControlPlaneRegistry
-	ControlPlaneDiscovery
-	ControlPlaneObservability
-	ControlPlaneBootstrap
-	ControlPlaneAutomation
-	ControlPlaneTasks
-	ControlPlaneStore
 }

@@ -8,7 +8,6 @@ import (
 	"go.uber.org/zap"
 
 	"mcpd/internal/app"
-	"mcpd/internal/domain"
 	"mcpd/internal/infra/catalog"
 )
 
@@ -78,7 +77,7 @@ func (d *ServiceDeps) manager() *Manager {
 	return d.managerRef
 }
 
-func (d *ServiceDeps) getControlPlane() (domain.ControlPlane, error) {
+func (d *ServiceDeps) getControlPlane() (app.ControlPlaneAPI, error) {
 	manager := d.manager()
 	if manager == nil {
 		return nil, NewError(ErrCodeInternal, "Manager not initialized")
