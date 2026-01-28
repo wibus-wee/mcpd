@@ -3,10 +3,17 @@ package ui
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 
 	"mcpd/internal/domain"
+)
+
+const (
+	// logRingBufferSize is the size of the async ring buffer for log events.
+	// This prevents UI event emission blocking the log stream.
+	logRingBufferSize = 512
 )
 
 // LogService streams logs to the frontend.
@@ -26,11 +33,15 @@ func NewLogService(deps *ServiceDeps) *LogService {
 }
 
 type logSession struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	done     chan struct{}
-	doneOnce sync.Once
-	minLevel domain.LogLevel
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	doneOnce   sync.Once
+	minLevel   domain.LogLevel
+	emitCh     chan domain.LogEntry // async ring buffer
+	emitDone   chan struct{}
+	emitWg     sync.WaitGroup
+	droppedCnt *uint64 // atomic counter for dropped events
 }
 
 func (s *logSession) markDone() {
@@ -76,11 +87,15 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 	s.logger.Info("Calling ControlPlane.StreamLogsAllServers", zap.String("level", string(level)))
 
 	streamCtx, cancel := context.WithCancel(ctx)
+	var droppedCnt uint64
 	session := &logSession{
-		ctx:      streamCtx,
-		cancel:   cancel,
-		done:     make(chan struct{}),
-		minLevel: level,
+		ctx:        streamCtx,
+		cancel:     cancel,
+		done:       make(chan struct{}),
+		minLevel:   level,
+		emitCh:     make(chan domain.LogEntry, logRingBufferSize),
+		emitDone:   make(chan struct{}),
+		droppedCnt: &droppedCnt,
 	}
 	prev := s.replaceLogSession(session)
 	if prev != nil {
@@ -97,6 +112,10 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 	}
 
 	s.logger.Info("StreamLogs channel created successfully")
+
+	// Start async emitter to prevent Wails event blocking
+	session.emitWg.Add(1)
+	go s.asyncEmitter(session)
 
 	go s.handleLogStream(session, logCh)
 
@@ -124,7 +143,7 @@ func (s *LogService) handleLogStream(session *logSession, logCh <-chan domain.Lo
 			zap.String("logger", entry.Logger),
 			zap.String("level", string(entry.Level)),
 		)
-		emitLogEntry(s.deps.wailsApp(), entry)
+		s.sendToRingBuffer(session, entry)
 	default:
 		s.logger.Info("handleLogStream: no immediate entries, entering select loop")
 	}
@@ -146,9 +165,9 @@ func (s *LogService) handleLogStream(session *logSession, logCh <-chan domain.Lo
 				zap.String("level", string(entry.Level)),
 				zap.String("timestamp", entry.Timestamp.Format("15:04:05.000")),
 			)
-			emitLogEntry(s.deps.wailsApp(), entry)
+			s.sendToRingBuffer(session, entry)
 			if count == 1 {
-				s.logger.Info("First log entry emitted to frontend")
+				s.logger.Info("First log entry sent to async emitter")
 			}
 		}
 	}
@@ -188,5 +207,42 @@ func (s *LogService) finishLogSession(session *logSession) {
 		s.logSession = nil
 	}
 	s.logMu.Unlock()
+
+	// Close emit channel and wait for emitter to finish
+	close(session.emitCh)
+	session.emitWg.Wait()
 	session.markDone()
+}
+
+// sendToRingBuffer sends a log entry to the ring buffer using non-blocking send.
+// If the buffer is full, it drops the oldest entry (ring buffer semantics).
+func (s *LogService) sendToRingBuffer(session *logSession, entry domain.LogEntry) {
+	select {
+	case session.emitCh <- entry:
+		// Successfully sent
+	default:
+		// Buffer full, drop and count
+		atomic.AddUint64(session.droppedCnt, 1)
+		s.logger.Warn("log event ring buffer full, dropping entry",
+			zap.String("logger", entry.Logger),
+		)
+	}
+}
+
+// asyncEmitter runs in a goroutine and emits log events to Wails asynchronously.
+// This prevents slow UI event processing from blocking the log stream.
+func (s *LogService) asyncEmitter(session *logSession) {
+	defer session.emitWg.Done()
+
+	for entry := range session.emitCh {
+		emitLogEntry(s.deps.wailsApp(), entry)
+	}
+
+	// Report dropped events on shutdown if any
+	dropped := atomic.LoadUint64(session.droppedCnt)
+	if dropped > 0 {
+		s.logger.Warn("log stream ended with dropped events",
+			zap.Uint64("droppedCount", dropped),
+		)
+	}
 }

@@ -79,7 +79,8 @@ func expandEnvWithTracking(value string, missing map[string]struct{}) string {
 			return val
 		}
 		missing[key] = struct{}{}
-		return ""
+		// Preserve placeholder instead of silently replacing with empty string
+		return "${" + key + "}"
 	})
 }
 

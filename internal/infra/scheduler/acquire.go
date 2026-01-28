@@ -54,6 +54,8 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		state.startInFlight = true
 		startCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		state.startCancel = cancel
+		// Reserve a starting slot: protected by lock for atomicity.
+		// Actual StartInstance call happens outside lock to avoid blocking.
 		state.starting++
 		state.mu.Unlock()
 
@@ -68,6 +70,8 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 				if r != nil {
 					err = fmt.Errorf("start instance panic: %v", r)
 				}
+				// Release reservation atomically under lock.
+				// This ensures no race with concurrent capacity checks.
 				state.mu.Lock()
 				state.startInFlight = false
 				startCancel := state.startCancel

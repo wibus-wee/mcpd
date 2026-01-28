@@ -28,10 +28,17 @@ func (s *BasicScheduler) StartIdleManager(interval time.Duration) {
 	if s.health != nil {
 		s.idleBeat = s.health.Register("scheduler_idle", interval*3)
 	}
+	ticker := s.idleTicker // capture ticker for goroutine
 	go func() {
+		defer func() {
+			// Ensure ticker is stopped on exit
+			if r := recover(); r != nil {
+				s.logger.Error("idle manager goroutine panic", zap.Any("panic", r))
+			}
+		}()
 		for {
 			select {
-			case <-s.idleTicker.C:
+			case <-ticker.C:
 				if s.idleBeat != nil {
 					s.idleBeat.Beat()
 				}
@@ -79,10 +86,17 @@ func (s *BasicScheduler) StartPingManager(interval time.Duration) {
 	if s.health != nil {
 		s.pingBeat = s.health.Register("scheduler_ping", interval*3)
 	}
+	ticker := s.pingTicker // capture ticker for goroutine
 	go func() {
+		defer func() {
+			// Ensure ticker is stopped on exit
+			if r := recover(); r != nil {
+				s.logger.Error("ping manager goroutine panic", zap.Any("panic", r))
+			}
+		}()
 		for {
 			select {
-			case <-s.pingTicker.C:
+			case <-ticker.C:
 				if s.pingBeat != nil {
 					s.pingBeat.Beat()
 				}

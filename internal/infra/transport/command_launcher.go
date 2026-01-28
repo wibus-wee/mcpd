@@ -88,14 +88,30 @@ func (l *CommandLauncher) Start(ctx context.Context, _ string, spec domain.Serve
 	return domain.IOStreams{Reader: stdout, Writer: stdin}, stop, nil
 }
 
+const maxStderrLineLength = 32 * 1024 // 32KB per line
+
 func mirrorStderr(reader io.Reader, logger *zap.Logger) {
-	buf := bufio.NewReader(reader)
+	buf := bufio.NewReaderSize(reader, 8192)
 	for {
-		line, err := buf.ReadString('\n')
+		line, isPrefix, err := buf.ReadLine()
 		if len(line) > 0 {
-			line = strings.TrimRight(line, "\r\n")
-			if line != "" {
-				logger.Info(line)
+			trimmed := strings.TrimRight(string(line), "\r\n")
+			if trimmed != "" {
+				if len(trimmed) > maxStderrLineLength {
+					logger.Warn("stderr line truncated",
+						zap.Int("originalLength", len(trimmed)),
+						zap.Int("maxLength", maxStderrLineLength),
+					)
+					trimmed = trimmed[:maxStderrLineLength] + "... [truncated]"
+				}
+				logger.Info(trimmed)
+			}
+			// If isPrefix is true, the line was longer than buffer; skip remaining
+			if isPrefix {
+				// Discard rest of oversized line
+				for isPrefix && err == nil {
+					_, isPrefix, err = buf.ReadLine()
+				}
 			}
 		}
 		if err != nil {

@@ -26,13 +26,16 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 	if hasCause {
 		s.applyStartCauseLocked(state, cause, time.Now())
 	}
+	// state.starting acts as a reservation counter for in-flight starts.
+	// Both increment and decrement are protected by state.mu to ensure
+	// consistent capacity calculations across concurrent calls.
 	active := len(state.instances) + state.starting
 	toStart := minReady - active
 	if toStart <= 0 {
 		state.mu.Unlock()
 		return nil
 	}
-	state.starting += toStart
+	state.starting += toStart // Reserve starting slots under lock
 	state.mu.Unlock()
 
 	var firstErr error
@@ -52,6 +55,8 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 				if r != nil {
 					err = fmt.Errorf("start instance panic: %v", r)
 				}
+				// Release reservation: decrement must be done under lock
+				// to maintain consistency with concurrent capacity checks.
 				state.mu.Lock()
 				state.starting--
 				if err == nil {
