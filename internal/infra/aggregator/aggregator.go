@@ -33,6 +33,7 @@ type ToolIndex struct {
 	health               *telemetry.HealthTracker
 	gate                 *RefreshGate
 	listChanges          listChangeSubscriber
+	specsMu              sync.RWMutex
 	specKeySet           map[string]struct{}
 	bootstrapWaiter      BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
@@ -140,14 +141,18 @@ func (a *ToolIndex) SnapshotForServer(serverName string) (domain.ToolSnapshot, b
 
 // CachedSnapshot builds a snapshot from metadata cache without touching live instances.
 func (a *ToolIndex) CachedSnapshot() domain.ToolSnapshot {
-	if a.metadataCache == nil || !a.cfg.ExposeTools {
+	a.specsMu.RLock()
+	specs := a.specs
+	cfg := a.cfg
+	a.specsMu.RUnlock()
+	if a.metadataCache == nil || !cfg.ExposeTools {
 		return domain.ToolSnapshot{}
 	}
 
 	cache := make(map[string]serverCache)
-	serverTypes := sortedServerTypes(a.specs)
+	serverTypes := sortedServerTypes(specs)
 	for _, serverType := range serverTypes {
-		spec := a.specs[serverType]
+		spec := specs[serverType]
 		cached, ok := a.cachedServerCache(serverType, spec)
 		if !ok || len(cached.tools) == 0 {
 			continue
@@ -277,11 +282,17 @@ func (a *ToolIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map
 	if specKeys == nil {
 		specKeys = map[string]string{}
 	}
-	a.specs = specs
-	a.specKeys = specKeys
-	a.specKeySet = specKeySet(specKeys)
+	specsCopy := copyServerSpecs(specs)
+	specKeysCopy := copySpecKeys(specKeys)
+	specKeySetCopy := specKeySet(specKeysCopy)
+
+	a.specsMu.Lock()
+	a.specs = specsCopy
+	a.specKeys = specKeysCopy
+	a.specKeySet = specKeySetCopy
 	a.cfg = cfg
-	a.index.UpdateSpecs(specs, cfg)
+	a.specsMu.Unlock()
+	a.index.UpdateSpecs(specsCopy, cfg)
 }
 
 func (a *ToolIndex) refresh(ctx context.Context) error {
@@ -289,7 +300,13 @@ func (a *ToolIndex) refresh(ctx context.Context) error {
 }
 
 func (a *ToolIndex) startListChangeListener(ctx context.Context) {
-	if a.listChanges == nil || !a.cfg.ExposeTools {
+	if a.listChanges == nil {
+		return
+	}
+	a.specsMu.RLock()
+	exposeTools := a.cfg.ExposeTools
+	a.specsMu.RUnlock()
+	if !exposeTools {
 		return
 	}
 	ch := a.listChanges.Subscribe(ctx, domain.ListChangeTools)
@@ -302,7 +319,11 @@ func (a *ToolIndex) startListChangeListener(ctx context.Context) {
 				if !ok {
 					return
 				}
-				if !listChangeApplies(a.specs, a.specKeySet, event) {
+				a.specsMu.RLock()
+				specs := a.specs
+				specKeySet := a.specKeySet
+				a.specsMu.RUnlock()
+				if !listChangeApplies(specs, specKeySet, event) {
 					continue
 				}
 				if err := a.index.Refresh(ctx); err != nil {
@@ -330,7 +351,10 @@ func (a *ToolIndex) startBootstrapRefresh(ctx context.Context) {
 				return
 			}
 
-			refreshCtx, cancel := withRefreshTimeout(ctx, a.cfg)
+			a.specsMu.RLock()
+			cfg := a.cfg
+			a.specsMu.RUnlock()
+			refreshCtx, cancel := withRefreshTimeout(ctx, cfg)
 			defer cancel()
 			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("tool refresh after bootstrap failed", zap.Error(err))
@@ -374,29 +398,39 @@ func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnap
 	merged := make([]domain.ToolDefinition, 0)
 	targets := make(map[string]domain.ToolTarget)
 	serverSnapshots := make(map[string]serverToolSnapshot, len(cache))
+	a.specsMu.RLock()
+	specs := a.specs
+	strategy := a.cfg.ToolNamespaceStrategy
+	a.specsMu.RUnlock()
 
 	serverTypes := sortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
+		spec := specs[serverType]
 		tools := append([]domain.ToolDefinition(nil), server.tools...)
 		sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
 
-		serverSnapshots[serverType] = serverToolSnapshot{
+		snapshot := serverToolSnapshot{
 			snapshot: domain.ToolSnapshot{
 				ETag:  a.hashTools(tools),
 				Tools: tools,
 			},
 			targets: copyToolTargets(server.targets),
 		}
+		if spec.Name == "" {
+			a.logger.Warn("tool snapshot skipped: missing server name", zap.String("serverType", serverType))
+		} else {
+			serverSnapshots[spec.Name] = snapshot
+		}
 
 		for _, tool := range tools {
 			toolDef := tool
 			target := server.targets[tool.Name]
-			displayName := a.namespaceTool(serverType, tool.Name)
+			displayName := namespaceTool(serverType, tool.Name, strategy)
 			toolDef.Name = displayName
 
 			if existing, exists := targets[displayName]; exists {
-				if a.cfg.ToolNamespaceStrategy != domain.ToolNamespaceStrategyFlat {
+				if strategy != domain.ToolNamespaceStrategyFlat {
 					a.logger.Warn("tool name conflict", zap.String("serverType", serverType), zap.String("tool", tool.Name))
 					continue
 				}
@@ -420,9 +454,7 @@ func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnap
 			}
 
 			toolDef.SpecKey = target.SpecKey
-			if spec, ok := a.specs[serverType]; ok {
-				toolDef.ServerName = spec.Name
-			}
+			toolDef.ServerName = spec.Name
 
 			targets[toolDef.Name] = target
 			merged = append(merged, toolDef)
@@ -624,8 +656,8 @@ func (a *ToolIndex) fetchTools(ctx context.Context, serverType, specKey string) 
 	return tools, nil
 }
 
-func (a *ToolIndex) namespaceTool(serverType, toolName string) string {
-	if a.cfg.ToolNamespaceStrategy == domain.ToolNamespaceStrategyFlat {
+func namespaceTool(serverType, toolName string, strategy domain.ToolNamespaceStrategy) string {
+	if strategy == domain.ToolNamespaceStrategyFlat {
 		return toolName
 	}
 	return fmt.Sprintf("%s.%s", serverType, toolName)

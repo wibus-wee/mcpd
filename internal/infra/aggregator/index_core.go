@@ -83,6 +83,7 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	specs := copyServerSpecs(opts.Specs)
 	shouldStart := opts.ShouldStart
 	if shouldStart == nil {
 		shouldStart = func(domain.RuntimeConfig) bool { return true }
@@ -100,7 +101,7 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 		logLabel:          opts.LogLabel,
 		fetchErrorMessage: opts.FetchErrorMessage,
 		heartbeatName:     heartbeatName,
-		specs:             opts.Specs,
+		specs:             specs,
 		cfg:               opts.Config,
 		logger:            logger,
 		health:            opts.Health,
@@ -127,11 +128,12 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 }
 
 func (g *GenericIndex[Snapshot, Target, Cache]) Start(ctx context.Context) {
-	if !g.shouldStart(g.cfg) {
+	g.mu.Lock()
+	cfg := g.cfg
+	if !g.shouldStart(cfg) {
+		g.mu.Unlock()
 		return
 	}
-
-	g.mu.Lock()
 	if g.started {
 		g.mu.Unlock()
 		return
@@ -140,14 +142,21 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Start(ctx context.Context) {
 	if g.stop == nil {
 		g.stop = make(chan struct{})
 	}
+	stopCh := g.stop
 	g.mu.Unlock()
 
-	interval := g.cfg.ToolRefreshInterval()
-	if interval > 0 && g.health != nil && g.refreshBeat == nil {
-		g.refreshBeat = g.health.Register(g.heartbeatName, interval*3)
+	interval := cfg.ToolRefreshInterval()
+	var refreshBeat *telemetry.Heartbeat
+	if interval > 0 && g.health != nil {
+		g.mu.Lock()
+		if g.refreshBeat == nil {
+			g.refreshBeat = g.health.Register(g.heartbeatName, interval*3)
+		}
+		refreshBeat = g.refreshBeat
+		g.mu.Unlock()
 	}
-	if g.refreshBeat != nil {
-		g.refreshBeat.Beat()
+	if refreshBeat != nil {
+		refreshBeat.Beat()
 	}
 	if err := g.Refresh(ctx); err != nil {
 		g.logger.Warn("initial "+g.logLabel+" refresh failed", zap.Error(err))
@@ -161,20 +170,21 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Start(ctx context.Context) {
 		g.mu.Unlock()
 		return
 	}
-	g.ticker = time.NewTicker(interval)
+	ticker := time.NewTicker(interval)
+	g.ticker = ticker
 	g.mu.Unlock()
 
 	go func() {
 		for {
 			select {
-			case <-g.ticker.C:
-				if g.refreshBeat != nil {
-					g.refreshBeat.Beat()
+			case <-ticker.C:
+				if refreshBeat != nil {
+					refreshBeat.Beat()
 				}
 				if err := g.Refresh(ctx); err != nil {
 					g.logger.Warn(g.logLabel+" refresh failed", zap.Error(err))
 				}
-			case <-g.stop:
+			case <-stopCh:
 				return
 			case <-ctx.Done():
 				return
@@ -243,6 +253,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 
 	g.mu.Lock()
 	specs := g.specs
+	cfg := g.cfg
 	g.mu.Unlock()
 
 	serverTypes := sortedServerTypes(specs)
@@ -257,8 +268,8 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 	}
 
 	results := make(chan refreshResult, len(serverTypes))
-	timeout := refreshTimeout(g.cfg)
-	workerCount := refreshWorkerCount(g.cfg, len(serverTypes))
+	timeout := refreshTimeout(cfg)
+	workerCount := refreshWorkerCount(cfg, len(serverTypes))
 	if workerCount == 0 {
 		return nil
 	}
@@ -359,15 +370,13 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 }
 
 func (g *GenericIndex[Snapshot, Target, Cache]) UpdateSpecs(specs map[string]domain.ServerSpec, cfg domain.RuntimeConfig) {
-	if specs == nil {
-		specs = map[string]domain.ServerSpec{}
-	}
+	specsCopy := copyServerSpecs(specs)
 
 	g.mu.Lock()
-	g.specs = specs
+	g.specs = specsCopy
 	g.cfg = cfg
 	for serverType := range g.serverCache {
-		if _, ok := specs[serverType]; !ok {
+		if _, ok := specsCopy[serverType]; !ok {
 			delete(g.serverCache, serverType)
 			delete(g.failures, serverType)
 		}
@@ -436,4 +445,15 @@ func (g *GenericIndex[Snapshot, Target, Cache]) sendSnapshot(ch chan Snapshot, s
 	case ch <- g.copySnapshot(snapshot):
 	default:
 	}
+}
+
+func copyServerSpecs(specs map[string]domain.ServerSpec) map[string]domain.ServerSpec {
+	if len(specs) == 0 {
+		return map[string]domain.ServerSpec{}
+	}
+	out := make(map[string]domain.ServerSpec, len(specs))
+	for key, value := range specs {
+		out[key] = value
+	}
+	return out
 }

@@ -29,6 +29,7 @@ type PromptIndex struct {
 	health               *telemetry.HealthTracker
 	gate                 *RefreshGate
 	listChanges          listChangeSubscriber
+	specsMu              sync.RWMutex
 	specKeySet           map[string]struct{}
 	bootstrapWaiter      BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
@@ -262,11 +263,17 @@ func (a *PromptIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys m
 	if specKeys == nil {
 		specKeys = map[string]string{}
 	}
-	a.specs = specs
-	a.specKeys = specKeys
-	a.specKeySet = specKeySet(specKeys)
+	specsCopy := copyServerSpecs(specs)
+	specKeysCopy := copySpecKeys(specKeys)
+	specKeySetCopy := specKeySet(specKeysCopy)
+
+	a.specsMu.Lock()
+	a.specs = specsCopy
+	a.specKeys = specKeysCopy
+	a.specKeySet = specKeySetCopy
 	a.cfg = cfg
-	a.index.UpdateSpecs(specs, cfg)
+	a.specsMu.Unlock()
+	a.index.UpdateSpecs(specsCopy, cfg)
 }
 
 func (a *PromptIndex) startListChangeListener(ctx context.Context) {
@@ -283,7 +290,11 @@ func (a *PromptIndex) startListChangeListener(ctx context.Context) {
 				if !ok {
 					return
 				}
-				if !listChangeApplies(a.specs, a.specKeySet, event) {
+				a.specsMu.RLock()
+				specs := a.specs
+				specKeySet := a.specKeySet
+				a.specsMu.RUnlock()
+				if !listChangeApplies(specs, specKeySet, event) {
 					continue
 				}
 				if err := a.index.Refresh(ctx); err != nil {
@@ -311,7 +322,10 @@ func (a *PromptIndex) startBootstrapRefresh(ctx context.Context) {
 				return
 			}
 
-			refreshCtx, cancel := withRefreshTimeout(ctx, a.cfg)
+			a.specsMu.RLock()
+			cfg := a.cfg
+			a.specsMu.RUnlock()
+			refreshCtx, cancel := withRefreshTimeout(ctx, cfg)
 			defer cancel()
 			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("prompt refresh after bootstrap failed", zap.Error(err))
@@ -355,29 +369,39 @@ func (a *PromptIndex) buildSnapshot(cache map[string]promptCache) (domain.Prompt
 	merged := make([]domain.PromptDefinition, 0)
 	targets := make(map[string]domain.PromptTarget)
 	serverSnapshots := make(map[string]serverPromptSnapshot, len(cache))
+	a.specsMu.RLock()
+	specs := a.specs
+	strategy := a.cfg.ToolNamespaceStrategy
+	a.specsMu.RUnlock()
 
 	serverTypes := sortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
+		spec := specs[serverType]
 		prompts := append([]domain.PromptDefinition(nil), server.prompts...)
 		sort.Slice(prompts, func(i, j int) bool { return prompts[i].Name < prompts[j].Name })
 
-		serverSnapshots[serverType] = serverPromptSnapshot{
+		snapshot := serverPromptSnapshot{
 			snapshot: domain.PromptSnapshot{
 				ETag:    a.hashPrompts(prompts),
 				Prompts: prompts,
 			},
 			targets: copyPromptTargets(server.targets),
 		}
+		if spec.Name == "" {
+			a.logger.Warn("prompt snapshot skipped: missing server name", zap.String("serverType", serverType))
+		} else {
+			serverSnapshots[spec.Name] = snapshot
+		}
 
 		for _, prompt := range prompts {
 			promptDef := prompt
 			target := server.targets[prompt.Name]
-			displayName := a.namespacePrompt(serverType, prompt.Name)
+			displayName := namespacePrompt(serverType, prompt.Name, strategy)
 			promptDef.Name = displayName
 
 			if existing, exists := targets[displayName]; exists {
-				if a.cfg.ToolNamespaceStrategy != domain.ToolNamespaceStrategyFlat {
+				if strategy != domain.ToolNamespaceStrategyFlat {
 					a.logger.Warn("prompt name conflict", zap.String("serverType", serverType), zap.String("prompt", prompt.Name))
 					continue
 				}
@@ -571,8 +595,8 @@ func (a *PromptIndex) fetchPrompts(ctx context.Context, serverType, specKey stri
 	return prompts, nil
 }
 
-func (a *PromptIndex) namespacePrompt(serverType, promptName string) string {
-	if a.cfg.ToolNamespaceStrategy == domain.ToolNamespaceStrategyFlat {
+func namespacePrompt(serverType, promptName string, strategy domain.ToolNamespaceStrategy) string {
+	if strategy == domain.ToolNamespaceStrategyFlat {
 		return promptName
 	}
 	return fmt.Sprintf("%s.%s", serverType, promptName)

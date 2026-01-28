@@ -244,8 +244,13 @@ func (m *Manager) handleControlPlaneReady(cp domain.ControlPlane) {
 // onCoreReady is called when Core reaches running state
 func (m *Manager) onCoreReady() {
 	m.mu.Lock()
+	if m.coreState == CoreStateRunning {
+		m.mu.Unlock()
+		return
+	}
 	m.coreState = CoreStateRunning
 	uptime := time.Since(m.coreStarted).Milliseconds()
+	wails := m.wails
 	m.mu.Unlock()
 
 	// Emit running state
@@ -253,8 +258,8 @@ func (m *Manager) onCoreReady() {
 		State:  string(CoreStateRunning),
 		Uptime: uptime,
 	}
-	if m.wails != nil {
-		m.wails.Event.Emit(EventCoreState, event)
+	if wails != nil {
+		wails.Event.Emit(EventCoreState, event)
 	}
 
 	// Auto-start Watch subscriptions

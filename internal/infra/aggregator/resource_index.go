@@ -362,19 +362,28 @@ func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.Re
 	merged := make([]domain.ResourceDefinition, 0)
 	targets := make(map[string]domain.ResourceTarget)
 	serverSnapshots := make(map[string]serverResourceSnapshot, len(cache))
+	a.specsMu.RLock()
+	specs := a.specs
+	a.specsMu.RUnlock()
 
 	serverTypes := sortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
+		spec := specs[serverType]
 		resources := append([]domain.ResourceDefinition(nil), server.resources...)
 		sort.Slice(resources, func(i, j int) bool { return resources[i].URI < resources[j].URI })
 
-		serverSnapshots[serverType] = serverResourceSnapshot{
+		snapshot := serverResourceSnapshot{
 			snapshot: domain.ResourceSnapshot{
 				ETag:      a.hashResources(resources),
 				Resources: resources,
 			},
 			targets: copyResourceTargets(server.targets),
+		}
+		if spec.Name == "" {
+			a.logger.Warn("resource snapshot skipped: missing server name", zap.String("serverType", serverType))
+		} else {
+			serverSnapshots[spec.Name] = snapshot
 		}
 
 		for _, resource := range resources {
