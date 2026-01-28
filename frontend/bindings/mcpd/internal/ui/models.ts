@@ -93,7 +93,7 @@ export class BootstrapProgressResponse {
 }
 
 /**
- * ConfigModeResponse indicates the configuration mode and path
+ * ConfigModeResponse indicates the configuration mode and path.
  */
 export class ConfigModeResponse {
     /**
@@ -356,7 +356,7 @@ export class InfoResponse {
 }
 
 /**
- * InstanceStatus represents the status of a single server instance
+ * InstanceStatus represents the status of a single server instance.
  */
 export class InstanceStatus {
     "id": string;
@@ -409,7 +409,7 @@ export class InstanceStatus {
 }
 
 /**
- * ObservabilityConfigDetail for frontend
+ * ObservabilityConfigDetail for frontend.
  */
 export class ObservabilityConfigDetail {
     "listenAddress": string;
@@ -474,7 +474,7 @@ export class PoolMetrics {
 }
 
 /**
- * PoolStats contains aggregated statistics for a server pool
+ * PoolStats contains aggregated statistics for a server pool.
  */
 export class PoolStats {
     "total": number;
@@ -526,7 +526,7 @@ export class PoolStats {
 }
 
 /**
- * PromptEntry represents a single prompt for the frontend
+ * PromptEntry represents a single prompt for the frontend.
  */
 export class PromptEntry {
     "name": string;
@@ -554,7 +554,7 @@ export class PromptEntry {
 }
 
 /**
- * PromptPage represents a paginated list of prompts
+ * PromptPage represents a paginated list of prompts.
  */
 export class PromptPage {
     "prompts": PromptEntry[];
@@ -651,7 +651,7 @@ export class ProxyFetchResponse {
 }
 
 /**
- * RPCConfigDetail for frontend
+ * RPCConfigDetail for frontend.
  */
 export class RPCConfigDetail {
     "listenAddress": string;
@@ -703,7 +703,7 @@ export class RPCConfigDetail {
 }
 
 /**
- * RPCTLSConfigDetail for frontend
+ * RPCTLSConfigDetail for frontend.
  */
 export class RPCTLSConfigDetail {
     "enabled": boolean;
@@ -743,7 +743,7 @@ export class RPCTLSConfigDetail {
 }
 
 /**
- * ResourceEntry represents a single resource for the frontend
+ * ResourceEntry represents a single resource for the frontend.
  */
 export class ResourceEntry {
     "uri": string;
@@ -771,7 +771,7 @@ export class ResourceEntry {
 }
 
 /**
- * ResourcePage represents a paginated list of resources
+ * ResourcePage represents a paginated list of resources.
  */
 export class ResourcePage {
     "resources": ResourceEntry[];
@@ -821,7 +821,7 @@ export class RetryServerInitRequest {
 }
 
 /**
- * RuntimeConfigDetail contains runtime configuration for frontend
+ * RuntimeConfigDetail contains runtime configuration for frontend.
  */
 export class RuntimeConfigDetail {
     "routeTimeoutSeconds": number;
@@ -1025,7 +1025,7 @@ export class ServerInitStatus {
 }
 
 /**
- * ServerRuntimeStatus contains the runtime status of a server and its instances
+ * ServerRuntimeStatus contains the runtime status of a server and its instances.
  */
 export class ServerRuntimeStatus {
     "specKey": string;
@@ -1077,7 +1077,7 @@ export class ServerRuntimeStatus {
 }
 
 /**
- * ServerSpecDetail contains server specification for frontend
+ * ServerSpecDetail contains server specification for frontend.
  */
 export class ServerSpecDetail {
     "name": string;
@@ -1193,7 +1193,7 @@ export const ServerDetail = ServerSpecDetail;
 export type ServerDetail = ServerSpecDetail;
 
 /**
- * ServerSpecDetail contains server specification for frontend
+ * ServerSpecDetail contains server specification for frontend.
  */
 export class ServerSummary {
     "name": string;
@@ -1315,7 +1315,7 @@ export class StartCoreOptions {
 }
 
 /**
- * StreamableHTTPConfigDetail contains streamable HTTP configuration for frontend
+ * StreamableHTTPConfigDetail contains streamable HTTP configuration for frontend.
  */
 export class StreamableHTTPConfigDetail {
     "endpoint": string;
@@ -1348,7 +1348,7 @@ export class StreamableHTTPConfigDetail {
 }
 
 /**
- * SubAgentConfigDetail contains the runtime-level SubAgent LLM provider config
+ * SubAgentConfigDetail contains the runtime-level SubAgent LLM provider config.
  */
 export class SubAgentConfigDetail {
     "enabledTags"?: string[];
@@ -1397,7 +1397,7 @@ export class SubAgentConfigDetail {
 }
 
 /**
- * ToolEntry represents a single tool for the frontend
+ * ToolEntry represents a single tool for the frontend.
  */
 export class ToolEntry {
     "name": string;
@@ -1578,7 +1578,7 @@ export class UpdateServerStateRequest {
 }
 
 /**
- * UpdateSubAgentConfigRequest updates the runtime-level SubAgent config
+ * UpdateSubAgentConfigRequest updates the runtime-level SubAgent config.
  */
 export class UpdateSubAgentConfigRequest {
     "enabledTags"?: string[];

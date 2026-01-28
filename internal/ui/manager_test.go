@@ -192,3 +192,32 @@ func TestManager_SetWailsApp(t *testing.T) {
 	assert.Nil(t, manager.wails)
 	manager.mu.RUnlock()
 }
+
+func TestManager_HandleDeepLink_ValidURL(t *testing.T) {
+	manager := NewManager(nil, &app.App{}, "")
+
+	err := manager.HandleDeepLink("mcpd://servers?tab=overview")
+	assert.NoError(t, err)
+}
+
+func TestManager_HandleDeepLink_InvalidURL(t *testing.T) {
+	manager := NewManager(nil, &app.App{}, "")
+
+	err := manager.HandleDeepLink("https://example.com")
+	assert.Error(t, err)
+
+	uiErr, ok := err.(*Error)
+	require.True(t, ok)
+	assert.Equal(t, ErrCodeInvalidRequest, uiErr.Code)
+}
+
+func TestManager_HandleDeepLink_EmptyURL(t *testing.T) {
+	manager := NewManager(nil, &app.App{}, "")
+
+	err := manager.HandleDeepLink("")
+	assert.Error(t, err)
+
+	uiErr, ok := err.(*Error)
+	require.True(t, ok)
+	assert.Equal(t, ErrCodeInvalidRequest, uiErr.Code)
+}

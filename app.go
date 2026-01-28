@@ -68,6 +68,18 @@ func main() {
 		e.Cancel()
 	})
 
+	// Handle deep link protocol invocations
+	wailsApp.Event.On("ApplicationOpenURL", func(event *application.CustomEvent) {
+		if rawURL, ok := event.Data.(string); ok {
+			if err := manager.HandleDeepLink(rawURL); err != nil {
+				uiLogger.Error("deep link handling failed", zap.Error(err), zap.String("url", rawURL))
+			}
+			// Always show window when deep link is triggered
+			window.Show()
+			window.Focus()
+		}
+	})
+
 	uiLogger.Info("starting MCPD Wails application")
 	if err := wailsApp.Run(); err != nil {
 		logger.Error("wails run failed", zap.Error(err))

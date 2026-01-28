@@ -524,3 +524,18 @@ func (m *Manager) ReloadConfig(ctx context.Context) error {
 	}
 	return nil
 }
+
+// HandleDeepLink handles a custom URL protocol invocation.
+func (m *Manager) HandleDeepLink(rawURL string) error {
+	link, err := ParseDeepLink(rawURL)
+	if err != nil {
+		return NewErrorWithDetails(ErrCodeInvalidRequest, "Invalid deep link", err.Error())
+	}
+
+	m.mu.RLock()
+	wails := m.wails
+	m.mu.RUnlock()
+
+	emitDeepLink(wails, link)
+	return nil
+}

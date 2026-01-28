@@ -11,6 +11,7 @@ import type {
   ServerRuntimeStatus,
 } from '@bindings/mcpd/internal/ui'
 import { LogService } from '@bindings/mcpd/internal/ui'
+import { useRouter } from '@tanstack/react-router'
 import { Events } from '@wailsio/runtime'
 import { Provider, useAtomValue } from 'jotai'
 import { LazyMotion, MotionConfig } from 'motion/react'
@@ -82,6 +83,21 @@ function WailsEventsBridge() {
   const { coreStatus } = useCoreState()
   const stopRef = useRef<(() => void) | null>(null)
   const logStreamToken = useAtomValue(logStreamTokenAtom)
+  const router = useRouter()
+
+  // Listen for deep link events from backend
+  useEffect(() => {
+    const unbind = Events.On('deep-link', (event) => {
+      const data = event?.data as { path?: string, params?: Record<string, string> } | undefined
+      if (data?.path && data.path !== '/') {
+        const search = data.params ?? {}
+        // Navigate to the deep link path with query parameters
+        router.navigate({ to: data.path, search } as any)
+      }
+      // If path is '/' or empty, just open the app without navigation
+    })
+    return () => unbind()
+  }, [router])
 
   // Listen for core:state events from backend
   useEffect(() => {

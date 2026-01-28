@@ -27,6 +27,9 @@ const (
 	// Log streaming events.
 	EventLogEntry = "logs:entry"
 
+	// Deep link events.
+	EventDeepLink = "deep-link"
+
 	// Error events.
 	EventError = "error"
 )
@@ -69,6 +72,12 @@ type ErrorEvent struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Details string `json:"details,omitempty"`
+}
+
+// DeepLinkEvent represents a deep link navigation event.
+type DeepLinkEvent struct {
+	Path   string            `json:"path"`
+	Params map[string]string `json:"params"`
 }
 
 // RuntimeStatusUpdatedEvent represents runtime status updates.
@@ -136,6 +145,17 @@ func emitError(app *application.App, code, message, details string) {
 		Details: details,
 	}
 	app.Event.Emit(EventError, event)
+}
+
+func emitDeepLink(app *application.App, link *DeepLink) {
+	if app == nil || link == nil {
+		return
+	}
+	event := DeepLinkEvent{
+		Path:   link.Path(),
+		Params: link.Params(),
+	}
+	app.Event.Emit(EventDeepLink, event)
 }
 
 func emitRuntimeStatusUpdated(app *application.App, snapshot domain.RuntimeStatusSnapshot) {

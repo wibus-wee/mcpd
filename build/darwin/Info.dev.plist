@@ -6,13 +6,13 @@
         <key>CFBundleName</key>
             <string>MCPD UI</string>
         <key>CFBundleExecutable</key>
-            <string>mcpd-ui</string>
+            <string>mcpdui</string>
         <key>CFBundleIdentifier</key>
-            <string>dev.wibus.mcpd-ui</string>
+            <string>dev.wibus.mcpdui</string>
         <key>CFBundleVersion</key>
             <string>0.1.0</string>
         <key>CFBundleGetInfoString</key>
-            <string>This is a comment</string>
+            <string>mcpd gui</string>
         <key>CFBundleShortVersionString</key>
             <string>0.1.0</string>
         <key>CFBundleIconFile</key>
@@ -22,7 +22,20 @@
         <key>NSHighResolutionCapable</key>
             <string>true</string>
         <key>NSHumanReadableCopyright</key>
-            <string>© 2025, wibus</string>
+            <string>© 2025, Wibus</string>
+        <key>CFBundleURLTypes</key>
+        <array>
+            <dict>
+                <key>CFBundleURLName</key>
+                <string>mcpd application protocol</string>
+                <key>CFBundleURLSchemes</key>
+                <array>
+                    <string>mcpdev</string>
+                </array>
+                <key>CFBundleTypeRole</key>
+                <string>Editor</string>
+            </dict>
+        </array>
         <key>NSAppTransportSecurity</key>
         <dict>
             <key>NSAllowsLocalNetworking</key>
