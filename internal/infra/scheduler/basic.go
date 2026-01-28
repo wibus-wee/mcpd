@@ -77,12 +77,15 @@ type poolState struct {
 	starting    int
 	startCount  int
 	stopCount   int
-	startCh     chan struct{}
+	startInFlight bool
 	startCancel context.CancelFunc
 	generation  uint64
 	instances   []*trackedInstance
 	draining    []*trackedInstance
 	sticky      map[string]*stickyBinding
+	rrIndex     int
+	waitCond    *sync.Cond
+	waiters     int
 }
 
 type stopCandidate struct {
@@ -139,19 +142,17 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			return nil, err
 		}
 
-		if state.startCh != nil {
-			waitCh := state.startCh
-			state.mu.Unlock()
-			select {
-			case <-waitCh:
-				continue
-			case <-ctx.Done():
-				return nil, ctx.Err()
+		if state.startInFlight {
+			if err := state.waitForSignalLocked(ctx); err != nil {
+				state.mu.Unlock()
+				return nil, err
 			}
+			state.mu.Unlock()
+			continue
 		}
 
 		startGen := state.generation
-		state.startCh = make(chan struct{})
+		state.startInFlight = true
 		startCtx, cancel := context.WithCancel(ctx)
 		state.startCancel = cancel
 		state.starting++
@@ -165,33 +166,25 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 		}
 
 		state.mu.Lock()
-		waitCh := state.startCh
-		state.startCh = nil
+		state.startInFlight = false
 		startCancel := state.startCancel
 		state.startCancel = nil
 		state.starting--
 		if err == nil {
 			state.startCount++
 		}
-		if err != nil {
-			state.mu.Unlock()
-			if waitCh != nil {
-				close(waitCh)
-			}
-			if startCancel != nil {
-				startCancel()
-			}
-			return nil, fmt.Errorf("start instance: %w", err)
-		}
 		if startCancel != nil {
 			startCancel()
 		}
+		if err != nil {
+			state.signalWaiterLocked()
+			state.mu.Unlock()
+			return nil, fmt.Errorf("start instance: %w", err)
+		}
 		tracked := &trackedInstance{instance: newInst}
 		if state.generation != startGen {
+			state.signalWaiterLocked()
 			state.mu.Unlock()
-			if waitCh != nil {
-				close(waitCh)
-			}
 			stopErr := s.stopInstance(context.Background(), state.spec, newInst, "start superseded")
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
@@ -200,10 +193,8 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 
 		// For singleton, check if we already have an instance
 		if state.spec.Strategy == domain.StrategySingleton && len(state.instances) > 0 {
+			state.signalWaiterLocked()
 			state.mu.Unlock()
-			if waitCh != nil {
-				close(waitCh)
-			}
 			stopErr := s.stopInstance(context.Background(), state.spec, newInst, "singleton already exists")
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
@@ -222,10 +213,8 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			state.bindStickyLocked(routingKey, tracked)
 		}
 		instance := state.markBusyLocked(tracked)
+		state.signalWaiterLocked()
 		state.mu.Unlock()
-		if waitCh != nil {
-			close(waitCh)
-		}
 		s.observePoolStats(state)
 
 		return instance, nil
@@ -278,6 +267,7 @@ func (s *BasicScheduler) Release(_ context.Context, instance *domain.Instance) e
 		switch instance.State() {
 		case domain.InstanceStateBusy:
 			instance.SetState(domain.InstanceStateReady)
+			state.signalWaiterLocked()
 		case domain.InstanceStateDraining:
 			triggerDrain = state.findDrainingByIDLocked(instance.ID())
 		case domain.InstanceStateReady,
@@ -360,6 +350,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 				continue
 			}
 			state.instances = append(state.instances, &trackedInstance{instance: inst})
+			state.signalWaiterLocked()
 			state.mu.Unlock()
 			s.observePoolStats(state)
 			continue
@@ -585,19 +576,45 @@ func (s *poolState) acquireReadyLocked(routingKey string) (*domain.Instance, err
 		return nil, domain.ErrNoReadyInstance
 
 	case domain.StrategyStateless, domain.StrategyPersistent:
-		// Stateless/Persistent: round-robin across available instances
+		// Stateless/Persistent: least-loaded with round-robin tie-breaker
 		if inst := s.findReadyInstanceLocked(); inst != nil {
 			return s.markBusyLocked(inst), nil
 		}
 		return nil, domain.ErrNoReadyInstance
 
 	default:
-		// Unknown strategy, treat as stateless
+		// Unknown strategy, treat as stateless with least-loaded selection
 		if inst := s.findReadyInstanceLocked(); inst != nil {
 			return s.markBusyLocked(inst), nil
 		}
 		return nil, domain.ErrNoReadyInstance
 	}
+}
+
+func (s *poolState) waitForSignalLocked(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if s.waitCond == nil {
+		s.waitCond = sync.NewCond(&s.mu)
+	}
+	s.waiters++
+	stop := context.AfterFunc(ctx, func() {
+		s.mu.Lock()
+		s.waitCond.Signal()
+		s.mu.Unlock()
+	})
+	s.waitCond.Wait()
+	stop()
+	s.waiters--
+	return ctx.Err()
+}
+
+func (s *poolState) signalWaiterLocked() {
+	if s.waitCond == nil || s.waiters == 0 {
+		return
+	}
+	s.waitCond.Signal()
 }
 
 func (s *poolState) lookupStickyLocked(routingKey string) *stickyBinding {
@@ -629,16 +646,41 @@ func (s *poolState) unbindStickyLocked(routingKey string) {
 }
 
 func (s *poolState) findReadyInstanceLocked() *trackedInstance {
-	for _, inst := range s.instances {
+	list := s.instances
+	if len(list) == 0 {
+		return nil
+	}
+	if s.rrIndex >= len(list) {
+		s.rrIndex = s.rrIndex % len(list)
+	}
+
+	bestIdx := -1
+	bestBusy := 0
+
+	start := s.rrIndex
+	for i := 0; i < len(list); i++ {
+		idx := (start + i) % len(list)
+		inst := list[idx]
 		if inst.instance.BusyCount() >= s.spec.MaxConcurrent {
 			continue
 		}
 		if !isRoutable(inst.instance.State()) {
 			continue
 		}
-		return inst
+		busy := inst.instance.BusyCount()
+		if bestIdx == -1 || busy < bestBusy {
+			bestIdx = idx
+			bestBusy = busy
+			if bestBusy == 0 {
+				break
+			}
+		}
 	}
-	return nil
+	if bestIdx == -1 {
+		return nil
+	}
+	s.rrIndex = (bestIdx + 1) % len(list)
+	return list[bestIdx]
 }
 
 func (s *poolState) markBusyLocked(inst *trackedInstance) *domain.Instance {
@@ -1037,8 +1079,12 @@ func (s *poolState) removeInstanceLocked(inst *trackedInstance) int {
 	}
 	if len(out) == 0 {
 		s.instances = nil
+		s.rrIndex = 0
 	} else {
 		s.instances = out
+		if s.rrIndex >= len(s.instances) {
+			s.rrIndex = 0
+		}
 	}
 
 	if s.sticky != nil {
