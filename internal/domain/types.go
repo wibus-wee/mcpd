@@ -10,7 +10,8 @@ import (
 type InstanceStrategy string
 
 const (
-	// StrategyStateless: requests are distributed across instances via round-robin.
+	// StrategyStateless: requests are distributed across instances via least-loaded selection
+	// with round-robin tie-breaking.
 	// Instances are reclaimed after idle timeout.
 	// Use for: HTTP APIs, stateless compute tasks.
 	StrategyStateless InstanceStrategy = "stateless"
@@ -21,7 +22,8 @@ const (
 	StrategyStateful InstanceStrategy = "stateful"
 
 	// StrategyPersistent: instances are never reclaimed regardless of idle state.
-	// No session binding. Requests are distributed via round-robin.
+	// No session binding. Requests are distributed via least-loaded selection with
+	// round-robin tie-breaking.
 	// Use for: database connection pools, long-lived services.
 	StrategyPersistent InstanceStrategy = "persistent"
 

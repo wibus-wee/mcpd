@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -89,6 +90,113 @@ func TestBasicScheduler_AcquireReadyDoesNotStart(t *testing.T) {
 	_, err = s.AcquireReady(context.Background(), "svc", "")
 	require.ErrorIs(t, err, domain.ErrNoReadyInstance)
 	require.Equal(t, 0, lc.counter)
+}
+
+func TestBasicScheduler_StatelessSelection(t *testing.T) {
+	t.Run("round_robin_cycle", func(t *testing.T) {
+		lc := &countingLifecycle{}
+		spec := domain.ServerSpec{
+			Name:            "svc",
+			Cmd:             []string{"./svc"},
+			MaxConcurrent:   2,
+			Strategy:        domain.StrategyStateless,
+			ProtocolVersion: domain.DefaultProtocolVersion,
+		}
+		s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+		require.NoError(t, err)
+		require.NoError(t, s.SetDesiredMinReady(context.Background(), "svc", 3))
+
+		state := s.getPool("svc", spec)
+		state.mu.Lock()
+		require.Len(t, state.instances, 3)
+		instA := state.instances[0].instance
+		instB := state.instances[1].instance
+		instC := state.instances[2].instance
+		state.mu.Unlock()
+
+		cases := []struct {
+			name string
+			want *domain.Instance
+		}{
+			{name: "first", want: instA},
+			{name: "second", want: instB},
+			{name: "third", want: instC},
+			{name: "wrap", want: instA},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				selected, err := s.AcquireReady(context.Background(), "svc", "")
+				require.NoError(t, err)
+				require.Equal(t, tc.want.ID(), selected.ID())
+				require.NoError(t, s.Release(context.Background(), selected))
+			})
+		}
+	})
+
+	t.Run("least_loaded_prefers_lower_busy", func(t *testing.T) {
+		lc := &countingLifecycle{}
+		spec := domain.ServerSpec{
+			Name:            "svc",
+			Cmd:             []string{"./svc"},
+			MaxConcurrent:   10,
+			Strategy:        domain.StrategyStateless,
+			ProtocolVersion: domain.DefaultProtocolVersion,
+		}
+		s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+		require.NoError(t, err)
+		require.NoError(t, s.SetDesiredMinReady(context.Background(), "svc", 3))
+
+		state := s.getPool("svc", spec)
+		state.mu.Lock()
+		require.Len(t, state.instances, 3)
+		instA := state.instances[0].instance
+		instB := state.instances[1].instance
+		instC := state.instances[2].instance
+
+		instA.SetBusyCount(2)
+		instA.SetState(domain.InstanceStateBusy)
+		instB.SetBusyCount(1)
+		instB.SetState(domain.InstanceStateBusy)
+		instC.SetBusyCount(0)
+		instC.SetState(domain.InstanceStateReady)
+		state.mu.Unlock()
+
+		selected, err := s.AcquireReady(context.Background(), "svc", "")
+		require.NoError(t, err)
+		require.Equal(t, instC.ID(), selected.ID())
+	})
+
+	t.Run("skip_unroutable_and_full", func(t *testing.T) {
+		lc := &countingLifecycle{}
+		spec := domain.ServerSpec{
+			Name:            "svc",
+			Cmd:             []string{"./svc"},
+			MaxConcurrent:   2,
+			Strategy:        domain.StrategyStateless,
+			ProtocolVersion: domain.DefaultProtocolVersion,
+		}
+		s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+		require.NoError(t, err)
+		require.NoError(t, s.SetDesiredMinReady(context.Background(), "svc", 3))
+
+		state := s.getPool("svc", spec)
+		state.mu.Lock()
+		require.Len(t, state.instances, 3)
+		instA := state.instances[0].instance
+		instB := state.instances[1].instance
+		instC := state.instances[2].instance
+
+		instA.SetState(domain.InstanceStateFailed)
+		instB.SetBusyCount(spec.MaxConcurrent)
+		instB.SetState(domain.InstanceStateBusy)
+		instC.SetBusyCount(0)
+		instC.SetState(domain.InstanceStateReady)
+		state.mu.Unlock()
+
+		selected, err := s.AcquireReady(context.Background(), "svc", "")
+		require.NoError(t, err)
+		require.Equal(t, instC.ID(), selected.ID())
+	})
 }
 
 func TestBasicScheduler_IdleReapRespectsMinReady(t *testing.T) {
@@ -565,6 +673,32 @@ func (f *fakeLifecycle) StartInstance(_ context.Context, specKey string, spec do
 }
 
 func (f *fakeLifecycle) StopInstance(_ context.Context, instance *domain.Instance, _ string) error {
+	if instance != nil {
+		instance.SetState(domain.InstanceStateStopped)
+	}
+	return nil
+}
+
+type countingLifecycle struct {
+	mu    sync.Mutex
+	count int
+}
+
+func (c *countingLifecycle) StartInstance(_ context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
+	c.mu.Lock()
+	c.count++
+	id := fmt.Sprintf("%s-%d", spec.Name, c.count)
+	c.mu.Unlock()
+	return domain.NewInstance(domain.InstanceOptions{
+		ID:         id,
+		Spec:       spec,
+		SpecKey:    specKey,
+		State:      domain.InstanceStateReady,
+		LastActive: time.Now(),
+	}), nil
+}
+
+func (c *countingLifecycle) StopInstance(_ context.Context, instance *domain.Instance, _ string) error {
 	if instance != nil {
 		instance.SetState(domain.InstanceStateStopped)
 	}
