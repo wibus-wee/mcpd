@@ -2,7 +2,10 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,4 +214,267 @@ func TestLogService_StopLogStream_NoActive(t *testing.T) {
 	assert.NotPanics(t, func() {
 		svc.StopLogStream()
 	})
+}
+
+func TestLogService_StartLogStream_RestartsExisting(t *testing.T) {
+	cp := &fakeControlPlane{}
+	svc := newLogServiceWithControlPlane(cp)
+
+	err := svc.StartLogStream(context.Background(), "info")
+	require.NoError(t, err)
+
+	err = svc.StartLogStream(context.Background(), "debug")
+	require.NoError(t, err)
+
+	streams := cp.streamContexts()
+	require.Len(t, streams, 2)
+
+	waitForContextDone(t, streams[0], time.Second)
+
+	select {
+	case <-streams[1].Done():
+		t.Fatalf("expected new stream context to remain active")
+	default:
+	}
+}
+
+func TestLogService_StopLogStream_CancelsSession(t *testing.T) {
+	cp := &fakeControlPlane{}
+	svc := newLogServiceWithControlPlane(cp)
+
+	err := svc.StartLogStream(context.Background(), "info")
+	require.NoError(t, err)
+
+	streams := cp.streamContexts()
+	require.Len(t, streams, 1)
+
+	svc.StopLogStream()
+
+	waitForContextDone(t, streams[0], time.Second)
+}
+
+func newLogServiceWithControlPlane(cp app.ControlPlaneAPI) *LogService {
+	manager := NewManager(nil, &app.App{}, "")
+	manager.mu.Lock()
+	manager.coreState = CoreStateRunning
+	manager.controlPlane = cp
+	manager.mu.Unlock()
+
+	deps := NewServiceDeps(&app.App{}, testLogger())
+	deps.setManager(manager)
+
+	return NewLogService(deps)
+}
+
+func waitForContextDone(t *testing.T, ctx context.Context, timeout time.Duration) {
+	t.Helper()
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(timeout):
+		t.Fatalf("expected context to be canceled within %s", timeout)
+	}
+}
+
+type fakeControlPlane struct {
+	mu      sync.Mutex
+	streams []context.Context
+}
+
+func (f *fakeControlPlane) streamContexts() []context.Context {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]context.Context, len(f.streams))
+	copy(out, f.streams)
+	return out
+}
+
+func (f *fakeControlPlane) recordStream(ctx context.Context) {
+	f.mu.Lock()
+	f.streams = append(f.streams, ctx)
+	f.mu.Unlock()
+}
+
+func (f *fakeControlPlane) Info(_ context.Context) (domain.ControlPlaneInfo, error) {
+	return domain.ControlPlaneInfo{}, nil
+}
+
+func (f *fakeControlPlane) RegisterClient(_ context.Context, client string, _ int, _ []string, _ string) (domain.ClientRegistration, error) {
+	return domain.ClientRegistration{Client: client}, nil
+}
+
+func (f *fakeControlPlane) UnregisterClient(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *fakeControlPlane) ListActiveClients(_ context.Context) ([]domain.ActiveClient, error) {
+	return nil, nil
+}
+
+func (f *fakeControlPlane) WatchActiveClients(_ context.Context) (<-chan domain.ActiveClientSnapshot, error) {
+	ch := make(chan domain.ActiveClientSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) ListTools(_ context.Context, _ string) (domain.ToolSnapshot, error) {
+	return domain.ToolSnapshot{}, nil
+}
+
+func (f *fakeControlPlane) ListToolCatalog(_ context.Context) (domain.ToolCatalogSnapshot, error) {
+	return domain.ToolCatalogSnapshot{}, nil
+}
+
+func (f *fakeControlPlane) WatchTools(_ context.Context, _ string) (<-chan domain.ToolSnapshot, error) {
+	ch := make(chan domain.ToolSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) CallTool(_ context.Context, _, _ string, _ json.RawMessage, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"content":[{"type":"text","text":"ok"}]}`), nil
+}
+
+func (f *fakeControlPlane) CallToolAll(_ context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
+	return f.CallTool(context.TODO(), "", name, args, routingKey)
+}
+
+func (f *fakeControlPlane) ListResources(_ context.Context, _ string, _ string) (domain.ResourcePage, error) {
+	return domain.ResourcePage{}, nil
+}
+
+func (f *fakeControlPlane) ListResourcesAll(_ context.Context, _ string) (domain.ResourcePage, error) {
+	return domain.ResourcePage{}, nil
+}
+
+func (f *fakeControlPlane) WatchResources(_ context.Context, _ string) (<-chan domain.ResourceSnapshot, error) {
+	ch := make(chan domain.ResourceSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) ReadResource(_ context.Context, _, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"contents":[{"uri":"file:///a","text":"ok"}]}`), nil
+}
+
+func (f *fakeControlPlane) ReadResourceAll(_ context.Context, uri string) (json.RawMessage, error) {
+	return f.ReadResource(context.TODO(), "", uri)
+}
+
+func (f *fakeControlPlane) ListPrompts(_ context.Context, _ string, _ string) (domain.PromptPage, error) {
+	return domain.PromptPage{}, nil
+}
+
+func (f *fakeControlPlane) ListPromptsAll(_ context.Context, _ string) (domain.PromptPage, error) {
+	return domain.PromptPage{}, nil
+}
+
+func (f *fakeControlPlane) WatchPrompts(_ context.Context, _ string) (<-chan domain.PromptSnapshot, error) {
+	ch := make(chan domain.PromptSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) GetPrompt(_ context.Context, _, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return json.RawMessage(`{"messages":[{"role":"user","content":{"type":"text","text":"ok"}}]}`), nil
+}
+
+func (f *fakeControlPlane) GetPromptAll(_ context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+	return f.GetPrompt(context.TODO(), "", name, args)
+}
+
+func (f *fakeControlPlane) StreamLogs(ctx context.Context, _ string, minLevel domain.LogLevel) (<-chan domain.LogEntry, error) {
+	return f.StreamLogsAllServers(ctx, minLevel)
+}
+
+func (f *fakeControlPlane) StreamLogsAllServers(ctx context.Context, _ domain.LogLevel) (<-chan domain.LogEntry, error) {
+	f.recordStream(ctx)
+	ch := make(chan domain.LogEntry)
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
+	return ch, nil
+}
+
+func (f *fakeControlPlane) GetCatalog() domain.Catalog {
+	return domain.Catalog{}
+}
+
+func (f *fakeControlPlane) GetPoolStatus(_ context.Context) ([]domain.PoolInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeControlPlane) GetServerInitStatus(_ context.Context) ([]domain.ServerInitStatus, error) {
+	return nil, nil
+}
+
+func (f *fakeControlPlane) GetBootstrapProgress(_ context.Context) (domain.BootstrapProgress, error) {
+	return domain.BootstrapProgress{State: domain.BootstrapCompleted}, nil
+}
+
+func (f *fakeControlPlane) WatchBootstrapProgress(_ context.Context) (<-chan domain.BootstrapProgress, error) {
+	ch := make(chan domain.BootstrapProgress)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) RetryServerInit(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *fakeControlPlane) WatchRuntimeStatus(_ context.Context, _ string) (<-chan domain.RuntimeStatusSnapshot, error) {
+	ch := make(chan domain.RuntimeStatusSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) WatchRuntimeStatusAllServers(_ context.Context) (<-chan domain.RuntimeStatusSnapshot, error) {
+	return f.WatchRuntimeStatus(context.TODO(), "")
+}
+
+func (f *fakeControlPlane) WatchServerInitStatus(_ context.Context, _ string) (<-chan domain.ServerInitStatusSnapshot, error) {
+	ch := make(chan domain.ServerInitStatusSnapshot)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeControlPlane) WatchServerInitStatusAllServers(_ context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
+	return f.WatchServerInitStatus(context.TODO(), "")
+}
+
+func (f *fakeControlPlane) AutomaticMCP(_ context.Context, _ string, _ domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
+	return domain.AutomaticMCPResult{}, nil
+}
+
+func (f *fakeControlPlane) AutomaticEval(_ context.Context, client string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
+	return f.CallTool(context.TODO(), client, params.ToolName, params.Arguments, params.RoutingKey)
+}
+
+func (f *fakeControlPlane) IsSubAgentEnabled() bool {
+	return false
+}
+
+func (f *fakeControlPlane) IsSubAgentEnabledForClient(_ string) bool {
+	return false
+}
+
+func (f *fakeControlPlane) CallToolTask(_ context.Context, _, _ string, _ json.RawMessage, _ string, _ domain.TaskCreateOptions) (domain.Task, error) {
+	return domain.Task{}, nil
+}
+
+func (f *fakeControlPlane) GetTask(_ context.Context, _, _ string) (domain.Task, error) {
+	return domain.Task{}, nil
+}
+
+func (f *fakeControlPlane) ListTasks(_ context.Context, _, _ string, _ int) (domain.TaskPage, error) {
+	return domain.TaskPage{}, nil
+}
+
+func (f *fakeControlPlane) GetTaskResult(_ context.Context, _, _ string) (domain.TaskResult, error) {
+	return domain.TaskResult{}, nil
+}
+
+func (f *fakeControlPlane) CancelTask(_ context.Context, _, _ string) (domain.Task, error) {
+	return domain.Task{}, nil
 }
