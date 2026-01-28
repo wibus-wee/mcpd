@@ -11,8 +11,8 @@ permissions:
 jobs:
   go-lint:
     name: Go Lint
-    uses: ./.github/workflows/linters/go-lint.yml
+    uses: ./.github/workflows/go-lint.yml
 
   web-lint:
     name: Web Lint
-    uses: ./.github/workflows/linters/web-lint.yml
+    uses: ./.github/workflows/web-lint.yml
