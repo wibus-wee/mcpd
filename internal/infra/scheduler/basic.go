@@ -650,9 +650,7 @@ func (s *poolState) findReadyInstanceLocked() *trackedInstance {
 	if len(list) == 0 {
 		return nil
 	}
-	if s.rrIndex >= len(list) {
-		s.rrIndex = s.rrIndex % len(list)
-	}
+	s.rrIndex %= len(list)
 
 	bestIdx := -1
 	bestBusy := 0
@@ -1082,9 +1080,7 @@ func (s *poolState) removeInstanceLocked(inst *trackedInstance) int {
 		s.rrIndex = 0
 	} else {
 		s.instances = out
-		if s.rrIndex >= len(s.instances) {
-			s.rrIndex = 0
-		}
+		s.rrIndex %= len(s.instances)
 	}
 
 	if s.sticky != nil {
