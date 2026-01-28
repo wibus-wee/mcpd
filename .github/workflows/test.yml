@@ -20,9 +20,9 @@ jobs:
           # - os: macos-latest
           #   goos: darwin
           #   goarch: amd64
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
+          # - os: macos-latest
+          #   goos: darwin
+          #   goarch: arm64
           # - os: windows-latest
           #   goos: windows
           #   goarch: amd64
