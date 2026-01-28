@@ -335,8 +335,8 @@ func (f *fakeControlPlane) CallTool(_ context.Context, _, _ string, _ json.RawMe
 	return json.RawMessage(`{"content":[{"type":"text","text":"ok"}]}`), nil
 }
 
-func (f *fakeControlPlane) CallToolAll(_ context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
-	return f.CallTool(context.TODO(), "", name, args, routingKey)
+func (f *fakeControlPlane) CallToolAll(ctx context.Context, name string, args json.RawMessage, routingKey string) (json.RawMessage, error) {
+	return f.CallTool(ctx, "", name, args, routingKey)
 }
 
 func (f *fakeControlPlane) ListResources(_ context.Context, _ string, _ string) (domain.ResourcePage, error) {
@@ -357,8 +357,8 @@ func (f *fakeControlPlane) ReadResource(_ context.Context, _, _ string) (json.Ra
 	return json.RawMessage(`{"contents":[{"uri":"file:///a","text":"ok"}]}`), nil
 }
 
-func (f *fakeControlPlane) ReadResourceAll(_ context.Context, uri string) (json.RawMessage, error) {
-	return f.ReadResource(context.TODO(), "", uri)
+func (f *fakeControlPlane) ReadResourceAll(ctx context.Context, uri string) (json.RawMessage, error) {
+	return f.ReadResource(ctx, "", uri)
 }
 
 func (f *fakeControlPlane) ListPrompts(_ context.Context, _ string, _ string) (domain.PromptPage, error) {
@@ -379,8 +379,8 @@ func (f *fakeControlPlane) GetPrompt(_ context.Context, _, _ string, _ json.RawM
 	return json.RawMessage(`{"messages":[{"role":"user","content":{"type":"text","text":"ok"}}]}`), nil
 }
 
-func (f *fakeControlPlane) GetPromptAll(_ context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
-	return f.GetPrompt(context.TODO(), "", name, args)
+func (f *fakeControlPlane) GetPromptAll(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+	return f.GetPrompt(ctx, "", name, args)
 }
 
 func (f *fakeControlPlane) StreamLogs(ctx context.Context, _ string, minLevel domain.LogLevel) (<-chan domain.LogEntry, error) {
@@ -429,8 +429,8 @@ func (f *fakeControlPlane) WatchRuntimeStatus(_ context.Context, _ string) (<-ch
 	return ch, nil
 }
 
-func (f *fakeControlPlane) WatchRuntimeStatusAllServers(_ context.Context) (<-chan domain.RuntimeStatusSnapshot, error) {
-	return f.WatchRuntimeStatus(context.TODO(), "")
+func (f *fakeControlPlane) WatchRuntimeStatusAllServers(ctx context.Context) (<-chan domain.RuntimeStatusSnapshot, error) {
+	return f.WatchRuntimeStatus(ctx, "")
 }
 
 func (f *fakeControlPlane) WatchServerInitStatus(_ context.Context, _ string) (<-chan domain.ServerInitStatusSnapshot, error) {
@@ -439,16 +439,16 @@ func (f *fakeControlPlane) WatchServerInitStatus(_ context.Context, _ string) (<
 	return ch, nil
 }
 
-func (f *fakeControlPlane) WatchServerInitStatusAllServers(_ context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
-	return f.WatchServerInitStatus(context.TODO(), "")
+func (f *fakeControlPlane) WatchServerInitStatusAllServers(ctx context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
+	return f.WatchServerInitStatus(ctx, "")
 }
 
 func (f *fakeControlPlane) AutomaticMCP(_ context.Context, _ string, _ domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
 	return domain.AutomaticMCPResult{}, nil
 }
 
-func (f *fakeControlPlane) AutomaticEval(_ context.Context, client string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
-	return f.CallTool(context.TODO(), client, params.ToolName, params.Arguments, params.RoutingKey)
+func (f *fakeControlPlane) AutomaticEval(ctx context.Context, client string, params domain.AutomaticEvalParams) (json.RawMessage, error) {
+	return f.CallTool(ctx, client, params.ToolName, params.Arguments, params.RoutingKey)
 }
 
 func (f *fakeControlPlane) IsSubAgentEnabled() bool {
