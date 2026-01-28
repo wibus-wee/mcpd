@@ -80,6 +80,7 @@ type poolState struct {
 	startInFlight bool
 	startCancel context.CancelFunc
 	generation  uint64
+	signalSeq  uint64
 	instances   []*trackedInstance
 	draining    []*trackedInstance
 	sticky      map[string]*stickyBinding
@@ -132,14 +133,14 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 	state := s.getPool(specKey, spec)
 	for {
 		state.mu.Lock()
-		inst, err := state.acquireReadyLocked(routingKey)
-		if err == nil {
+		inst, acquireErr := state.acquireReadyLocked(routingKey)
+		if acquireErr == nil {
 			state.mu.Unlock()
 			return inst, nil
 		}
-		if err == ErrStickyBusy {
+		if acquireErr == ErrStickyBusy {
 			state.mu.Unlock()
-			return nil, err
+			return nil, acquireErr
 		}
 
 		if state.startInFlight {
@@ -151,37 +152,64 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			continue
 		}
 
+		if state.spec.Strategy == domain.StrategySingleton && len(state.instances) > 0 {
+			if err := state.waitForSignalLocked(ctx); err != nil {
+				state.mu.Unlock()
+				return nil, err
+			}
+			state.mu.Unlock()
+			continue
+		}
+
 		startGen := state.generation
 		state.startInFlight = true
-		startCtx, cancel := context.WithCancel(ctx)
+		startCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		state.startCancel = cancel
 		state.starting++
 		state.mu.Unlock()
 
 		started := time.Now()
-		newInst, err := s.lifecycle.StartInstance(startCtx, specKey, state.spec)
-		s.observeInstanceStart(state.spec.Name, started, err)
-		if err == nil {
-			s.applyStartCause(ctx, newInst, started)
-		}
+		var (
+			newInst *domain.Instance
+			err     error
+		)
+		func() {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err = fmt.Errorf("start instance panic: %v", r)
+				}
+				state.mu.Lock()
+				state.startInFlight = false
+				startCancel := state.startCancel
+				state.startCancel = nil
+				state.starting--
+				if err == nil {
+					state.startCount++
+				}
+				if startCancel != nil {
+					startCancel()
+				}
+				state.mu.Unlock()
+				if r != nil {
+					panic(r)
+				}
+			}()
+			newInst, err = s.lifecycle.StartInstance(startCtx, specKey, state.spec)
+			s.observeInstanceStart(state.spec.Name, started, err)
+			if err == nil {
+				s.applyStartCause(ctx, newInst, started)
+			}
+		}()
 
-		state.mu.Lock()
-		state.startInFlight = false
-		startCancel := state.startCancel
-		state.startCancel = nil
-		state.starting--
-		if err == nil {
-			state.startCount++
-		}
-		if startCancel != nil {
-			startCancel()
-		}
 		if err != nil {
+			state.mu.Lock()
 			state.signalWaiterLocked()
 			state.mu.Unlock()
 			return nil, fmt.Errorf("start instance: %w", err)
 		}
 		tracked := &trackedInstance{instance: newInst}
+		state.mu.Lock()
 		if state.generation != startGen {
 			state.signalWaiterLocked()
 			state.mu.Unlock()
@@ -199,7 +227,6 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
 			// Try to acquire the existing singleton
-			state.mu.Lock()
 			inst, err := state.acquireReadyLocked(routingKey)
 			state.mu.Unlock()
 			if err == nil {
@@ -324,16 +351,33 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 		state.mu.Unlock()
 
 		started := time.Now()
-		inst, err := s.lifecycle.StartInstance(ctx, specKey, state.spec)
-		s.observeInstanceStart(state.spec.Name, started, err)
-		if err == nil {
-			s.applyStartCause(ctx, inst, started)
-		}
+		var (
+			inst *domain.Instance
+			err  error
+		)
+		func() {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err = fmt.Errorf("start instance panic: %v", r)
+				}
+				state.mu.Lock()
+				state.starting--
+				if err == nil {
+					state.startCount++
+				}
+				state.mu.Unlock()
+				if r != nil {
+					panic(r)
+				}
+			}()
+			inst, err = s.lifecycle.StartInstance(ctx, specKey, state.spec)
+			s.observeInstanceStart(state.spec.Name, started, err)
+			if err == nil {
+				s.applyStartCause(ctx, inst, started)
+			}
+		}()
 		state.mu.Lock()
-		state.starting--
-		if err == nil {
-			state.startCount++
-		}
 		if err == nil {
 			if state.generation != startGen {
 				state.mu.Unlock()
@@ -599,14 +643,20 @@ func (s *poolState) waitForSignalLocked(ctx context.Context) error {
 		s.waitCond = sync.NewCond(&s.mu)
 	}
 	s.waiters++
+	seq := s.signalSeq
 	stop := context.AfterFunc(ctx, func() {
 		s.mu.Lock()
-		s.waitCond.Signal()
+		s.signalSeq++
+		s.waitCond.Broadcast()
 		s.mu.Unlock()
 	})
-	s.waitCond.Wait()
-	stop()
-	s.waiters--
+	defer func() {
+		stop()
+		s.waiters--
+	}()
+	for seq == s.signalSeq && ctx.Err() == nil {
+		s.waitCond.Wait()
+	}
 	return ctx.Err()
 }
 
@@ -614,7 +664,8 @@ func (s *poolState) signalWaiterLocked() {
 	if s.waitCond == nil || s.waiters == 0 {
 		return
 	}
-	s.waitCond.Signal()
+	s.signalSeq++
+	s.waitCond.Broadcast()
 }
 
 func (s *poolState) lookupStickyLocked(routingKey string) *stickyBinding {

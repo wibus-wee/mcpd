@@ -657,6 +657,202 @@ func TestBasicScheduler_StartGateSingleflight(t *testing.T) {
 	require.Same(t, instances[0], instances[2])
 }
 
+func TestBasicScheduler_SingletonBusyWaitsInsteadOfStarting(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	lc := &blockingLifecycle{
+		started: started,
+		release: release,
+	}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+		Strategy:        domain.StrategySingleton,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+	require.NoError(t, err)
+
+	instACh := make(chan *domain.Instance, 1)
+	errACh := make(chan error, 1)
+	go func() {
+		inst, err := s.Acquire(context.Background(), "svc", "")
+		instACh <- inst
+		errACh <- err
+	}()
+
+	<-started
+	close(release)
+
+	require.NoError(t, <-errACh)
+	instA := <-instACh
+
+	ctxB, cancelB := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancelB()
+	instBCh := make(chan *domain.Instance, 1)
+	errBCh := make(chan error, 1)
+	go func() {
+		inst, err := s.Acquire(ctxB, "svc", "")
+		instBCh <- inst
+		errBCh <- err
+	}()
+
+	select {
+	case <-started:
+		t.Fatal("unexpected start while singleton is busy")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	require.NoError(t, s.Release(context.Background(), instA))
+	require.NoError(t, <-errBCh)
+	instB := <-instBCh
+	require.Same(t, instA, instB)
+	require.Equal(t, 1, lc.starts())
+}
+
+func TestBasicScheduler_WaitersWakeAfterStart(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	lc := &blockingLifecycle{
+		started: started,
+		release: release,
+	}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   3,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+	require.NoError(t, err)
+
+	results := make(chan *domain.Instance, 3)
+	errorsCh := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		go func() {
+			inst, err := s.Acquire(context.Background(), "svc", "")
+			results <- inst
+			errorsCh <- err
+		}()
+	}
+
+	<-started
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, <-errorsCh)
+		require.NotNil(t, <-results)
+	}
+	require.Equal(t, 1, lc.starts())
+}
+
+func TestBasicScheduler_WaitersWakeAfterStartFailure(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	lc := &failOnceBlockingLifecycle{
+		started: started,
+		release: release,
+	}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   3,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	results := make(chan *domain.Instance, 3)
+	errorsCh := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		go func() {
+			inst, err := s.Acquire(ctx, "svc", "")
+			results <- inst
+			errorsCh <- err
+		}()
+	}
+
+	<-started
+	close(release)
+
+	for i := 0; i < 3; i++ {
+		err := <-errorsCh
+		require.NoError(t, err)
+		require.NotNil(t, <-results)
+	}
+	require.Equal(t, 2, lc.starts())
+}
+
+func TestBasicScheduler_Acquire_DetachesStartFromCallerCancel(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	lc := &ctxBlockingLifecycle{
+		started: started,
+		release: release,
+	}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan *domain.Instance, 1)
+	errorsCh := make(chan error, 1)
+	go func() {
+		inst, err := s.Acquire(ctx, "svc", "")
+		results <- inst
+		errorsCh <- err
+	}()
+
+	<-started
+	cancel()
+
+	select {
+	case <-lc.startCtx.Done():
+		t.Fatal("start context should not be canceled when caller context is canceled")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	require.NoError(t, <-errorsCh)
+	require.NotNil(t, <-results)
+}
+
+func TestBasicScheduler_SetDesiredMinReady_PanicDoesNotLeakStarting(t *testing.T) {
+	lc := &panicLifecycle{}
+	spec := domain.ServerSpec{
+		Name:            "svc",
+		Cmd:             []string{"./svc"},
+		MaxConcurrent:   1,
+		ProtocolVersion: domain.DefaultProtocolVersion,
+	}
+	s, err := NewBasicScheduler(lc, map[string]domain.ServerSpec{"svc": spec}, Options{})
+	require.NoError(t, err)
+
+	func() {
+		defer func() {
+			require.NotNil(t, recover())
+		}()
+		_ = s.SetDesiredMinReady(context.Background(), "svc", 1)
+	}()
+
+	require.NoError(t, s.SetDesiredMinReady(context.Background(), "svc", 1))
+	require.Equal(t, 2, lc.starts())
+
+	inst, err := s.AcquireReady(context.Background(), "svc", "")
+	require.NoError(t, err)
+	require.NotNil(t, inst)
+}
+
 type fakeLifecycle struct {
 	counter int
 }
@@ -761,6 +957,117 @@ func (b *blockingLifecycle) stops() int {
 	b.stopMu.Lock()
 	defer b.stopMu.Unlock()
 	return b.stopped
+}
+
+type ctxBlockingLifecycle struct {
+	started  chan struct{}
+	release  chan struct{}
+	startCtx context.Context
+}
+
+func (c *ctxBlockingLifecycle) StartInstance(ctx context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
+	c.startCtx = ctx
+	if c.started != nil {
+		c.started <- struct{}{}
+	}
+	if c.release != nil {
+		<-c.release
+	}
+	return domain.NewInstance(domain.InstanceOptions{
+		ID:         spec.Name + "-inst",
+		Spec:       spec,
+		SpecKey:    specKey,
+		State:      domain.InstanceStateReady,
+		LastActive: time.Now(),
+	}), nil
+}
+
+func (c *ctxBlockingLifecycle) StopInstance(_ context.Context, instance *domain.Instance, _ string) error {
+	if instance != nil {
+		instance.SetState(domain.InstanceStateStopped)
+	}
+	return nil
+}
+
+type failOnceBlockingLifecycle struct {
+	mu      sync.Mutex
+	count   int
+	started chan struct{}
+	release chan struct{}
+}
+
+func (f *failOnceBlockingLifecycle) StartInstance(_ context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
+	f.mu.Lock()
+	f.count++
+	count := f.count
+	f.mu.Unlock()
+
+	if f.started != nil {
+		f.started <- struct{}{}
+	}
+	if f.release != nil {
+		<-f.release
+	}
+
+	if count == 1 {
+		return nil, errors.New("start failed")
+	}
+
+	return domain.NewInstance(domain.InstanceOptions{
+		ID:         spec.Name + "-inst",
+		Spec:       spec,
+		SpecKey:    specKey,
+		State:      domain.InstanceStateReady,
+		LastActive: time.Now(),
+	}), nil
+}
+
+func (f *failOnceBlockingLifecycle) StopInstance(_ context.Context, instance *domain.Instance, _ string) error {
+	if instance != nil {
+		instance.SetState(domain.InstanceStateStopped)
+	}
+	return nil
+}
+
+func (f *failOnceBlockingLifecycle) starts() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.count
+}
+
+type panicLifecycle struct {
+	mu    sync.Mutex
+	count int
+}
+
+func (p *panicLifecycle) StartInstance(_ context.Context, specKey string, spec domain.ServerSpec) (*domain.Instance, error) {
+	p.mu.Lock()
+	p.count++
+	count := p.count
+	p.mu.Unlock()
+	if count == 1 {
+		panic("boom")
+	}
+	return domain.NewInstance(domain.InstanceOptions{
+		ID:         spec.Name + "-inst",
+		Spec:       spec,
+		SpecKey:    specKey,
+		State:      domain.InstanceStateReady,
+		LastActive: time.Now(),
+	}), nil
+}
+
+func (p *panicLifecycle) StopInstance(_ context.Context, instance *domain.Instance, _ string) error {
+	if instance != nil {
+		instance.SetState(domain.InstanceStateStopped)
+	}
+	return nil
+}
+
+func (p *panicLifecycle) starts() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.count
 }
 
 type trackingLifecycle struct {
