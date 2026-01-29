@@ -48,12 +48,6 @@ type Manager struct {
 	coreStarted    time.Time
 	coreError      error
 	watchersCancel context.CancelFunc
-
-	// Service references (will be set in Phase 3)
-	// toolService     *ToolService
-	// resourceService *ResourceService
-	// promptService   *PromptService
-	// logService      *LogService
 }
 
 // NewManager creates a new Manager instance.
@@ -67,17 +61,6 @@ func NewManager(wails *application.App, coreApp *app.App, configPath string) *Ma
 	}
 }
 
-// SetServices registers service references with the manager
-// This will be implemented in Phase 3 when services are created
-// func (m *Manager) SetServices(tool *ToolService, resource *ResourceService, prompt *PromptService, log *LogService) {
-// 	m.mu.Lock()
-// 	defer m.mu.Unlock()
-// 	m.toolService = tool
-// 	m.resourceService = resource
-// 	m.promptService = prompt
-// 	m.logService = log
-// }
-
 // Start starts the Core and auto-starts Watch subscriptions.
 func (m *Manager) Start(ctx context.Context) error {
 	return m.startWithConfig(ctx, m.configPath, m.lastObservability)
@@ -90,6 +73,14 @@ func (m *Manager) StartWithOptions(ctx context.Context, opts StartCoreOptions) e
 }
 
 func (m *Manager) startWithConfig(ctx context.Context, configPath string, observability *app.ObservabilityOptions) error {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return NewError(ErrCodeInvalidConfig, "Config path is required")
+	}
+	if err := ensureConfigFile(configPath); err != nil {
+		return NewErrorWithDetails(ErrCodeInvalidConfig, "Failed to prepare config file", err.Error())
+	}
+
 	m.mu.Lock()
 	if m.coreState == CoreStateRunning || m.coreState == CoreStateStarting {
 		m.mu.Unlock()
@@ -135,7 +126,7 @@ func resolveStartOptions(opts StartCoreOptions, fallback string) (string, *app.O
 		case fallback != "":
 			configPath = fallback
 		default:
-			configPath = "." // TODO: dynamic resolve with user data.
+			configPath = defaultConfigPath()
 		}
 	}
 	// if configPath == "" {
@@ -318,45 +309,6 @@ func (m *Manager) startWatchers() {
 			emitActiveClientsUpdated(wails, snapshot)
 		}
 	}()
-
-	// Placeholder for other watchers (tools, resources, prompts, logs) that will be added in Phase 3
-	// ctx := context.Background()
-
-	// // Start tool watcher
-	// if m.toolService != nil {
-	// 	go func() {
-	// 		if err := m.toolService.WatchTools(ctx); err != nil {
-	// 			emitError(m.wails, ErrCodeInternal, "Failed to start tool watcher", err.Error())
-	// 		}
-	// 	}()
-	// }
-
-	// // Start resource watcher
-	// if m.resourceService != nil {
-	// 	go func() {
-	// 		if err := m.resourceService.WatchResources(ctx); err != nil {
-	// 			emitError(m.wails, ErrCodeInternal, "Failed to start resource watcher", err.Error())
-	// 		}
-	// 	}()
-	// }
-
-	// // Start prompt watcher
-	// if m.promptService != nil {
-	// 	go func() {
-	// 		if err := m.promptService.WatchPrompts(ctx); err != nil {
-	// 			emitError(m.wails, ErrCodeInternal, "Failed to start prompt watcher", err.Error())
-	// 		}
-	// 	}()
-	// }
-
-	// // Start log streamer
-	// if m.logService != nil {
-	// 	go func() {
-	// 		if err := m.logService.StreamLogs(ctx); err != nil {
-	// 			emitError(m.wails, ErrCodeInternal, "Failed to start log streamer", err.Error())
-	// 		}
-	// 	}()
-	// }
 }
 
 // Stop stops the Core gracefully.

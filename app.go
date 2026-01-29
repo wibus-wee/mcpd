@@ -23,7 +23,10 @@ func main() {
 
 	// 2. 创建核心应用和 UI Manager
 	coreApp := app.NewWithBroadcaster(logger, logBroadcaster)
-	configPath := "runtime.yaml" // Default config file for UI boot; override via flags or settings.
+	configPath := ui.ResolveDefaultConfigPath()
+	if err := ui.EnsureConfigFile(configPath); err != nil {
+		logger.Warn("failed to prepare default config file", zap.Error(err), zap.String("config", configPath))
+	}
 
 	uiLogger := logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceUI))
 	serviceRegistry := ui.NewServiceRegistry(coreApp, uiLogger)
