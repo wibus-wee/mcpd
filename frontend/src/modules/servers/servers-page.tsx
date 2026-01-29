@@ -1,30 +1,30 @@
 // Input: Hooks, child components, UI primitives
-// Output: ServersPage component - DataGrid layout with detail sheet
+// Output: ServersPage component - Master-Detail layout with resizable panels
 // Position: Main page for servers module
 
-import type { ServerDetail, ServerSummary } from '@bindings/mcpd/internal/ui'
+import type { ServerDetail, ServerRuntimeStatus } from '@bindings/mcpd/internal/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { useSetAtom } from 'jotai'
 import { PlusIcon, SearchIcon } from 'lucide-react'
 import { m } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { RefreshButton } from '@/components/custom/refresh-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useResizable } from '@/hooks/use-resizable'
 import { Spring } from '@/lib/spring'
+import { cn } from '@/lib/utils'
 import { ImportMcpServersSheet } from '@/modules/servers/components/import-mcp-servers-sheet'
 
 import { selectedServerAtom } from './atoms'
-import { ServerDetailSheet } from './components/server-detail-sheet'
+import { ServerDetailPanel } from './components/server-detail-panel'
 import { ServerEditSheet } from './components/server-edit-sheet'
-import { ServersDataTable } from './components/servers-data-table'
+import { ServersMasterList } from './components/servers-master-list'
 import type { ServerTab } from './constants'
-import { useConfigMode, useFilteredServers, useServer, useServers } from './hooks'
+import { useConfigMode, useFilteredServers, useRuntimeStatus, useServer, useServers, useToolsByServer } from './hooks'
 
 interface ServersPageProps {
   initialTab?: ServerTab
@@ -35,24 +35,69 @@ export function ServersPage({ initialTab = 'overview', initialServer }: ServersP
   const navigate = useNavigate()
   const { data: servers, isLoading, mutate } = useServers()
   const { data: configMode } = useConfigMode()
-  const { data: selectedServer } = useServer(initialServer || null)
+  const { data: selectedServer, isLoading: isServerLoading } = useServer(initialServer || null)
+  const { data: runtimeStatus } = useRuntimeStatus()
+  const { serverMap } = useToolsByServer()
   const setSelectedServer = useSetAtom(selectedServerAtom)
 
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<ServerDetail | null>(null)
-  const [detailSheetOpen, setDetailSheetOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentTab, setCurrentTab] = useState<ServerTab>(initialTab)
+
+  const { size: masterWidth, resizeHandleProps, isDragging } = useResizable({
+    defaultSize: 400,
+    minSize: 280,
+    maxSize: 600,
+    storageKey: 'servers-master-width',
+    direction: 'horizontal',
+    handle: 'right',
+  })
 
   const isWritable = configMode?.isWritable ?? false
   const serverCount = servers?.length ?? 0
 
   const filteredServers = useFilteredServers(servers ?? [], searchQuery)
 
+  // Build runtime status map
+  const runtimeStatusMap = useMemo(() => {
+    const map = new Map<string, ServerRuntimeStatus>()
+    if (runtimeStatus) {
+      runtimeStatus.forEach((status) => {
+        map.set(status.specKey, status)
+      })
+    }
+    return map
+  }, [runtimeStatus])
+
+  // Build tool count map
+  const toolCountMap = useMemo(() => {
+    const map = new Map<string, number>()
+    serverMap.forEach((group, specKey) => {
+      map.set(specKey, group.tools?.length ?? 0)
+    })
+    return map
+  }, [serverMap])
+
+  const currentToolCount = selectedServer
+    ? toolCountMap.get(selectedServer.specKey) ?? 0
+    : 0
+
   // Update selectedServerAtom when selectedServer changes
   useEffect(() => {
     setSelectedServer(selectedServer || null)
   }, [selectedServer, setSelectedServer])
+
+  // Sync tab with URL
+  useEffect(() => {
+    setCurrentTab(initialTab)
+  }, [initialTab])
+
+  // Sync tab with URL
+  useEffect(() => {
+    setCurrentTab(initialTab)
+  }, [initialTab])
 
   const handleAddServer = () => {
     setEditingServer(null)
@@ -63,7 +108,6 @@ export function ServersPage({ initialTab = 'overview', initialServer }: ServersP
     if (selectedServer) {
       setEditingServer(selectedServer as ServerDetail)
       setEditSheetOpen(true)
-      setDetailSheetOpen(false)
     }
   }
 
@@ -77,24 +121,33 @@ export function ServersPage({ initialTab = 'overview', initialServer }: ServersP
     }
   }
 
-  const handleRowClick = (server: ServerSummary) => {
+  const handleSelectServer = (name: string) => {
     navigate({
       to: '/servers',
-      search: { tab: initialTab, server: server.name },
+      search: { tab: currentTab, server: name },
     })
-    setDetailSheetOpen(true)
   }
 
-  const handleDetailSheetClose = () => {
-    setDetailSheetOpen(false)
+  const handleSelectServerTab = (name: string, tab: ServerTab) => {
+    navigate({
+      to: '/servers',
+      search: { tab, server: name },
+    })
+  }
+
+  const handleTabChange = (tab: ServerTab) => {
+    setCurrentTab(tab)
+    navigate({
+      to: '/servers',
+      search: { tab, server: initialServer },
+    })
   }
 
   const handleDeleted = () => {
     navigate({
       to: '/servers',
-      search: { tab: initialTab, server: undefined },
+      search: { tab: currentTab, server: undefined },
     })
-    setDetailSheetOpen(false)
   }
 
   return (
@@ -163,36 +216,41 @@ export function ServersPage({ initialTab = 'overview', initialServer }: ServersP
 
       <Separator />
 
-      {/* Table */}
-      <ScrollArea className="flex-1">
-        <div>
-          {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-          ) : (
-            <ServersDataTable
-              servers={filteredServers ?? []}
-              onRowClick={handleRowClick}
-              selectedServerName={initialServer || null}
-              canEdit={isWritable}
-              onDeleted={handleDeleted}
-            />
-          )}
+      {/* Master-Detail Layout */}
+      <div className={cn('flex flex-1 min-h-0', isDragging && 'select-none')}>
+        {/* Master Panel (Left) */}
+        <div className="relative" style={{ width: `${masterWidth}px` }}>
+          <ServersMasterList
+            servers={filteredServers ?? []}
+            selectedServer={initialServer || null}
+            onSelectServer={handleSelectServer}
+            onSelectServerTab={handleSelectServerTab}
+            isLoading={isLoading}
+            runtimeStatusMap={runtimeStatusMap}
+            toolCountMap={toolCountMap}
+          />
+          <div
+            {...resizeHandleProps}
+            className={cn(
+              'border-primary/10 hover:border-primary/20 active:border-primary/30 border h-full absolute top-0 right-0 cursor-col-resize z-10',
+              isDragging && 'bg-primary/50',
+            )}
+          />
         </div>
-      </ScrollArea>
 
-      {/* Detail Sheet */}
-      <ServerDetailSheet
-        open={detailSheetOpen}
-        onOpenChange={handleDetailSheetClose}
-        onDeleted={handleDeleted}
-        onEdit={handleEditServer}
-        initialTab={initialTab}
-      />
+        {/* Detail Panel (Right) */}
+        <div className="flex-1 min-w-0">
+          <ServerDetailPanel
+            server={selectedServer || null}
+            isLoading={isServerLoading}
+            tab={currentTab}
+            toolCount={currentToolCount}
+            onTabChange={handleTabChange}
+            onEdit={handleEditServer}
+            onDeleted={handleDeleted}
+          />
+        </div>
+      </div>
 
       {/* Edit Sheet */}
       <ServerEditSheet

@@ -14,6 +14,7 @@ import {
 import {
   ArrowUpDownIcon,
   MoreHorizontalIcon,
+  PencilIcon,
   PowerIcon,
   ServerIcon,
   Trash2Icon,
@@ -57,8 +58,9 @@ import { toastManager } from '@/components/ui/toast'
 import { useActiveClients } from '@/hooks/use-active-clients'
 import { formatDuration, getElapsedMs } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { ServerEditSheet } from '@/modules/servers/components/server-edit-sheet'
 import { ServerRuntimeIndicator } from '@/modules/servers/components/server-runtime-status'
-import { useRuntimeStatus, useServerOperation, useServers, useToolsByServer } from '@/modules/servers/hooks'
+import { useRuntimeStatus, useServer, useServerOperation, useServers, useToolsByServer } from '@/modules/servers/hooks'
 import type { ServerRuntimeState } from '@/modules/shared/server-status'
 import { ACTIVE_INSTANCE_STATES, hasActiveInstance } from '@/modules/shared/server-status'
 
@@ -154,6 +156,8 @@ interface ServerActionsCellProps {
 function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProps) {
   const { mutate: mutateServers } = useServers()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const { data: serverDetail, mutate: mutateServer } = useServer(editOpen ? server.name : null)
 
   const { isWorking, toggleDisabled, deleteServer } = useServerOperation(
     canEdit,
@@ -195,6 +199,15 @@ function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProp
           <MoreHorizontalIcon className="size-4" />
         </MenuTrigger>
         <MenuPopup align="end">
+          <MenuItem
+            onClick={(event) => {
+              event.stopPropagation()
+              setEditOpen(true)
+            }}
+          >
+            <PencilIcon className="size-4" />
+            Edit configuration
+          </MenuItem>
           <MenuItem
             variant="destructive"
             onClick={(event) => {
@@ -246,6 +259,16 @@ function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ServerEditSheet
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        server={serverDetail}
+        onSaved={() => {
+          void mutateServers()
+          void mutateServer()
+        }}
+      />
     </div>
   )
 }

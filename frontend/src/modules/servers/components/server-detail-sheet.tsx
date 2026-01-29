@@ -114,6 +114,7 @@ export function ServerDetailSheet({
           <ScrollArea className="flex-1">
             <TabsContent value="overview" className="m-0 p-0">
               <ServerOverviewPanel
+                server={selectedServer}
                 className="p-6 pt-2"
               />
             </TabsContent>

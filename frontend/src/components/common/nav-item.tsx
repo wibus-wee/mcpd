@@ -32,10 +32,10 @@ export function NavItem({ item, index, variant, fuzzy = true }: NavItemProps) {
 
   if (variant === 'sidebar') {
     return (
-      <m.div
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={Spring.smooth(0.3, index * 0.05)}
+      <div
+      // initial={{ opacity: 0, x: -10 }}
+      // animate={{ opacity: 1, x: 0 }}
+      // transition={Spring.smooth(0.3, index * 0.05)}
       >
         <SidebarMenuButton
           render={props => (
@@ -54,7 +54,7 @@ export function NavItem({ item, index, variant, fuzzy = true }: NavItemProps) {
           />
           <span>{item.label}</span>
         </SidebarMenuButton>
-      </m.div>
+      </div>
     )
   }
 

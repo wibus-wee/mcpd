@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useResizable } from '@/hooks/use-resizable'
 import { Spring } from '@/lib/spring'
 import { getToolDisplayName } from '@/lib/tool-names'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,15 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
   const { serverMap, isLoading } = useToolsByServer()
   const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const { size: sidebarWidth, resizeHandleProps, isDragging } = useResizable({
+    defaultSize: 320,
+    minSize: 240,
+    maxSize: 500,
+    storageKey: 'server-tools-sidebar-width',
+    direction: 'horizontal',
+    handle: 'right',
+  })
 
   // Find server by serverName (not by specKey which is the map key)
   let server = null
@@ -65,11 +75,12 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
   if (isLoading) {
     return (
       <div className="flex h-full">
-        <div className="w-64 shrink-0 border-r p-3 space-y-2">
+        <div className="border-r p-3 space-y-2 relative" style={{ width: `${sidebarWidth}px` }}>
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
+          <div {...resizeHandleProps} />
         </div>
         <div className="flex-1 p-6">
           <Skeleton className="h-8 w-48 mb-4" />
@@ -91,8 +102,8 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
   }
 
   return (
-    <div className="flex h-full">
-      <div className="w-50 shrink-0 border-r flex flex-col">
+    <div className={cn('flex h-full', isDragging && 'select-none')}>
+      <div className="border-r flex flex-col relative" style={{ width: `${sidebarWidth}px` }}>
         <div className="p-3 border-b">
           <div className="relative">
             <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
@@ -162,6 +173,7 @@ export function ServerToolsPanel({ serverName }: ServerToolsPanelProps) {
             {filteredTools.length} of {tools.length} tools
           </Badge>
         </div>
+        <div {...resizeHandleProps} />
       </div>
       <div className="flex-1 min-w-0">
         <ToolDetailPanel tool={selectedTool} serverName={serverName} />
