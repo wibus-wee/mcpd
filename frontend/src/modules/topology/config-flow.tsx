@@ -13,7 +13,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { Share2Icon } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveClients } from '@/hooks/use-active-clients'
@@ -22,7 +22,7 @@ import { useRuntimeStatus, useServerDetails, useServers } from '../servers/hooks
 import { FlowEmpty, FlowSkeleton } from './components.tsx'
 import { buildTopology } from './layout'
 import { nodeTypes } from './nodes'
-import type { FlowNode } from './types'
+import type { FlowNode, LayoutResult } from './types'
 
 const ConfigFlowInner = ({
   nodes,
@@ -96,15 +96,25 @@ export const ConfigFlow = () => {
     = useServerDetails(servers)
   const { data: runtimeStatus, isLoading: runtimeStatusLoading } = useRuntimeStatus()
 
-  const isLoading
-    = serversLoading || detailsLoading || activeClientsLoading || runtimeStatusLoading
-  const { nodes, edges, tagCount, serverCount, clientCount, instanceCount }
-    = buildTopology(
+  const [layout, setLayout] = useState<LayoutResult | null>(null)
+
+  useEffect(() => {
+    if (serversLoading || detailsLoading || activeClientsLoading || runtimeStatusLoading) {
+      return
+    }
+
+    buildTopology(
       servers ?? [],
       serverDetails ?? [],
       activeClients ?? [],
       runtimeStatus ?? [],
-    )
+    ).then(setLayout)
+  }, [servers, serverDetails, activeClients, runtimeStatus, serversLoading, detailsLoading, activeClientsLoading, runtimeStatusLoading])
+
+  const isLoading
+    = serversLoading || detailsLoading || activeClientsLoading || runtimeStatusLoading || !layout
+
+  const { nodes = [], edges = [], tagCount = 0, serverCount = 0, clientCount = 0, instanceCount = 0 } = layout ?? {}
 
   if (isLoading) {
     return (

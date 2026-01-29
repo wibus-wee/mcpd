@@ -23,6 +23,7 @@
     "@wailsio/runtime": "3.0.0-alpha.77",
     "@xyflow/react": "^12.10.0",
     "class-variance-authority": "^0.7.1",
+    "elkjs": "^0.11.0",
     "es-toolkit": "^1.44.0",
     "jotai": "^2.16.1",
     "lucide-react": "^0.545.0",

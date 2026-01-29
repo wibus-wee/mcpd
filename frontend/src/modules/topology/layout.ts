@@ -1,5 +1,5 @@
-// Input: Server/client data from hooks, binding types
-// Output: buildTopology function and layoutConfig for graph positioning
+// Input: Server/client data from hooks, binding types, elkjs for auto-layout
+// Output: buildTopology function using elkjs for hierarchical graph positioning
 // Position: Layout computation layer for topology visualization
 
 import type {
@@ -10,21 +10,29 @@ import type {
 } from '@bindings/mcpd/internal/ui'
 import type { Edge } from '@xyflow/react'
 import { MarkerType } from '@xyflow/react'
+import ELK from 'elkjs'
 
 import type { FlowNode, LayoutResult } from './types'
 
-export const layoutConfig = {
-  columns: {
-    client: 0,
-    tag: 260,
-    server: 520,
-    instance: 780,
-  },
-  nodeGap: 96,
-  tagGap: 140,
-  serverGap: 96,
-  instanceGap: 60,
+// Node dimensions for elk layout calculation
+const nodeDimensions = {
+  client: { width: 220, height: 100 },
+  tag: { width: 200, height: 90 },
+  server: { width: 220, height: 110 },
+  instance: { width: 160, height: 70 },
 }
+
+// ELK layout options
+const elkOptions = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'RIGHT',
+  'elk.spacing.nodeNode': '40',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '100',
+  'elk.spacing.edgeNode': '20',
+  'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+}
+
+const elk = new ELK()
 
 type ServerEntry = {
   specKey: string
@@ -38,12 +46,12 @@ const normalizeTags = (tags: string[] | undefined) => {
   return tags
 }
 
-export const buildTopology = (
+export const buildTopology = async (
   servers: ServerSummary[],
   serverDetails: ServerDetail[],
   activeClients: ActiveClient[],
   runtimeStatus: ServerRuntimeStatus[],
-): LayoutResult => {
+): Promise<LayoutResult> => {
   const serverEntries = new Map<string, ServerEntry>()
   const serverNameIndex = new Map<string, ServerEntry>()
 
@@ -93,6 +101,7 @@ export const buildTopology = (
   })
 
   const allTags = Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+
   const resolveClientTags = (client: ActiveClient) => {
     const serverName = client.server?.trim()
     if (serverName) {
@@ -113,88 +122,67 @@ export const buildTopology = (
     }
   }
 
-  const nodes: FlowNode[] = []
-  const edges: Edge[] = []
-  const tagPositions = new Map<string, number>()
+  // Build ELK graph structure
+  const elkNodes: any[] = []
+  const elkEdges: any[] = []
+  const nodeDataMap = new Map<string, FlowNode['data'] & { type: FlowNode['type'] }>()
+  const edgeList: Edge[] = []
 
-  let tagCursor = 0
+  // Add tag nodes
   allTags.forEach((tag) => {
-    const y = tagCursor
-    tagPositions.set(tag, y)
-    tagCursor += layoutConfig.tagGap
-
     const serverCount = Array.from(serverEntries.values()).filter(entry =>
       entry.tags.includes(tag),
     ).length
 
     const clientCount = activeClients.filter((client) => {
       const resolved = resolveClientTags(client)
-      if (resolved.mode !== 'tag') {
-        return false
-      }
+      if (resolved.mode !== 'tag') return false
       return resolved.tags.includes(tag)
     }).length
 
-    nodes.push({
-      id: `tag:${tag}`,
+    const nodeId = `tag:${tag}`
+    elkNodes.push({
+      id: nodeId,
+      width: nodeDimensions.tag.width,
+      height: nodeDimensions.tag.height,
+    })
+    nodeDataMap.set(nodeId, {
       type: 'tag',
-      position: {
-        x: layoutConfig.columns.tag,
-        y,
-      },
-      data: {
-        name: tag,
-        serverCount,
-        clientCount,
-      },
+      name: tag,
+      serverCount,
+      clientCount,
     })
   })
 
-  const clientEntries = activeClients.map((client) => {
+  // Add client nodes and edges
+  activeClients.forEach((client) => {
     const resolved = resolveClientTags(client)
-    const { tags } = resolved
-    const tagYs = tags
-      .map(tag => tagPositions.get(tag))
-      .filter((value): value is number => value !== undefined)
-    const desiredY = tagYs.length > 0
-      ? tagYs.reduce((sum, value) => sum + value, 0) / tagYs.length
-      : 0
-    return {
-      client,
-      tags,
-      desiredY,
-      mode: resolved.mode,
-      serverSpecKey: resolved.serverSpecKey,
-    }
-  })
-
-  clientEntries.sort((a, b) => a.desiredY - b.desiredY)
-
-  let lastClientY = -Infinity
-  clientEntries.forEach(({ client, tags, desiredY, mode, serverSpecKey }) => {
-    const resolvedY = Math.max(desiredY, lastClientY + layoutConfig.nodeGap)
-    lastClientY = resolvedY
-
     const clientId = `client:${client.client}:${client.pid}`
-    nodes.push({
+
+    elkNodes.push({
       id: clientId,
+      width: nodeDimensions.client.width,
+      height: nodeDimensions.client.height,
+    })
+    nodeDataMap.set(clientId, {
       type: 'client',
-      position: {
-        x: layoutConfig.columns.client,
-        y: resolvedY,
-      },
-      data: {
-        name: client.client,
-        pid: client.pid,
-        tagCount: tags.length,
-      },
+      name: client.client,
+      pid: client.pid,
+      tagCount: resolved.tags.length,
     })
 
-    if (mode === 'server' && serverSpecKey) {
-      edges.push({
-        id: `edge:${clientId}->server:${serverSpecKey}`,
+    if (resolved.mode === 'server' && resolved.serverSpecKey) {
+      // Direct client -> server edge
+      const serverId = `server:${resolved.serverSpecKey}`
+      elkEdges.push({
+        id: `edge:${clientId}->server:${resolved.serverSpecKey}`,
+        sources: [clientId],
+        targets: [serverId],
+      })
+      edgeList.push({
+        id: `edge:${clientId}->server:${resolved.serverSpecKey}`,
         source: clientId,
-        target: `server:${serverSpecKey}`,
+        target: serverId,
         type: 'smoothstep',
         animated: true,
         markerEnd: {
@@ -207,69 +195,65 @@ export const buildTopology = (
           strokeOpacity: 0.7,
         },
       })
-      return
     }
-
-    tags.forEach((tag) => {
-      edges.push({
-        id: `edge:${clientId}->tag:${tag}`,
-        source: clientId,
-        target: `tag:${tag}`,
-        type: 'smoothstep',
-        animated: true,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: 'var(--chart-4)',
-        },
-        style: {
-          stroke: 'var(--chart-4)',
-          strokeWidth: 1.5,
-          strokeOpacity: 0.6,
-          strokeDasharray: '6 4',
-        },
+    else {
+      // Client -> tag edges
+      resolved.tags.forEach((tag) => {
+        const tagId = `tag:${tag}`
+        elkEdges.push({
+          id: `edge:${clientId}->tag:${tag}`,
+          sources: [clientId],
+          targets: [tagId],
+        })
+        edgeList.push({
+          id: `edge:${clientId}->tag:${tag}`,
+          source: clientId,
+          target: tagId,
+          type: 'smoothstep',
+          animated: true,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: 'var(--chart-4)',
+          },
+          style: {
+            stroke: 'var(--chart-4)',
+            strokeWidth: 1.5,
+            strokeOpacity: 0.6,
+            strokeDasharray: '6 4',
+          },
+        })
       })
+    }
+  })
+
+  // Add server nodes and edges
+  serverEntries.forEach((entry) => {
+    const serverId = `server:${entry.specKey}`
+
+    elkNodes.push({
+      id: serverId,
+      width: nodeDimensions.server.width,
+      height: nodeDimensions.server.height,
     })
-  })
-
-  const serverEntriesArray = Array.from(serverEntries.values()).map((entry) => {
-    const tagYs = entry.tags
-      .map(tag => tagPositions.get(tag))
-      .filter((value): value is number => value !== undefined)
-    const desiredY = tagYs.length > 0
-      ? tagYs.reduce((sum, value) => sum + value, 0) / tagYs.length
-      : 0
-    return { entry, desiredY }
-  })
-
-  serverEntriesArray.sort((a, b) => a.desiredY - b.desiredY)
-
-  const serverPositions = new Map<string, number>()
-  let lastServerY = -Infinity
-
-  serverEntriesArray.forEach(({ entry, desiredY }) => {
-    const resolvedY = Math.max(desiredY, lastServerY + layoutConfig.serverGap)
-    lastServerY = resolvedY
-
-    nodes.push({
-      id: `server:${entry.specKey}`,
+    nodeDataMap.set(serverId, {
       type: 'server',
-      position: {
-        x: layoutConfig.columns.server,
-        y: resolvedY,
-      },
-      data: {
-        name: entry.name,
-        protocolVersion: entry.protocolVersion || 'default',
-        tags: entry.tags.filter(tag => tag !== 'untagged'),
-      },
+      name: entry.name,
+      protocolVersion: entry.protocolVersion || 'default',
+      tags: entry.tags.filter(tag => tag !== 'untagged'),
     })
-    serverPositions.set(entry.specKey, resolvedY)
 
+    // Tag -> server edges
     entry.tags.forEach((tag) => {
-      edges.push({
+      const tagId = `tag:${tag}`
+      elkEdges.push({
         id: `edge:tag:${tag}->server:${entry.specKey}`,
-        source: `tag:${tag}`,
-        target: `server:${entry.specKey}`,
+        sources: [tagId],
+        targets: [serverId],
+      })
+      edgeList.push({
+        id: `edge:tag:${tag}->server:${entry.specKey}`,
+        source: tagId,
+        target: serverId,
         type: 'smoothstep',
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -284,42 +268,42 @@ export const buildTopology = (
     })
   })
 
+  // Add instance nodes and edges
   let instanceCount = 0
   const runtimeStatusBySpecKey = new Map(
     runtimeStatus.map(status => [status.specKey, status]),
   )
 
   for (const [serverKey, serverStatus] of runtimeStatusBySpecKey.entries()) {
-    const serverY = serverPositions.get(serverKey)
-    if (serverY === undefined) continue
+    const serverId = `server:${serverKey}`
+    const serverExists = elkNodes.some(n => n.id === serverId)
+    if (!serverExists) continue
 
     const { instances } = serverStatus
-    if (instances.length === 0) continue
-
-    const instanceStartY
-      = serverY - ((instances.length - 1) * layoutConfig.instanceGap) / 2
-
-    instances.forEach((instance, index) => {
+    instances.forEach((instance) => {
       instanceCount++
       const nodeId = `instance:${serverKey}:${instance.id}`
 
-      nodes.push({
+      elkNodes.push({
         id: nodeId,
+        width: nodeDimensions.instance.width,
+        height: nodeDimensions.instance.height,
+      })
+      nodeDataMap.set(nodeId, {
         type: 'instance',
-        position: {
-          x: layoutConfig.columns.instance,
-          y: instanceStartY + index * layoutConfig.instanceGap,
-        },
-        data: {
-          id: instance.id,
-          state: instance.state,
-          busyCount: instance.busyCount,
-        },
+        id: instance.id,
+        state: instance.state,
+        busyCount: instance.busyCount,
       })
 
-      edges.push({
+      elkEdges.push({
         id: `edge:server:${serverKey}->instance:${instance.id}`,
-        source: `server:${serverKey}`,
+        sources: [serverId],
+        targets: [nodeId],
+      })
+      edgeList.push({
+        id: `edge:server:${serverKey}->instance:${instance.id}`,
+        source: serverId,
         target: nodeId,
         type: 'smoothstep',
         markerEnd: {
@@ -335,9 +319,36 @@ export const buildTopology = (
     })
   }
 
+  // Run ELK layout
+  const graph = {
+    id: 'root',
+    layoutOptions: elkOptions,
+    children: elkNodes,
+    edges: elkEdges,
+  }
+
+  const layoutedGraph = await elk.layout(graph)
+
+  // Build final nodes with computed positions
+  const nodes: FlowNode[] = []
+  layoutedGraph.children?.forEach((node) => {
+    const data = nodeDataMap.get(node.id)
+    if (!data) return
+
+    const { type, ...rest } = data
+
+    // ELK returns top-left positions, which matches React Flow
+    nodes.push({
+      id: node.id,
+      type: type as FlowNode['type'],
+      position: { x: node.x ?? 0, y: node.y ?? 0 },
+      data: rest,
+    } as FlowNode)
+  })
+
   return {
     nodes,
-    edges,
+    edges: edgeList,
     tagCount: allTags.length,
     serverCount: serverEntries.size,
     clientCount: activeClients.length,
