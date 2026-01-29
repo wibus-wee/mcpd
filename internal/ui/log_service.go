@@ -66,27 +66,22 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 		return err
 	}
 
-	if ctx == nil {
+	var baseCtx context.Context
+	switch {
+	case ctx == nil:
 		s.logger.Warn("StartLogStream received nil context, falling back to Background")
-		ctx = context.Background()
-	}
-
-	s.logger.Info("Context status before creating streamCtx",
-		zap.Bool("ctx.Done", ctx.Done() != nil),
-		zap.Any("ctx.Err", ctx.Err()),
-	)
-
-	select {
-	case <-ctx.Done():
-		s.logger.Error("Input context is already cancelled!", zap.Error(ctx.Err()))
-		return NewError(ErrCodeInternal, "Input context already cancelled")
+		baseCtx = context.Background()
 	default:
+		if ctx.Err() != nil {
+			s.logger.Warn("StartLogStream received canceled context, detaching cancelation", zap.Error(ctx.Err()))
+		}
+		baseCtx = context.WithoutCancel(ctx)
 	}
 
 	level := domain.LogLevel(minLevel)
 	s.logger.Info("Calling ControlPlane.StreamLogsAllServers", zap.String("level", string(level)))
 
-	streamCtx, cancel := context.WithCancel(ctx)
+	streamCtx, cancel := context.WithCancel(baseCtx)
 	var droppedCnt uint64
 	session := &logSession{
 		ctx:        streamCtx,
