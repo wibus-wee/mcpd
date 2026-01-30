@@ -18,7 +18,7 @@ function RuntimeSettingsPage() {
   const runtime = useRuntimeSettings({ canEdit })
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       <RuntimeSettingsCard
         canEdit={canEdit}
         form={runtime.form}

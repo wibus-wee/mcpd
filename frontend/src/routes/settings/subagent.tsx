@@ -18,7 +18,7 @@ function SubAgentSettingsPage() {
   const subAgent = useSubAgentSettings({ canEdit })
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       <SubAgentSettingsCard
         canEdit={canEdit}
         form={subAgent.form}

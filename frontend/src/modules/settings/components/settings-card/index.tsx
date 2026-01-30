@@ -5,8 +5,6 @@
 import type { ReactNode } from 'react'
 import type { FieldValues, UseFormReturn } from 'react-hook-form'
 
-import { Card } from '@/components/ui/card'
-
 import { SettingsCardProvider, useSettingsCardContext } from './context'
 import {
   Field,
@@ -42,7 +40,7 @@ function SettingsCardRoot<T extends FieldValues>({
   return (
     <SettingsCardProvider form={form} canEdit={canEdit}>
       <form className="flex w-full flex-col gap-0" onSubmit={onSubmit}>
-        <Card className="p-1">{children}</Card>
+        {children}
       </form>
     </SettingsCardProvider>
   )

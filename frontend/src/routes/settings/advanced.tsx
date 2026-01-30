@@ -19,7 +19,7 @@ export const Route = createFileRoute('/settings/advanced')({
 
 function AdvancedSettingsPage() {
   return (
-    <div className="space-y-6 p-6">
+    <div className="p-3">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">

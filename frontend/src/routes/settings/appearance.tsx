@@ -7,7 +7,7 @@ import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/settings/appearance')({
@@ -24,31 +24,29 @@ function AppearanceSettingsPage() {
   ]
 
   return (
-    <div className="space-y-6 p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Theme</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            {themes.map((t) => {
-              const Icon = t.icon
-              const isActive = theme === t.value
-              return (
-                <Button
-                  key={t.value}
-                  variant={isActive ? 'secondary' : 'outline'}
-                  onClick={() => setTheme(t.value)}
-                  className={cn('flex-1 gap-2', isActive && 'ring-2 ring-primary/20')}
-                >
-                  <Icon className="size-4" />
-                  {t.label}
-                </Button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="p-3">
+      <CardHeader>
+        <CardTitle className="text-sm">Theme</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2">
+          {themes.map((t) => {
+            const Icon = t.icon
+            const isActive = theme === t.value
+            return (
+              <Button
+                key={t.value}
+                variant={isActive ? 'secondary' : 'outline'}
+                onClick={() => setTheme(t.value)}
+                className={cn('flex-1 gap-2', isActive && 'ring-2 ring-primary/20')}
+              >
+                <Icon className="size-4" />
+                {t.label}
+              </Button>
+            )
+          })}
+        </div>
+      </CardContent>
     </div>
   )
 }

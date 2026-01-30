@@ -4,12 +4,9 @@
 
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { BugIcon, PaletteIcon, ServerIcon, SettingsIcon } from 'lucide-react'
-import { m } from 'motion/react'
 
 import { NavItem } from '@/components/common/nav-item'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Spring } from '@/lib/spring'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout,
@@ -45,24 +42,6 @@ const navItems: NavItem[] = [
 function SettingsLayout() {
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <m.div
-        className="px-6 pt-6 pb-4"
-        initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        transition={Spring.presets.smooth}
-      >
-        <div className="flex items-center gap-2">
-          <SettingsIcon className="size-4 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Configure runtime defaults and preferences
-        </p>
-      </m.div>
-
-      <Separator />
-
       <div className="flex min-h-0 flex-1">
         {/* Sidebar Navigation */}
         <nav className="w-56 shrink-0 border-r">

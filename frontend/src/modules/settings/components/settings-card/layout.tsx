@@ -29,7 +29,7 @@ export const Header = ({ title, description, badge }: HeaderProps) => {
   const { canEdit } = useSettingsCardContext()
 
   return (
-    <CardHeader className="pt-3">
+    <CardHeader className="py-3">
       <CardTitle className="flex items-center gap-2">
         {title}
         {badge && (

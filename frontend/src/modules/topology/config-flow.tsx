@@ -15,7 +15,6 @@ import {
 import { Share2Icon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveClients } from '@/hooks/use-active-clients'
 
 import { useRuntimeStatus, useServerDetails, useServers } from '../servers/hooks'
@@ -119,20 +118,7 @@ export const ConfigFlow = () => {
   if (isLoading) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Share2Icon className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Topology</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-        </div>
-        <div className="flex-1 p-4">
-          <FlowSkeleton />
-        </div>
+        <FlowSkeleton />
       </div>
     )
   }
