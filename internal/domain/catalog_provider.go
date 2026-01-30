@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // CatalogUpdateSource describes why a catalog update occurred.
 type CatalogUpdateSource string
@@ -13,6 +16,9 @@ const (
 	// CatalogUpdateSourceManual indicates a manual reload update.
 	CatalogUpdateSourceManual CatalogUpdateSource = "manual"
 )
+
+// ErrReloadRestartRequired indicates a reload needs a full restart to apply.
+var ErrReloadRestartRequired = errors.New("runtime config changed; restart required to apply")
 
 // CatalogUpdate carries a snapshot and diff for catalog changes.
 type CatalogUpdate struct {

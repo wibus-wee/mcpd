@@ -833,6 +833,7 @@ export class RuntimeConfigDetail {
     "serverInitRetryBaseSeconds": number;
     "serverInitRetryMaxSeconds": number;
     "serverInitMaxRetries": number;
+    "reloadMode": string;
     "bootstrapMode": string;
     "bootstrapConcurrency": number;
     "bootstrapTimeoutSeconds": number;
@@ -871,6 +872,9 @@ export class RuntimeConfigDetail {
         if (!("serverInitMaxRetries" in $$source)) {
             this["serverInitMaxRetries"] = 0;
         }
+        if (!("reloadMode" in $$source)) {
+            this["reloadMode"] = "";
+        }
         if (!("bootstrapMode" in $$source)) {
             this["bootstrapMode"] = "";
         }
@@ -903,14 +907,14 @@ export class RuntimeConfigDetail {
      * Creates a new RuntimeConfigDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): RuntimeConfigDetail {
-        const $$createField15_0 = $$createType14;
-        const $$createField16_0 = $$createType15;
+        const $$createField16_0 = $$createType14;
+        const $$createField17_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("observability" in $$parsedSource) {
-            $$parsedSource["observability"] = $$createField15_0($$parsedSource["observability"]);
+            $$parsedSource["observability"] = $$createField16_0($$parsedSource["observability"]);
         }
         if ("rpc" in $$parsedSource) {
-            $$parsedSource["rpc"] = $$createField16_0($$parsedSource["rpc"]);
+            $$parsedSource["rpc"] = $$createField17_0($$parsedSource["rpc"]);
         }
         return new RuntimeConfigDetail($$parsedSource as Partial<RuntimeConfigDetail>);
     }
@@ -1454,6 +1458,7 @@ export class UpdateRuntimeConfigRequest {
     "serverInitRetryBaseSeconds": number;
     "serverInitRetryMaxSeconds": number;
     "serverInitMaxRetries": number;
+    "reloadMode": string;
     "bootstrapMode": string;
     "bootstrapConcurrency": number;
     "bootstrapTimeoutSeconds": number;
@@ -1489,6 +1494,9 @@ export class UpdateRuntimeConfigRequest {
         }
         if (!("serverInitMaxRetries" in $$source)) {
             this["serverInitMaxRetries"] = 0;
+        }
+        if (!("reloadMode" in $$source)) {
+            this["reloadMode"] = "";
         }
         if (!("bootstrapMode" in $$source)) {
             this["bootstrapMode"] = "";

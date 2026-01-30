@@ -148,3 +148,5 @@ profiles
 callers.yaml
 .gocache/
 runtime.yaml
+/mcpv
+/mcpvmcp

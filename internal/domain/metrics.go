@@ -60,6 +60,22 @@ const (
 	AcquireFailureStickyBusy AcquireFailureReason = "sticky_busy"
 )
 
+// ReloadAction describes which reload action triggered the metric.
+type ReloadAction string
+
+const (
+	// ReloadActionEntry indicates a reload entry point.
+	ReloadActionEntry ReloadAction = "entry"
+	// ReloadActionServerAdd indicates a server was added.
+	ReloadActionServerAdd ReloadAction = "server_add"
+	// ReloadActionServerRemove indicates a server was removed.
+	ReloadActionServerRemove ReloadAction = "server_remove"
+	// ReloadActionServerUpdate indicates a server was updated.
+	ReloadActionServerUpdate ReloadAction = "server_update"
+	// ReloadActionServerReplace indicates a server was replaced.
+	ReloadActionServerReplace ReloadAction = "server_replace"
+)
+
 // RouteMetric captures metrics for a routed request.
 type RouteMetric struct {
 	ServerType string
@@ -103,5 +119,8 @@ type Metrics interface {
 	ObserveSubAgentTokens(provider string, model string, tokens int)
 	ObserveSubAgentLatency(provider string, model string, duration time.Duration)
 	ObserveSubAgentFilterPrecision(provider string, model string, ratio float64)
+	RecordReloadSuccess(source CatalogUpdateSource, action ReloadAction)
+	RecordReloadFailure(source CatalogUpdateSource, action ReloadAction)
+	RecordReloadRestart(source CatalogUpdateSource, action ReloadAction)
 	ObserveReloadApply(metric ReloadApplyMetric)
 }
