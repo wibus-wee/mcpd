@@ -7,7 +7,6 @@ import { SearchIcon, WrenchIcon } from 'lucide-react'
 import { AnimatePresence, m } from 'motion/react'
 import { useMemo, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'

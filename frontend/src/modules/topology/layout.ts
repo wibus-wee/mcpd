@@ -260,44 +260,44 @@ export const buildTopology = async (
   Array.from(serverEntries.values())
     .sort((a, b) => a.name.localeCompare(b.name))
     .forEach((entry) => {
-    const serverId = `server:${entry.specKey}`
+      const serverId = `server:${entry.specKey}`
 
-    elkNodes.push({
-      id: serverId,
-      width: nodeDimensions.server.width,
-      height: nodeDimensions.server.height,
-    })
-    nodeDataMap.set(serverId, {
-      type: 'server',
-      name: entry.name,
-      protocolVersion: entry.protocolVersion || 'default',
-      tags: entry.tags.filter(tag => tag !== 'untagged'),
-    })
+      elkNodes.push({
+        id: serverId,
+        width: nodeDimensions.server.width,
+        height: nodeDimensions.server.height,
+      })
+      nodeDataMap.set(serverId, {
+        type: 'server',
+        name: entry.name,
+        protocolVersion: entry.protocolVersion || 'default',
+        tags: entry.tags.filter(tag => tag !== 'untagged'),
+      })
 
-    // Tag -> server edges
-    entry.tags.forEach((tag) => {
-      const tagId = `tag:${tag}`
-      elkEdges.push({
-        id: `edge:tag:${tag}->server:${entry.specKey}`,
-        sources: [tagId],
-        targets: [serverId],
+      // Tag -> server edges
+      entry.tags.forEach((tag) => {
+        const tagId = `tag:${tag}`
+        elkEdges.push({
+          id: `edge:tag:${tag}->server:${entry.specKey}`,
+          sources: [tagId],
+          targets: [serverId],
+        })
+        edgeList.push({
+          id: `edge:tag:${tag}->server:${entry.specKey}`,
+          source: tagId,
+          target: serverId,
+          type: 'smoothstep',
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: 'var(--chart-2)',
+          },
+          style: {
+            stroke: 'var(--chart-2)',
+            strokeWidth: 1.4,
+            strokeOpacity: 0.6,
+          },
+        })
       })
-      edgeList.push({
-        id: `edge:tag:${tag}->server:${entry.specKey}`,
-        source: tagId,
-        target: serverId,
-        type: 'smoothstep',
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: 'var(--chart-2)',
-        },
-        style: {
-          stroke: 'var(--chart-2)',
-          strokeWidth: 1.4,
-          strokeOpacity: 0.6,
-        },
-      })
-    })
     })
 
   // Add instance nodes and edges
@@ -319,42 +319,42 @@ export const buildTopology = async (
       .slice()
       .sort((a, b) => a.id.localeCompare(b.id))
       .forEach((instance) => {
-      instanceCount++
-      const nodeId = `instance:${serverKey}:${instance.id}`
+        instanceCount++
+        const nodeId = `instance:${serverKey}:${instance.id}`
 
-      elkNodes.push({
-        id: nodeId,
-        width: nodeDimensions.instance.width,
-        height: nodeDimensions.instance.height,
-      })
-      nodeDataMap.set(nodeId, {
-        type: 'instance',
-        id: instance.id,
-        state: instance.state,
-        busyCount: instance.busyCount,
-      })
+        elkNodes.push({
+          id: nodeId,
+          width: nodeDimensions.instance.width,
+          height: nodeDimensions.instance.height,
+        })
+        nodeDataMap.set(nodeId, {
+          type: 'instance',
+          id: instance.id,
+          state: instance.state,
+          busyCount: instance.busyCount,
+        })
 
-      elkEdges.push({
-        id: `edge:server:${serverKey}->instance:${instance.id}`,
-        sources: [serverId],
-        targets: [nodeId],
+        elkEdges.push({
+          id: `edge:server:${serverKey}->instance:${instance.id}`,
+          sources: [serverId],
+          targets: [nodeId],
+        })
+        edgeList.push({
+          id: `edge:server:${serverKey}->instance:${instance.id}`,
+          source: serverId,
+          target: nodeId,
+          type: 'smoothstep',
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: 'var(--border)',
+          },
+          style: {
+            stroke: 'var(--border)',
+            strokeWidth: 1,
+            strokeOpacity: 0.5,
+          },
+        })
       })
-      edgeList.push({
-        id: `edge:server:${serverKey}->instance:${instance.id}`,
-        source: serverId,
-        target: nodeId,
-        type: 'smoothstep',
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: 'var(--border)',
-        },
-        style: {
-          stroke: 'var(--border)',
-          strokeWidth: 1,
-          strokeOpacity: 0.5,
-        },
-      })
-    })
   }
 
   // Run ELK layout
