@@ -2,17 +2,19 @@
 // Output: Data table with sorting, filtering, and row selection
 // Position: Main table component for servers page
 
-import type { ServerRuntimeStatus, ServerSummary } from '@bindings/mcpd/internal/ui'
-import type { ColumnDef, ColumnFiltersState, SortingState } from '@tanstack/react-table'
+import type { ActiveClient, ServerRuntimeStatus, ServerSummary } from '@bindings/mcpd/internal/ui'
+import type { ColumnDef, ColumnFiltersState, ExpandedState, SortingState } from '@tanstack/react-table'
 import {
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 import {
   ArrowUpDownIcon,
+  ChevronRightIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PowerIcon,
@@ -20,6 +22,8 @@ import {
   Trash2Icon,
   WrenchIcon,
 } from 'lucide-react'
+import { AnimatePresence, m } from 'motion/react'
+import * as React from 'react'
 import { memo, useMemo, useState } from 'react'
 
 import {
@@ -55,12 +59,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toastManager } from '@/components/ui/toast'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useActiveClients } from '@/hooks/use-active-clients'
+import { Spring } from '@/lib/spring'
 import { formatDuration, getElapsedMs } from '@/lib/time'
+import { getToolDisplayName } from '@/lib/tool-names'
+import { parseToolJson } from '@/lib/tool-schema'
 import { cn } from '@/lib/utils'
-import { ServerEditSheet } from '@/modules/servers/components/server-edit-sheet'
 import { ServerRuntimeIndicator } from '@/modules/servers/components/server-runtime-status'
-import { useRuntimeStatus, useServer, useServerOperation, useServers, useToolsByServer } from '@/modules/servers/hooks'
+import { useRuntimeStatus, useServerOperation, useServers, useToolsByServer } from '@/modules/servers/hooks'
 import type { ServerRuntimeState } from '@/modules/shared/server-status'
 import { ACTIVE_INSTANCE_STATES, hasActiveInstance } from '@/modules/shared/server-status'
 
@@ -69,6 +76,7 @@ interface ServersDataTableProps {
   onRowClick: (server: ServerSummary) => void
   selectedServerName: string | null
   canEdit: boolean
+  onEditRequest: (serverName: string) => void
   onDeleted?: (serverName: string) => void
 }
 
@@ -100,11 +108,28 @@ const LoadCell = memo(function LoadCell({ status }: { status: ServerRuntimeStatu
   return <span className="text-xs tabular-nums">{loadPercent}%</span>
 })
 
-const ClientsCell = memo(function ClientsCell({ count }: { count: number }) {
+const ClientsCell = memo(function ClientsCell({ count, clients }: { count: number, clients: ActiveClient[] }) {
+  if (count === 0) {
+    return <span className="text-xs tabular-nums text-muted-foreground">-</span>
+  }
+
   return (
-    <span className="text-xs tabular-nums">
-      {count}
-    </span>
+    <Tooltip>
+      <TooltipTrigger delay={200} render={<div className="text-xs tabular-nums hover:underline cursor-pointer w-full">{count}</div>} />
+      <TooltipContent className="w-full">
+        <div className="space-y-2">
+          <h4 className="font-medium text-sm">Active Clients</h4>
+          <div className="space-y-1">
+            {clients.map(client => (
+              <div key={`${client.client}:${client.pid}`} className="flex items-center justify-between text-xs gap-2">
+                <span className="font-mono">{client.client}</span>
+                <span className="text-muted-foreground">PID: {client.pid}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   )
 })
 
@@ -150,14 +175,13 @@ function ToolsCell({ specKey }: { specKey: string }) {
 interface ServerActionsCellProps {
   server: ServerSummary
   canEdit: boolean
+  onEditRequest: (serverName: string) => void
   onDeleted?: (serverName: string) => void
 }
 
-function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProps) {
+function ServerActionsCell({ server, canEdit, onEditRequest, onDeleted }: ServerActionsCellProps) {
   const { mutate: mutateServers } = useServers()
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const { data: serverDetail, mutate: mutateServer } = useServer(editOpen ? server.name : null)
 
   const { isWorking, toggleDisabled, deleteServer } = useServerOperation(
     canEdit,
@@ -180,11 +204,12 @@ function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProp
     <div className="flex items-center justify-end gap-2">
       <Button
         variant="secondary"
+        className="w-20"
         size="xs"
         disabled={!canEdit || isWorking}
         onClick={(event) => {
           event.stopPropagation()
-          void handleToggleDisabled()
+          handleToggleDisabled()
         }}
       >
         <PowerIcon className="size-3.5" />
@@ -202,7 +227,7 @@ function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProp
           <MenuItem
             onClick={(event) => {
               event.stopPropagation()
-              setEditOpen(true)
+              onEditRequest(server.name)
             }}
           >
             <PencilIcon className="size-4" />
@@ -259,16 +284,6 @@ function ServerActionsCell({ server, canEdit, onDeleted }: ServerActionsCellProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ServerEditSheet
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        server={serverDetail}
-        onSaved={() => {
-          void mutateServers()
-          void mutateServer()
-        }}
-      />
     </div>
   )
 }
@@ -278,13 +293,16 @@ export function ServersDataTable({
   onRowClick,
   selectedServerName,
   canEdit,
+  onEditRequest,
   onDeleted,
 }: ServersDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [expanded, setExpanded] = useState<ExpandedState>({})
 
   const { data: statusList } = useRuntimeStatus()
   const { data: clients } = useActiveClients()
+  const { serverMap } = useToolsByServer()
 
   // Create index Maps - O(n) once
   const statusMap = useMemo(() => {
@@ -298,11 +316,11 @@ export function ServersDataTable({
   }, [statusList])
 
   const clientsMap = useMemo(() => {
-    const map = new Map<string, number>()
+    const map = new Map<string, ActiveClient[]>()
     clients?.forEach((client) => {
       if (client.server) {
-        const count = map.get(client.server) ?? 0
-        map.set(client.server, count + 1)
+        const existing = map.get(client.server) ?? []
+        map.set(client.server, [...existing, client])
       }
     })
     return map
@@ -326,8 +344,30 @@ export function ServersDataTable({
           )
         },
         cell: ({ row }) => {
+          const tools = serverMap.get(row.original.specKey)?.tools ?? []
+          const canExpand = tools.length > 0
+
           return (
-            <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-2">
+              {canExpand && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    row.toggleExpanded()
+                  }}
+                  className="-ml-1"
+                >
+                  <ChevronRightIcon
+                    className={cn(
+                      'size-3.5 transition-transform duration-200',
+                      row.getIsExpanded() && 'rotate-90',
+                    )}
+                  />
+                </Button>
+              )}
+              {!canExpand && <div className="w-7" />}
               <ServerIcon className="size-3.5 text-muted-foreground shrink-0" />
               <span className="font-medium text-sm">{row.original.name}</span>
               {row.original.tags && row.original.tags.length > 0 && (
@@ -378,7 +418,10 @@ export function ServersDataTable({
       {
         id: 'clients',
         header: 'Clients',
-        cell: ({ row }) => <ClientsCell count={clientsMap.get(row.original.name) ?? 0} />,
+        cell: ({ row }) => {
+          const serverClients = clientsMap.get(row.original.name) ?? []
+          return <ClientsCell count={serverClients.length} clients={serverClients} />
+        },
       },
       {
         id: 'uptime',
@@ -392,12 +435,13 @@ export function ServersDataTable({
           <ServerActionsCell
             server={row.original}
             canEdit={canEdit}
+            onEditRequest={onEditRequest}
             onDeleted={onDeleted}
           />
         ),
       },
     ],
-    [canEdit, onDeleted, statusMap, clientsMap],
+    [canEdit, onDeleted, onEditRequest, statusMap, clientsMap, serverMap],
   )
 
   const table = useReactTable({
@@ -406,11 +450,14 @@ export function ServersDataTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onExpandedChange: setExpanded,
     state: {
       sorting,
       columnFilters,
+      expanded,
     },
   })
 
@@ -441,32 +488,110 @@ export function ServersDataTable({
                   {header.isPlaceholder
                     ? null
                     : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
                 </TableHead>
               ))}
             </TableRow>
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map(row => (
-            <TableRow
-              key={row.id}
-              onClick={() => onRowClick(row.original)}
-              className={cn(
-                'cursor-pointer transition-colors',
-                selectedServerName === row.original.name
-                && 'bg-accent/50 hover:bg-accent/70',
-              )}
-            >
-              {row.getVisibleCells().map(cell => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+          {table.getRowModel().rows.map((row) => {
+            const tools = serverMap.get(row.original.specKey)?.tools ?? []
+            const hasTools = tools.length > 0
+
+            return (
+              <React.Fragment key={row.id}>
+                {/* Main Row */}
+                <TableRow
+                  onClick={() => onRowClick(row.original)}
+                  className={cn(
+                    'cursor-pointer transition-colors',
+                    selectedServerName === row.original.name
+                    && 'bg-accent/50 hover:bg-accent/70',
+                  )}
+                >
+                  {row.getVisibleCells().map(cell => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+
+                {/* Expanded Tools Row */}
+                <AnimatePresence>
+                  {row.getIsExpanded() && hasTools && (
+                    <TableRow className="bg-transparent">
+                      <TableCell colSpan={columns.length} className="p-0 overflow-hidden">
+                        <m.div
+                          initial={{ opacity: 0, height: 0, filter: 'blur(4px)' }}
+                          animate={{ opacity: 1, height: 'auto', filter: 'blur(0px)' }}
+                          exit={{ opacity: 0, height: 0, filter: 'blur(4px)' }}
+                          transition={Spring.smooth(0.4)}
+                        >
+                          <div className="px-6 py-1">
+                            <div className="max-w-4xl">
+                              <div>
+                                <AnimatePresence mode="popLayout">
+                                  {tools.map((tool, index) => {
+                                    const schema = parseToolJson(tool)
+                                    const paramCount = Object.keys(schema.inputSchema?.properties ?? {}).length
+                                    const displayName = getToolDisplayName(tool.name, tool.serverName)
+
+                                    return (
+                                      <m.div
+                                        key={tool.name}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        transition={Spring.smooth(0.15, index * 0.03)}
+                                        className="flex items-start gap-3 p-2 rounded-md pl-3"
+                                      >
+
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono text-sm font-medium">{displayName}</span>
+
+                                            {paramCount > 0 && (
+                                              <Badge variant="secondary" size="sm">
+                                                {paramCount}
+                                                {' '}
+                                                params
+                                              </Badge>
+                                            )}
+
+                                            {tool.description && (
+                                              <span className="text-xs text-muted-foreground">
+                                                {tool.description}
+                                              </span>
+                                            )}
+
+                                            {tool.source === 'cache' && (
+                                              <Tooltip>
+                                                <TooltipTrigger render={<Badge variant="outline" size="sm">cached</Badge>} />
+                                                <TooltipContent>
+                                                  {tool.cachedAt ? `Cached at ${new Date(tool.cachedAt).toLocaleString()}` : 'Cached metadata'}
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </m.div>
+                                    )
+                                  })}
+                                </AnimatePresence>
+                              </div>
+                            </div>
+                          </div>
+                        </m.div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </AnimatePresence>
+              </React.Fragment>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

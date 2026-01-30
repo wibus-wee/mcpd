@@ -10,12 +10,10 @@ import {
   WrenchIcon,
   ZapIcon,
 } from 'lucide-react'
-import { m } from 'motion/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getMetricsSummary, getPoolStats } from '@/lib/server-stats'
-import { Spring } from '@/lib/spring'
 import {
   formatDuration,
   formatLatency,
@@ -90,12 +88,9 @@ export function ServerOverviewPanel({
   const specDetail = server
 
   return (
-    <m.div
+    <div
       key={server.name}
       className={cn('space-y-6', className)}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={Spring.smooth(0.3)}
     >
       <Card>
         <CardHeader>
@@ -222,7 +217,7 @@ export function ServerOverviewPanel({
           </p>
         )}
       </div>
-    </m.div>
+    </div>
 
   )
 }

@@ -1,31 +1,9 @@
 import {
   AlertTriangleIcon,
-  EditIcon,
-  PowerIcon,
   ServerIcon,
-  Trash2Icon,
 } from 'lucide-react'
-import { m } from 'motion/react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Empty,
   EmptyDescription,
@@ -35,8 +13,7 @@ import {
 } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spring } from '@/lib/spring'
-import { useConfigMode, useServer, useServerOperation, useServers } from '@/modules/servers/hooks'
+import { useServer } from '@/modules/servers/hooks'
 import { buildCommandSummary, DetailRow } from '@/modules/shared/server-detail'
 
 interface ServerConfigPanelProps {
@@ -61,45 +38,51 @@ function DetailSkeleton() {
   )
 }
 
-export function ServerConfigPanel({ serverName, onDeleted, onEdit }: ServerConfigPanelProps) {
-  const { data: server, isLoading, mutate: mutateServer } = useServer(serverName)
-  const { mutate: mutateServers } = useServers()
-  const { data: configMode } = useConfigMode()
-  const [errorNotice, setErrorNotice] = useState<ErrorState | null>(null)
+function formatFieldName(fieldName: string): string {
+  return fieldName
+    .replaceAll(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase())
+    .trim()
+}
 
-  const { isWorking, toggleDisabled, deleteServer } = useServerOperation(
-    Boolean(configMode?.isWritable),
-    mutateServers,
-    mutateServer,
-    onDeleted,
-    (title, description) => setErrorNotice({ title, description }),
-  )
+function formatFieldValue(value: any): string {
+  if (value === null || value === undefined) return '--'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'string' && value === '') return '--'
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(', ') : '--'
+  }
+  if (typeof value === 'object') {
+    if (Object.keys(value).length === 0) return '--'
+    return JSON.stringify(value, null, 2)
+  }
+  return String(value)
+}
 
-  useEffect(() => {
-    setErrorNotice(null)
-  }, [serverName])
+export function ServerConfigPanel({ serverName }: ServerConfigPanelProps) {
+  const { data: server, isLoading } = useServer(serverName)
 
-  const canEdit = Boolean(configMode?.isWritable)
-
-  const handleToggleDisabled = useCallback(async () => {
-    if (!server) return
-    await toggleDisabled(server)
-  }, [server, toggleDisabled])
-
-  const handleDeleteServer = useCallback(async () => {
-    if (!server) return
-    await deleteServer(server)
-  }, [server, deleteServer])
-
-  const tags = server?.tags ?? []
   const commandSummary = server ? buildCommandSummary(server) : '--'
   const envCount = server ? Object.keys(server.env ?? {}).length : 0
 
-  const statusBadge = useMemo(() => {
-    if (!server) return null
-    return server.disabled
-      ? { label: 'Disabled', variant: 'warning' as const }
-      : { label: 'Enabled', variant: 'success' as const }
+  // 生成完整的规格字段列表
+  const specFields = useMemo(() => {
+    if (!server) return []
+
+    const excludeFields = new Set([
+      'disabled',
+      'specKey',
+    ])
+
+    return Object.entries(server)
+      .filter(([key]) => !excludeFields.has(key))
+      .map(([key, value]) => ({
+        key,
+        label: formatFieldName(key),
+        value: formatFieldValue(value),
+        isMono: typeof value === 'object' || Array.isArray(value) || key === 'http',
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [server])
 
   if (!serverName) {
@@ -140,136 +123,21 @@ export function ServerConfigPanel({ serverName, onDeleted, onEdit }: ServerConfi
 
   return (
     <ScrollArea className="h-full">
-      <m.div
-        key={serverName}
+      <div
         className="space-y-4"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={Spring.presets.smooth}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold">{server.name}</h2>
-              {statusBadge && (
-                <Badge variant={statusBadge.variant} size="sm">
-                  {statusBadge.label}
-                </Badge>
-              )}
-              <Badge variant="outline" size="sm" className="uppercase">
-                {server.transport}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {tags.length === 0 ? (
-                <span className="text-xs text-muted-foreground">No tags</span>
-              ) : (
-                tags.map(tag => (
-                  <Badge key={tag} variant="secondary" size="sm">
-                    {tag}
-                  </Badge>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onEdit}
-              disabled={!canEdit || isWorking}
-              className="gap-2"
-            >
-              <EditIcon className="size-4" />
-              Edit
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleToggleDisabled}
-              disabled={!canEdit || isWorking}
-              className="gap-2"
-            >
-              <PowerIcon className="size-4" />
-              {server.disabled ? 'Enable' : 'Disable'}
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger
-                render={(
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!canEdit || isWorking}
-                    className="gap-2 text-destructive"
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete
-                  </Button>
-                )}
-              />
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete server</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes the server from configuration. The change is permanent.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogClose
-                    render={(
-                      <Button variant="ghost" size="sm">
-                        Cancel
-                      </Button>
-                    )}
-                  />
-                  <AlertDialogClose
-                    render={(
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleDeleteServer}
-                      >
-                        Delete server
-                      </Button>
-                    )}
-                  />
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-
-        {errorNotice && (
-          <Alert variant="error">
-            <AlertTriangleIcon className="size-4" />
-            <AlertTitle>{errorNotice.title}</AlertTitle>
-            <AlertDescription>{errorNotice.description}</AlertDescription>
-          </Alert>
-        )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Specification</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <DetailRow label="Command" value={commandSummary} mono />
-            <DetailRow label="Working directory" value={server.cwd || '--'} mono />
-            <DetailRow label="Environment" value={`${envCount} variables`} />
-            <DetailRow label="Activation mode" value={server.activationMode || '--'} />
-            <DetailRow label="Idle timeout" value={`${server.idleSeconds}s`} />
-            <DetailRow label="Max concurrency" value={server.maxConcurrent} />
-            <DetailRow label="Session TTL" value={`${server.sessionTTLSeconds}s`} />
-            <DetailRow label="Protocol" value={server.protocolVersion || '--'} />
-            <DetailRow
-              label="Expose tools"
-              value={(server.exposeTools ?? []).length > 0
-                ? server.exposeTools.join(', ')
-                : 'Default'}
-            />
-          </CardContent>
-        </Card>
-      </m.div>
+        <DetailRow label="Command" value={commandSummary} mono />
+        <DetailRow label="Working directory" value={server.cwd || '--'} mono />
+        <DetailRow label="Environment" value={`${envCount} variables`} />
+        {specFields.map(field => (
+          <DetailRow
+            key={field.key}
+            label={field.label}
+            value={field.value}
+            mono={field.isMono}
+          />
+        ))}
+      </div>
     </ScrollArea>
   )
 }

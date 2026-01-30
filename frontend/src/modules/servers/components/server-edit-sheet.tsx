@@ -38,6 +38,8 @@ interface ServerEditSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   server?: ServerDetail | null
+  editTargetName?: string | null
+  isLoading?: boolean
   onSaved?: () => void
 }
 
@@ -112,9 +114,14 @@ export function ServerEditSheet({
   open,
   onOpenChange,
   server,
+  editTargetName,
+  isLoading,
   onSaved,
 }: ServerEditSheetProps) {
-  const isEdit = Boolean(server)
+  const isEdit = Boolean(server ?? editTargetName)
+  const isEditLoading = Boolean(isLoading) && isEdit && !server
+  const isMissingServer = isEdit && !server
+  const isFormDisabled = isEditLoading || isMissingServer
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<FormData>({
@@ -162,11 +169,23 @@ export function ServerEditSheet({
       })
     }
     else {
-      reset(INITIAL_FORM_DATA)
+      reset({
+        ...INITIAL_FORM_DATA,
+        name: editTargetName ?? '',
+      })
     }
-  }, [server, open, reset])
+  }, [server, open, reset, editTargetName])
 
   const onSubmit = useCallback(async (data: FormData) => {
+    if (isEdit && !server) {
+      toastManager.add({
+        type: 'error',
+        title: 'Server not ready',
+        description: 'Wait for the configuration to load before saving.',
+      })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const filteredTags = parseCommaSeparated(data.tags)
@@ -260,6 +279,8 @@ export function ServerEditSheet({
     }
   }, [isEdit, onSaved, onOpenChange, server])
 
+  const isActionDisabled = isSubmitting || isEditLoading || isMissingServer
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right">
@@ -273,269 +294,273 @@ export function ServerEditSheet({
         </SheetHeader>
 
         <SheetPanel>
-          <m.div
-            className="space-y-6"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <FormField label="Server Name" required>
-              <Input
-                {...register('name')}
-                placeholder="my-server"
-                disabled={isEdit}
-              />
-              {isEdit && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Server name cannot be changed after creation
-                </p>
+          <fieldset disabled={isFormDisabled} className="min-h-full">
+            <m.div
+              className="space-y-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FormField label="Server Name" required>
+                <Input
+                  {...register('name')}
+                  placeholder="my-server"
+                  disabled={isEdit}
+                />
+                {isEdit && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Server name cannot be changed after creation
+                  </p>
+                )}
+              </FormField>
+
+              <FormField label="Transport Type" required>
+                <Select
+                  value={transport}
+                  onValueChange={v => setValue('transport', v as 'stdio' | 'streamable_http')}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {value => (value ? String(value) : 'Select transport')}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup>
+                    <SelectItem value="stdio">stdio</SelectItem>
+                    <SelectItem value="streamable_http">streamable_http</SelectItem>
+                  </SelectPopup>
+                </Select>
+              </FormField>
+
+              <Separator />
+
+              {transport === 'stdio' ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" size="sm">
+                      stdio
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Configure command execution
+                    </span>
+                  </div>
+
+                  <FormField label="Command" required description="Executable path or command">
+                    <Input
+                      {...register('cmd')}
+                      placeholder="/usr/bin/node"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Arguments"
+                    description="Comma-separated command arguments"
+                  >
+                    <Input
+                      {...register('args')}
+                      placeholder="server.js, --port, 3000"
+                    />
+                  </FormField>
+
+                  <FormField label="Working Directory" description="Execution directory">
+                    <Input
+                      {...register('cwd')}
+                      placeholder="/path/to/project"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Environment Variables"
+                    description="One per line: KEY=value"
+                  >
+                    <Textarea
+                      {...register('env')}
+                      placeholder="NODE_ENV=production&#10;API_KEY=secret"
+                      className="min-h-24"
+                    />
+                  </FormField>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" size="sm">
+                      streamable_http
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Configure HTTP endpoint
+                    </span>
+                  </div>
+
+                  <FormField
+                    label="Endpoint URL"
+                    required
+                    description="HTTP endpoint for the MCP server"
+                  >
+                    <Input
+                      {...register('endpoint')}
+                      placeholder="http://localhost:3000/mcp"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Max Retries"
+                    description="Maximum number of retries for HTTP requests"
+                  >
+                    <Input
+                      type="number"
+                      {...register('httpMaxRetries', { valueAsNumber: true })}
+                      min={0}
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="HTTP Headers"
+                    description="One per line: Header-Name=value"
+                  >
+                    <Textarea
+                      {...register('httpHeaders')}
+                      placeholder="Authorization=Bearer token&#10;Content-Type=application/json"
+                      className="min-h-24"
+                    />
+                  </FormField>
+                </>
               )}
-            </FormField>
 
-            <FormField label="Transport Type" required>
-              <Select
-                value={transport}
-                onValueChange={v => setValue('transport', v as 'stdio' | 'streamable_http')}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {value => (value ? String(value) : 'Select transport')}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectPopup>
-                  <SelectItem value="stdio">stdio</SelectItem>
-                  <SelectItem value="streamable_http">streamable_http</SelectItem>
-                </SelectPopup>
-              </Select>
-            </FormField>
+              <Separator />
 
-            <Separator />
+              <FormField label="Tags" description="Comma-separated tags for organization">
+                <Input
+                  {...register('tags')}
+                  placeholder="production, api, core"
+                />
+              </FormField>
 
-            {transport === 'stdio' ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" size="sm">
-                    stdio
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Configure command execution
-                  </span>
-                </div>
-
-                <FormField label="Command" required description="Executable path or command">
-                  <Input
-                    {...register('cmd')}
-                    placeholder="/usr/bin/node"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Arguments"
-                  description="Comma-separated command arguments"
+              <FormField label="Activation Mode">
+                <Select
+                  value={watch('activationMode')}
+                  onValueChange={v => setValue('activationMode', v as 'on-demand' | 'always-on')}
                 >
-                  <Input
-                    {...register('args')}
-                    placeholder="server.js, --port, 3000"
-                  />
-                </FormField>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {value =>
+                        value === 'on-demand'
+                          ? 'On Demand'
+                          : value === 'always-on'
+                            ? 'Always On'
+                            : 'Select mode'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup>
+                    <SelectItem value="on-demand">On Demand</SelectItem>
+                    <SelectItem value="always-on">Always On</SelectItem>
+                  </SelectPopup>
+                </Select>
+              </FormField>
 
-                <FormField label="Working Directory" description="Execution directory">
-                  <Input
-                    {...register('cwd')}
-                    placeholder="/path/to/project"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Environment Variables"
-                  description="One per line: KEY=value"
+              <FormField label="Strategy">
+                <Select
+                  value={watch('strategy')}
+                  onValueChange={v => setValue('strategy', v as string)}
                 >
-                  <Textarea
-                    {...register('env')}
-                    placeholder="NODE_ENV=production&#10;API_KEY=secret"
-                    className="min-h-24"
-                  />
-                </FormField>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" size="sm">
-                    streamable_http
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Configure HTTP endpoint
-                  </span>
-                </div>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {value => value || 'Select strategy'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup>
+                    <SelectItem value="stateless">Stateless</SelectItem>
+                    <SelectItem value="stateful">Stateful</SelectItem>
+                  </SelectPopup>
+                </Select>
+              </FormField>
 
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
-                  label="Endpoint URL"
-                  required
-                  description="HTTP endpoint for the MCP server"
-                >
-                  <Input
-                    {...register('endpoint')}
-                    placeholder="http://localhost:3000/mcp"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Max Retries"
-                  description="Maximum number of retries for HTTP requests"
+                  label="Drain Timeout"
+                  description="Drain timeout in seconds"
                 >
                   <Input
                     type="number"
-                    {...register('httpMaxRetries', { valueAsNumber: true })}
+                    {...register('drainTimeoutSeconds', { valueAsNumber: true })}
+                    min={0}
+                  />
+                </FormField>
+
+                <div />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  label="Idle Timeout"
+                  description="Seconds before idle shutdown"
+                >
+                  <Input
+                    type="number"
+                    {...register('idleSeconds', { valueAsNumber: true })}
                     min={0}
                   />
                 </FormField>
 
                 <FormField
-                  label="HTTP Headers"
-                  description="One per line: Header-Name=value"
+                  label="Max Concurrency"
+                  description="Maximum concurrent requests"
                 >
-                  <Textarea
-                    {...register('httpHeaders')}
-                    placeholder="Authorization=Bearer token&#10;Content-Type=application/json"
-                    className="min-h-24"
+                  <Input
+                    type="number"
+                    {...register('maxConcurrent', { valueAsNumber: true })}
+                    min={1}
                   />
                 </FormField>
-              </>
-            )}
+              </div>
 
-            <Separator />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  label="Min Ready"
+                  description="Minimum ready instances"
+                >
+                  <Input
+                    type="number"
+                    {...register('minReady', { valueAsNumber: true })}
+                    min={0}
+                  />
+                </FormField>
 
-            <FormField label="Tags" description="Comma-separated tags for organization">
-              <Input
-                {...register('tags')}
-                placeholder="production, api, core"
-              />
-            </FormField>
-
-            <FormField label="Activation Mode">
-              <Select
-                value={watch('activationMode')}
-                onValueChange={v => setValue('activationMode', v as 'on-demand' | 'always-on')}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {value =>
-                      value === 'on-demand'
-                        ? 'On Demand'
-                        : value === 'always-on'
-                          ? 'Always On'
-                          : 'Select mode'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectPopup>
-                  <SelectItem value="on-demand">On Demand</SelectItem>
-                  <SelectItem value="always-on">Always On</SelectItem>
-                </SelectPopup>
-              </Select>
-            </FormField>
-
-            <FormField label="Strategy">
-              <Select
-                value={watch('strategy')}
-                onValueChange={v => setValue('strategy', v as string)}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {value => value || 'Select strategy'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectPopup>
-                  <SelectItem value="stateless">Stateless</SelectItem>
-                  <SelectItem value="stateful">Stateful</SelectItem>
-                </SelectPopup>
-              </Select>
-            </FormField>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Drain Timeout"
-                description="Drain timeout in seconds"
-              >
-                <Input
-                  type="number"
-                  {...register('drainTimeoutSeconds', { valueAsNumber: true })}
-                  min={0}
-                />
-              </FormField>
-
-              <div />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Idle Timeout"
-                description="Seconds before idle shutdown"
-              >
-                <Input
-                  type="number"
-                  {...register('idleSeconds', { valueAsNumber: true })}
-                  min={0}
-                />
-              </FormField>
-
-              <FormField
-                label="Max Concurrency"
-                description="Maximum concurrent requests"
-              >
-                <Input
-                  type="number"
-                  {...register('maxConcurrent', { valueAsNumber: true })}
-                  min={1}
-                />
-              </FormField>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                label="Min Ready"
-                description="Minimum ready instances"
-              >
-                <Input
-                  type="number"
-                  {...register('minReady', { valueAsNumber: true })}
-                  min={0}
-                />
-              </FormField>
-
-              <FormField
-                label="Session TTL"
-                description="Session time-to-live in seconds"
-              >
-                <Input
-                  type="number"
-                  {...register('sessionTTLSeconds', { valueAsNumber: true })}
-                  min={0}
-                />
-              </FormField>
-            </div>
-          </m.div>
+                <FormField
+                  label="Session TTL"
+                  description="Session time-to-live in seconds"
+                >
+                  <Input
+                    type="number"
+                    {...register('sessionTTLSeconds', { valueAsNumber: true })}
+                    min={0}
+                  />
+                </FormField>
+              </div>
+            </m.div>
+          </fieldset>
         </SheetPanel>
 
         <SheetFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
-            {isSubmitting ? (
-              'Saving...'
-            ) : isEdit
-              ? (
-                  <>
-                    <SaveIcon className="mr-2 size-4" />
-                    Save Changes
-                  </>
-                )
-              : (
-                  <>
-                    <PlusIcon className="mr-2 size-4" />
-                    Add Server
-                  </>
-                )}
+          <Button onClick={handleSubmit(onSubmit)} disabled={isActionDisabled}>
+            {isActionDisabled && isEditLoading
+              ? 'Loading...'
+              : isSubmitting
+                ? 'Saving...'
+                : isEdit
+                  ? (
+                      <>
+                        <SaveIcon className="mr-2 size-4" />
+                        Save Changes
+                      </>
+                    )
+                  : (
+                      <>
+                        <PlusIcon className="mr-2 size-4" />
+                        Add Server
+                      </>
+                    )}
           </Button>
         </SheetFooter>
       </SheetContent>
