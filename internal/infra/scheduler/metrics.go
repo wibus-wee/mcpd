@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"mcpd/internal/domain"
@@ -60,11 +61,54 @@ func (s *BasicScheduler) observeInstanceStart(serverType string, start time.Time
 	s.metrics.ObserveInstanceStart(serverType, time.Since(start), err)
 }
 
+func (s *BasicScheduler) observeInstanceStartCause(ctx context.Context, serverType string) {
+	if s.metrics == nil {
+		return
+	}
+	cause, ok := domain.StartCauseFromContext(ctx)
+	if !ok {
+		s.metrics.ObserveInstanceStartCause(serverType, domain.StartCauseReason("unknown"))
+		return
+	}
+	s.metrics.ObserveInstanceStartCause(serverType, cause.Reason)
+}
+
 func (s *BasicScheduler) observeInstanceStop(serverType string, err error) {
 	if s.metrics == nil {
 		return
 	}
 	s.metrics.ObserveInstanceStop(serverType, err)
+}
+
+func (s *BasicScheduler) observePoolWait(serverType string, duration time.Duration, outcome domain.PoolWaitOutcome) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.ObservePoolWait(serverType, duration, outcome)
+}
+
+func (s *BasicScheduler) observePoolAcquireFailure(serverType string, err error) {
+	if s.metrics == nil {
+		return
+	}
+	reason, ok := classifyAcquireFailure(err)
+	if !ok {
+		return
+	}
+	s.metrics.ObservePoolAcquireFailure(serverType, reason)
+}
+
+func classifyAcquireFailure(err error) (domain.AcquireFailureReason, bool) {
+	switch {
+	case errors.Is(err, domain.ErrNoReadyInstance):
+		return domain.AcquireFailureNoReady, true
+	case errors.Is(err, ErrNoCapacity):
+		return domain.AcquireFailureNoCapacity, true
+	case errors.Is(err, ErrStickyBusy):
+		return domain.AcquireFailureStickyBusy, true
+	default:
+		return "", false
+	}
 }
 
 func (s *BasicScheduler) recordInstanceStop(state *poolState) {
@@ -82,11 +126,14 @@ func (s *BasicScheduler) observePoolStats(state *poolState) {
 	busyCount := 0
 	maxConcurrent := state.spec.MaxConcurrent
 	serverType := state.spec.Name
+	waiterCount := state.waiters
+	startingCount := state.starting
 	for _, inst := range state.instances {
 		busyCount += inst.instance.BusyCount()
 	}
 	state.mu.Unlock()
 
+	s.metrics.SetStartingInstances(serverType, startingCount)
 	s.metrics.SetActiveInstances(serverType, activeCount)
 	capacity := activeCount * maxConcurrent
 	ratio := 0.0
@@ -94,4 +141,5 @@ func (s *BasicScheduler) observePoolStats(state *poolState) {
 		ratio = float64(busyCount) / float64(capacity)
 	}
 	s.metrics.SetPoolCapacityRatio(serverType, ratio)
+	s.metrics.SetPoolWaiters(serverType, waiterCount)
 }

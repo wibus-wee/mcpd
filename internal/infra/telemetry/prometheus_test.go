@@ -15,13 +15,19 @@ func TestNewPrometheusMetrics(t *testing.T) {
 	m := NewPrometheusMetrics(prometheus.NewRegistry())
 	assert.NotNil(t, m)
 	assert.NotNil(t, m.routeDuration)
+	assert.NotNil(t, m.inflightRoutes)
+	assert.NotNil(t, m.poolWaitDuration)
 	assert.NotNil(t, m.instanceStarts)
 	assert.NotNil(t, m.instanceStops)
 	assert.NotNil(t, m.instanceStartDuration)
 	assert.NotNil(t, m.instanceStartResults)
+	assert.NotNil(t, m.instanceStartCauses)
 	assert.NotNil(t, m.instanceStopResults)
+	assert.NotNil(t, m.startingInstances)
 	assert.NotNil(t, m.activeInstances)
 	assert.NotNil(t, m.poolCapacityRatio)
+	assert.NotNil(t, m.poolWaiters)
+	assert.NotNil(t, m.poolAcquireFailures)
 	assert.NotNil(t, m.subAgentTokens)
 	assert.NotNil(t, m.subAgentLatency)
 	assert.NotNil(t, m.subAgentFilterPrecision)
@@ -38,10 +44,17 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 		Reason:     domain.RouteReasonSuccess,
 		Duration:   10 * time.Millisecond,
 	})
+	m.AddInflightRoutes("test-server", 1)
+	m.AddInflightRoutes("test-server", -1)
+	m.ObservePoolWait("test-server", 50*time.Millisecond, domain.PoolWaitOutcomeSignaled)
 	m.ObserveInstanceStart("test-server", 0, nil)
+	m.ObserveInstanceStartCause("test-server", domain.StartCauseToolCall)
 	m.ObserveInstanceStop("test-server", nil)
+	m.SetStartingInstances("test-server", 2)
 	m.SetActiveInstances("test-server", 1)
 	m.SetPoolCapacityRatio("test-server", 0.2)
+	m.SetPoolWaiters("test-server", 3)
+	m.ObservePoolAcquireFailure("test-server", domain.AcquireFailureNoCapacity)
 	m.ObserveSubAgentTokens("openai", "gpt-4o", 128)
 	m.ObserveSubAgentLatency("openai", "gpt-4o", 500*time.Millisecond)
 	m.ObserveSubAgentFilterPrecision("openai", "gpt-4o", 0.5)
@@ -55,13 +68,19 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 	}
 
 	assert.Contains(t, names, "mcpd_route_duration_seconds")
+	assert.Contains(t, names, "mcpd_inflight_routes")
+	assert.Contains(t, names, "mcpd_pool_wait_seconds")
 	assert.Contains(t, names, "mcpd_instance_starts_total")
 	assert.Contains(t, names, "mcpd_instance_stops_total")
 	assert.Contains(t, names, "mcpd_instance_start_duration_seconds")
 	assert.Contains(t, names, "mcpd_instance_start_result_total")
+	assert.Contains(t, names, "mcpd_instance_start_cause_total")
 	assert.Contains(t, names, "mcpd_instance_stop_result_total")
+	assert.Contains(t, names, "mcpd_instance_starting")
 	assert.Contains(t, names, "mcpd_active_instances")
 	assert.Contains(t, names, "mcpd_pool_capacity_ratio")
+	assert.Contains(t, names, "mcpd_pool_waiters")
+	assert.Contains(t, names, "mcpd_pool_acquire_fail_total")
 	assert.Contains(t, names, "mcpd_subagent_tokens_total")
 	assert.Contains(t, names, "mcpd_subagent_latency_seconds")
 	assert.Contains(t, names, "mcpd_subagent_filter_precision")
@@ -200,5 +219,86 @@ func TestPrometheusMetrics_SetPoolCapacityRatio(t *testing.T) {
 		m.SetPoolCapacityRatio("test-server", 0)
 		m.SetPoolCapacityRatio("test-server", 0.5)
 		m.SetPoolCapacityRatio("test-server", 1)
+	})
+}
+
+func TestPrometheusMetrics_AddInflightRoutes(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route6"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts6"}, []string{"server_type"}),
+		instanceStops:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops6"}, []string{"server_type"}),
+		inflightRoutes: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_inflight"}, []string{"server_type"}),
+	}
+	assert.NotPanics(t, func() {
+		m.AddInflightRoutes("test-server", 1)
+		m.AddInflightRoutes("test-server", 2)
+		m.AddInflightRoutes("test-server", -1)
+	})
+}
+
+func TestPrometheusMetrics_SetPoolWaiters(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route7"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts7"}, []string{"server_type"}),
+		instanceStops:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops7"}, []string{"server_type"}),
+		poolWaiters:    prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_waiters"}, []string{"server_type"}),
+	}
+	assert.NotPanics(t, func() {
+		m.SetPoolWaiters("test-server", 0)
+		m.SetPoolWaiters("test-server", 2)
+		m.SetPoolWaiters("test-server", 5)
+	})
+}
+
+func TestPrometheusMetrics_ObservePoolWait(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:    prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route8"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts8"}, []string{"server_type"}),
+		instanceStops:    prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops8"}, []string{"server_type"}),
+		poolWaitDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_wait"}, []string{"server_type", "outcome"}),
+	}
+	assert.NotPanics(t, func() {
+		m.ObservePoolWait("test-server", 200*time.Millisecond, domain.PoolWaitOutcomeSignaled)
+		m.ObservePoolWait("test-server", 0, domain.PoolWaitOutcomeCanceled)
+	})
+}
+
+func TestPrometheusMetrics_ObserveInstanceStartCause(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:       prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route9"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts:      prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts9"}, []string{"server_type"}),
+		instanceStops:       prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops9"}, []string{"server_type"}),
+		instanceStartCauses: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_causes"}, []string{"server_type", "reason"}),
+	}
+	assert.NotPanics(t, func() {
+		m.ObserveInstanceStartCause("test-server", domain.StartCauseToolCall)
+		m.ObserveInstanceStartCause("test-server", "")
+	})
+}
+
+func TestPrometheusMetrics_SetStartingInstances(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:     prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route10"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts:    prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts10"}, []string{"server_type"}),
+		instanceStops:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops10"}, []string{"server_type"}),
+		startingInstances: prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_starting"}, []string{"server_type"}),
+	}
+	assert.NotPanics(t, func() {
+		m.SetStartingInstances("test-server", 0)
+		m.SetStartingInstances("test-server", 3)
+	})
+}
+
+func TestPrometheusMetrics_ObservePoolAcquireFailure(t *testing.T) {
+	m := &PrometheusMetrics{
+		routeDuration:       prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "test_route11"}, []string{"server_type", "client", "status", "reason"}),
+		instanceStarts:      prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_starts11"}, []string{"server_type"}),
+		instanceStops:       prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_stops11"}, []string{"server_type"}),
+		poolAcquireFailures: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "test_fail"}, []string{"server_type", "reason"}),
+	}
+	assert.NotPanics(t, func() {
+		m.ObservePoolAcquireFailure("test-server", domain.AcquireFailureNoReady)
+		m.ObservePoolAcquireFailure("test-server", domain.AcquireFailureNoCapacity)
+		m.ObservePoolAcquireFailure("test-server", domain.AcquireFailureStickyBusy)
 	})
 }

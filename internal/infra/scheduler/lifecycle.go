@@ -67,6 +67,7 @@ func (s *BasicScheduler) SetDesiredMinReady(ctx context.Context, specKey string,
 					panic(r)
 				}
 			}()
+			s.observeInstanceStartCause(ctx, state.spec.Name)
 			inst, err = s.lifecycle.StartInstance(ctx, specKey, state.spec)
 			s.observeInstanceStart(state.spec.Name, started, err)
 			if err == nil {

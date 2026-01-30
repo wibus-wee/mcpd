@@ -26,6 +26,10 @@ func (r *MetricRouter) Route(ctx context.Context, serverType, specKey, routingKe
 }
 
 func (r *MetricRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, opts domain.RouteOptions) (json.RawMessage, error) {
+	if r.metrics != nil {
+		r.metrics.AddInflightRoutes(serverType, 1)
+		defer r.metrics.AddInflightRoutes(serverType, -1)
+	}
 	start := time.Now()
 	resp, err := r.inner.RouteWithOptions(ctx, serverType, specKey, routingKey, payload, opts)
 	r.observe(ctx, serverType, time.Since(start), err)

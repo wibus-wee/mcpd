@@ -36,6 +36,30 @@ const (
 	RouteReasonUnknown RouteReason = "unknown"
 )
 
+// PoolWaitOutcome describes how an acquire wait ended.
+type PoolWaitOutcome string
+
+const (
+	// PoolWaitOutcomeSignaled indicates the wait was released by a signal.
+	PoolWaitOutcomeSignaled PoolWaitOutcome = "signaled"
+	// PoolWaitOutcomeCanceled indicates the wait ended by cancellation.
+	PoolWaitOutcomeCanceled PoolWaitOutcome = "canceled"
+	// PoolWaitOutcomeTimeout indicates the wait ended by deadline.
+	PoolWaitOutcomeTimeout PoolWaitOutcome = "timeout"
+)
+
+// AcquireFailureReason describes why acquire failed.
+type AcquireFailureReason string
+
+const (
+	// AcquireFailureNoReady indicates no ready instances were available.
+	AcquireFailureNoReady AcquireFailureReason = "no_ready"
+	// AcquireFailureNoCapacity indicates no capacity was available.
+	AcquireFailureNoCapacity AcquireFailureReason = "no_capacity"
+	// AcquireFailureStickyBusy indicates a sticky instance was busy.
+	AcquireFailureStickyBusy AcquireFailureReason = "sticky_busy"
+)
+
 // RouteMetric captures metrics for a routed request.
 type RouteMetric struct {
 	ServerType string
@@ -48,10 +72,16 @@ type RouteMetric struct {
 // Metrics records operational metrics for routing and instances.
 type Metrics interface {
 	ObserveRoute(metric RouteMetric)
+	AddInflightRoutes(serverType string, delta int)
+	ObservePoolWait(serverType string, duration time.Duration, outcome PoolWaitOutcome)
 	ObserveInstanceStart(serverType string, duration time.Duration, err error)
+	ObserveInstanceStartCause(serverType string, reason StartCauseReason)
 	ObserveInstanceStop(serverType string, err error)
+	SetStartingInstances(serverType string, count int)
 	SetActiveInstances(serverType string, count int)
 	SetPoolCapacityRatio(serverType string, ratio float64)
+	SetPoolWaiters(serverType string, count int)
+	ObservePoolAcquireFailure(serverType string, reason AcquireFailureReason)
 	ObserveSubAgentTokens(provider string, model string, tokens int)
 	ObserveSubAgentLatency(provider string, model string, duration time.Duration)
 	ObserveSubAgentFilterPrecision(provider string, model string, ratio float64)

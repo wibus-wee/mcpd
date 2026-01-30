@@ -28,25 +28,51 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			return inst, nil
 		}
 		if acquireErr == ErrStickyBusy {
+			serverType := state.spec.Name
 			state.mu.Unlock()
+			s.observePoolAcquireFailure(serverType, acquireErr)
 			return nil, acquireErr
 		}
 
 		if state.startInFlight {
-			if err := state.waitForSignalLocked(ctx); err != nil {
-				state.mu.Unlock()
+			waitStart := time.Now()
+			err := state.waitForSignalLocked(ctx)
+			waitDuration := time.Since(waitStart)
+			waitOutcome := domain.PoolWaitOutcomeSignaled
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					waitOutcome = domain.PoolWaitOutcomeTimeout
+				} else {
+					waitOutcome = domain.PoolWaitOutcomeCanceled
+				}
+			}
+			serverType := state.spec.Name
+			state.mu.Unlock()
+			s.observePoolWait(serverType, waitDuration, waitOutcome)
+			if err != nil {
 				return nil, err
 			}
-			state.mu.Unlock()
 			continue
 		}
 
 		if state.spec.Strategy == domain.StrategySingleton && len(state.instances) > 0 {
-			if err := state.waitForSignalLocked(ctx); err != nil {
-				state.mu.Unlock()
+			waitStart := time.Now()
+			err := state.waitForSignalLocked(ctx)
+			waitDuration := time.Since(waitStart)
+			waitOutcome := domain.PoolWaitOutcomeSignaled
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					waitOutcome = domain.PoolWaitOutcomeTimeout
+				} else {
+					waitOutcome = domain.PoolWaitOutcomeCanceled
+				}
+			}
+			serverType := state.spec.Name
+			state.mu.Unlock()
+			s.observePoolWait(serverType, waitDuration, waitOutcome)
+			if err != nil {
 				return nil, err
 			}
-			state.mu.Unlock()
 			continue
 		}
 
@@ -90,6 +116,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 					panic(r)
 				}
 			}()
+			s.observeInstanceStartCause(ctx, state.spec.Name)
 			newInst, err = s.lifecycle.StartInstance(startCtx, specKey, state.spec)
 			s.observeInstanceStart(state.spec.Name, started, err)
 			if err == nil {
@@ -102,6 +129,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			state.startInFlight = false
 			state.signalWaiterLocked()
 			state.mu.Unlock()
+			s.observePoolAcquireFailure(state.spec.Name, err)
 			return nil, fmt.Errorf("start instance: %w", err)
 		}
 		tracked := &trackedInstance{instance: newInst}
@@ -113,6 +141,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			stopErr := s.stopInstance(context.Background(), state.spec, newInst, "start superseded")
 			s.observeInstanceStop(state.spec.Name, stopErr)
 			s.recordInstanceStop(state)
+			s.observePoolAcquireFailure(state.spec.Name, ErrNoCapacity)
 			return nil, ErrNoCapacity
 		}
 
@@ -130,6 +159,7 @@ func (s *BasicScheduler) Acquire(ctx context.Context, specKey, routingKey string
 			if err == nil {
 				return inst, nil
 			}
+			s.observePoolAcquireFailure(state.spec.Name, err)
 			return nil, ErrNoCapacity
 		}
 
@@ -166,7 +196,9 @@ func (s *BasicScheduler) AcquireReady(ctx context.Context, specKey, routingKey s
 	state.mu.Unlock()
 	if err == nil {
 		s.observePoolStats(state)
+		return inst, nil
 	}
+	s.observePoolAcquireFailure(state.spec.Name, err)
 	return inst, err
 }
 
