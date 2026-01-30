@@ -40,6 +40,7 @@ export type RuntimeFormState = {
   serverInitRetryBaseSeconds: number
   serverInitRetryMaxSeconds: number
   serverInitMaxRetries: number
+  reloadMode: string
   bootstrapMode: string
   bootstrapConcurrency: number
   bootstrapTimeoutSeconds: number
@@ -58,6 +59,7 @@ export const DEFAULT_RUNTIME_FORM: RuntimeFormState = {
   serverInitRetryBaseSeconds: 0,
   serverInitRetryMaxSeconds: 0,
   serverInitMaxRetries: 0,
+  reloadMode: 'lenient',
   bootstrapMode: 'metadata',
   bootstrapConcurrency: 0,
   bootstrapTimeoutSeconds: 0,
@@ -76,6 +78,7 @@ export const toRuntimeFormState = (runtime: RuntimeConfigDetail): RuntimeFormSta
   serverInitRetryBaseSeconds: runtime.serverInitRetryBaseSeconds,
   serverInitRetryMaxSeconds: runtime.serverInitRetryMaxSeconds,
   serverInitMaxRetries: runtime.serverInitMaxRetries,
+  reloadMode: runtime.reloadMode || 'hot',
   bootstrapMode: runtime.bootstrapMode || 'metadata',
   bootstrapConcurrency: runtime.bootstrapConcurrency,
   bootstrapTimeoutSeconds: runtime.bootstrapTimeoutSeconds,

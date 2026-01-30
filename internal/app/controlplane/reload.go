@@ -3,8 +3,8 @@ package controlplane
 import (
 	"context"
 	"errors"
-	"sort"
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"time"
 
