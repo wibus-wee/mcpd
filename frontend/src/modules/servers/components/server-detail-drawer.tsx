@@ -118,84 +118,84 @@ export function ServerDetailDrawer({
           <SheetHeader className="px-6 pt-6 pb-4 space-y-3">
             {isLoading || !server
               ? (
-                <>
-                  <Skeleton className="h-7 w-48" />
-                  <Skeleton className="h-4 w-32" />
-                </>
-              )
+                  <>
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                  </>
+                )
               : (
-                <m.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={Spring.smooth(0.2)}
-                >
-                  <SheetTitle className="text-xl font-semibold">
-                    {server.name}
-                  </SheetTitle>
-                  <div className="flex items-center gap-2 mt-2">
-                    <ServerRuntimeIndicator specKey={server.specKey} />
-                    <Badge variant="outline" size="sm">
-                      {server.transport}
-                    </Badge>
-                    {server.disabled && (
-                      <Badge variant="secondary" size="sm">
-                        Disabled
+                  <m.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={Spring.smooth(0.2)}
+                  >
+                    <SheetTitle className="text-xl font-semibold">
+                      {server.name}
+                    </SheetTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <ServerRuntimeIndicator specKey={server.specKey} />
+                      <Badge variant="outline" size="sm">
+                        {server.transport}
                       </Badge>
-                    )}
-                  </div>
-                </m.div>
-              )}
+                      {server.disabled && (
+                        <Badge variant="secondary" size="sm">
+                          Disabled
+                        </Badge>
+                      )}
+                    </div>
+                  </m.div>
+                )}
           </SheetHeader>
 
           {/* Tabs */}
           {isLoading || !server
             ? (
-              <DetailSkeleton />
-            )
+                <DetailSkeleton />
+              )
             : (
-              <Tabs
-                value={tab}
-                onValueChange={v => setTab(v as ServerTab)}
-                className="flex-1 flex flex-col min-h-0"
-              >
-                <TabsList variant="underline" className="px-6 border-b w-full">
-                  <TabsTrigger value="overview">
-                    <LayoutGridIcon className="size-4" />
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger value="configuration">
-                    <SettingsIcon className="size-4" />
-                    Configuration
-                  </TabsTrigger>
-                </TabsList>
+                <Tabs
+                  value={tab}
+                  onValueChange={v => setTab(v as ServerTab)}
+                  className="flex-1 flex flex-col min-h-0"
+                >
+                  <TabsList variant="underline" className="px-6 border-b w-full">
+                    <TabsTrigger value="overview">
+                      <LayoutGridIcon className="size-4" />
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="configuration">
+                      <SettingsIcon className="size-4" />
+                      Configuration
+                    </TabsTrigger>
+                  </TabsList>
 
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <TabsContent value="overview" keepMounted className="m-0 p-0 h-full">
-                    <Activity mode={tab === 'overview' ? 'visible' : 'hidden'}>
-                      <ScrollArea className="h-full">
-                        <div className="p-6">
-                          <ServerOverviewPanel server={server} />
-                        </div>
-                      </ScrollArea>
-                    </Activity>
-                  </TabsContent>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <TabsContent value="overview" keepMounted className="m-0 p-0 h-full">
+                      <Activity mode={tab === 'overview' ? 'visible' : 'hidden'}>
+                        <ScrollArea className="h-full">
+                          <div className="p-6">
+                            <ServerOverviewPanel server={server} />
+                          </div>
+                        </ScrollArea>
+                      </Activity>
+                    </TabsContent>
 
-                  <TabsContent value="configuration" keepMounted className="m-0 p-0 h-full">
-                    <Activity mode={tab === 'configuration' ? 'visible' : 'hidden'}>
-                      <ScrollArea className="h-full">
-                        <div className="p-6">
-                          <ServerConfigPanel
-                            serverName={server.name}
-                            onDeleted={handleDeleted}
-                            onEdit={handleEdit}
-                          />
-                        </div>
-                      </ScrollArea>
-                    </Activity>
-                  </TabsContent>
-                </div>
-              </Tabs>
-            )}
+                    <TabsContent value="configuration" keepMounted className="m-0 p-0 h-full">
+                      <Activity mode={tab === 'configuration' ? 'visible' : 'hidden'}>
+                        <ScrollArea className="h-full">
+                          <div className="p-6">
+                            <ServerConfigPanel
+                              serverName={server.name}
+                              onDeleted={handleDeleted}
+                              onEdit={handleEdit}
+                            />
+                          </div>
+                        </ScrollArea>
+                      </Activity>
+                    </TabsContent>
+                  </div>
+                </Tabs>
+              )}
 
           {/* Footer with actions */}
           {!isLoading && server && (

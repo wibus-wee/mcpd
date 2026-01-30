@@ -153,7 +153,7 @@ export const ImportMcpServersSheet = () => {
         <SheetHeader>
           <SheetTitle>Import MCP servers</SheetTitle>
           <SheetDescription>
-            Paste your mcpServers JSON, review the servers, and apply them to this config.
+            Paste your mcpServers JSON or a command line, review the servers, and apply them to this config.
           </SheetDescription>
         </SheetHeader>
         <SheetPanel className="space-y-6">
@@ -179,7 +179,7 @@ export const ImportMcpServersSheet = () => {
 
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Source JSON</h3>
+              <h3 className="text-sm font-medium">Source</h3>
               {servers.length > 0 && (
                 <Badge variant="secondary" size="sm">
                   {servers.length} servers
@@ -189,7 +189,7 @@ export const ImportMcpServersSheet = () => {
             <Textarea
               value={rawInput}
               onChange={event => setRawInput(event.target.value)}
-              placeholder="Paste mcpServers JSON from Claude or Cursor"
+              placeholder={`Paste mcpServers JSON from Claude or Cursor\n\nOr paste a command line:\nnpx -y @upstash/context7-mcp --api-key YOUR_API_KEY`}
               className="min-h-36 font-mono text-xs"
             />
             <div className="flex items-center gap-2">

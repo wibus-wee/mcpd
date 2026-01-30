@@ -32,15 +32,40 @@ type ParseResult = {
   errors: string[]
 }
 
+/**
+ * 自动检测输入是 JSON 还是命令行，并调用相应的解析器
+ */
 export function parseMcpServersJson(input: string): ParseResult {
   const trimmed = input.trim()
   if (!trimmed) {
-    return { servers: [], errors: ['Paste JSON to continue.'] }
+    return { servers: [], errors: ['Paste JSON or command line to continue.'] }
   }
 
+  // 尝试检测是否为 JSON
+  if (isJsonInput(trimmed)) {
+    return parseJsonPayload(trimmed)
+  }
+
+  // 否则尝试作为命令行解析
+  return parseCommandLine(trimmed)
+}
+
+/**
+ * 检测输入是否看起来像 JSON
+ */
+function isJsonInput(input: string): boolean {
+  const trimmed = input.trim()
+  // JSON 必须以 { 或 [ 开头
+  return trimmed.startsWith('{') || trimmed.startsWith('[')
+}
+
+/**
+ * 解析 JSON 格式的 mcpServers 配置
+ */
+function parseJsonPayload(input: string): ParseResult {
   let payload: unknown
   try {
-    payload = JSON.parse(trimmed)
+    payload = JSON.parse(input)
   }
   catch {
     return { servers: [], errors: ['Invalid JSON format.'] }
@@ -294,4 +319,133 @@ function parseCwd(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 解析命令行格式:
+ * npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
+ *
+ * 生成单个 server，名称从命令推断
+ */
+function parseCommandLine(input: string): ParseResult {
+  const errors: string[] = []
+
+  // 简单的 shell 参数解析
+  const tokens = shellParse(input)
+  if (tokens.length === 0) {
+    errors.push('Command line is empty.')
+    return { servers: [], errors }
+  }
+
+  // 第一个 token 是命令，其余是参数
+  const [command, ...args] = tokens
+
+  // 从命令推断 server 名称
+  let name = inferServerName(command, args)
+  if (!name) {
+    name = command.split(/[/\\]/).pop() || 'unnamed'
+  }
+
+  // 规范化名称
+  name = normalizeServerName(name)
+
+  const server: ImportServerDraft = {
+    id: `cmd-${Date.now()}`,
+    name,
+    transport: 'stdio',
+    cmd: [command, ...args],
+    env: {},
+    cwd: '',
+  }
+
+  return { servers: [server], errors: [] }
+}
+
+/**
+ * 简单的 shell 风格参数解析
+ * 支持双引号和单引号
+ */
+function shellParse(input: string): string[] {
+  const tokens: string[] = []
+  let current = ''
+  let inDouble = false
+  let inSingle = false
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i]
+    const prev = i > 0 ? input[i - 1] : ''
+
+    if (char === '"' && prev !== '\\' && !inSingle) {
+      inDouble = !inDouble
+      continue
+    }
+    if (char === "'" && prev !== '\\' && !inDouble) {
+      inSingle = !inSingle
+      continue
+    }
+    if ((char === ' ' || char === '\t') && !inDouble && !inSingle) {
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+      continue
+    }
+
+    current += char
+  }
+
+  if (current) {
+    tokens.push(current)
+  }
+
+  return tokens.filter(t => t.length > 0)
+}
+
+/**
+ * 从命令和参数推断 server 名称
+ * 尝试从类似包名的参数中提取
+ */
+function inferServerName(command: string, args: string[]): string | null {
+  // 对于 npx，查找 @scope/package-name 或 package-name 形式的参数
+  if (command === 'npx' || command.endsWith('/npx')) {
+    for (const arg of args) {
+      // 跳过 flag 类参数 (-y, --api-key 等)
+      if (arg.startsWith('-')) {
+        continue
+      }
+      // 查找看起来像包名的参数（包含 / 或 - 的字符串）
+      if (arg.includes('/') || arg.includes('-') || arg.includes('@')) {
+        return arg
+      }
+    }
+  }
+
+  // 对于其他命令，使用命令名本身
+  return command.split(/[/\\]/).pop() || null
+}
+
+/**
+ * 清理并规范化 server 名称
+ * 移除特殊字符，保留字母数字和连字符下划线，转换为小写
+ */
+function normalizeServerName(name: string): string {
+  // 移除前导 @ 符号（用于 npm 作用域包）
+  let cleaned = name.startsWith('@') ? name.slice(1) : name
+
+  // 将 / 替换为 -（scoped packages）
+  cleaned = cleaned.replaceAll('/', '-')
+
+  // 移除其他特殊字符，保留字母数字、连字符、下划线
+  cleaned = cleaned.replaceAll(/[^\w-]/g, '-')
+
+  // 合并连续的连字符
+  cleaned = cleaned.replaceAll(/-+/g, '-')
+
+  // 转换为小写
+  cleaned = cleaned.toLowerCase()
+
+  // 移除开头和结尾的连字符或下划线
+  cleaned = cleaned.replaceAll(/^[-_]+|[-_]+$/g, '')
+
+  return cleaned || 'imported-server'
 }

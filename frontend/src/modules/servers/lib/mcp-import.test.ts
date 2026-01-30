@@ -11,13 +11,13 @@ describe('parseMcpServersJson', () => {
     it('returns error for empty string', () => {
       const result = parseMcpServersJson('')
       expect(result.servers).toEqual([])
-      expect(result.errors).toContain('Paste JSON to continue.')
+      expect(result.errors).toContain('Paste JSON or command line to continue.')
     })
 
     it('returns error for whitespace-only string', () => {
       const result = parseMcpServersJson('   \n\t  ')
       expect(result.servers).toEqual([])
-      expect(result.errors).toContain('Paste JSON to continue.')
+      expect(result.errors).toContain('Paste JSON or command line to continue.')
     })
 
     it('returns error for invalid JSON', () => {
@@ -28,8 +28,9 @@ describe('parseMcpServersJson', () => {
 
     it('returns error for non-object JSON', () => {
       const result = parseMcpServersJson('"just a string"')
-      expect(result.servers).toEqual([])
-      expect(result.errors).toContain('JSON must be an object with mcpServers.')
+      // "string" 不以 { 或 [ 开头，所以被当作命令行处理
+      expect(result.servers).toHaveLength(1)
+      expect(result.errors).toEqual([])
     })
 
     it('returns error for array JSON', () => {
@@ -269,6 +270,48 @@ describe('parseMcpServersJson', () => {
       expect(result.errors).toEqual([])
       expect(result.servers).toHaveLength(3)
       expect(result.servers.map(s => s.name)).toEqual(['server1', 'server2', 'server3'])
+    })
+  })
+
+  describe('command line parsing', () => {
+    it('parses simple npx command', () => {
+      const result = parseMcpServersJson('npx -y @upstash/context7-mcp --api-key YOUR_API_KEY')
+      expect(result.servers).toHaveLength(1)
+      expect(result.errors).toEqual([])
+      const server = result.servers[0]
+      expect(server.name).toBe('upstash-context7-mcp')
+      expect(server.transport).toBe('stdio')
+      expect(server.cmd).toEqual(['npx', '-y', '@upstash/context7-mcp', '--api-key', 'YOUR_API_KEY'])
+    })
+
+    it('parses command with quoted arguments', () => {
+      const result = parseMcpServersJson('node "path to/script.js" --name "my server"')
+      expect(result.servers).toHaveLength(1)
+      expect(result.errors).toEqual([])
+      const server = result.servers[0]
+      expect(server.cmd).toEqual(['node', 'path to/script.js', '--name', 'my server'])
+    })
+
+    it('parses command with single quotes', () => {
+      const result = parseMcpServersJson("python 'script.py' --option 'value'")
+      expect(result.servers).toHaveLength(1)
+      expect(result.errors).toEqual([])
+      const server = result.servers[0]
+      expect(server.cmd).toEqual(['python', 'script.py', '--option', 'value'])
+    })
+
+    it('generates valid name from command', () => {
+      const result = parseMcpServersJson('uv run /path/to/mcp-server.py')
+      expect(result.servers).toHaveLength(1)
+      const server = result.servers[0]
+      expect(server.name).toBeTruthy()
+      expect(server.name.match(/^[a-z0-9_-]+$/)).toBeTruthy()
+    })
+
+    it('handles empty command line', () => {
+      const result = parseMcpServersJson('   ')
+      expect(result.servers).toEqual([])
+      expect(result.errors.length).toBeGreaterThan(0)
     })
   })
 

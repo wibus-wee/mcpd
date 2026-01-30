@@ -22,10 +22,10 @@ interface ServerConfigPanelProps {
   onEdit?: () => void
 }
 
-type ErrorState = {
-  title: string
-  description: string
-}
+// type ErrorState = {
+//   title: string
+//   description: string
+// }
 
 function DetailSkeleton() {
   return (
