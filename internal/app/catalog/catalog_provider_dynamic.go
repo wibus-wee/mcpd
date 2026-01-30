@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -128,7 +127,7 @@ func (p *DynamicCatalogProvider) reload(ctx context.Context, source domain.Catal
 	}
 
 	if prev.Revision > 0 && !reflect.DeepEqual(prev.Summary.Runtime, next.Summary.Runtime) {
-		return errors.New("runtime config changed; restart required to apply")
+		return domain.ErrReloadRestartRequired
 	}
 
 	diff := domain.DiffCatalogStates(prev, next)

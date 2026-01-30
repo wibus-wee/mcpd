@@ -27,6 +27,9 @@ type PrometheusMetrics struct {
 	subAgentTokens          *prometheus.CounterVec
 	subAgentLatency         *prometheus.HistogramVec
 	subAgentFilterPrecision *prometheus.HistogramVec
+	reloadSuccesses         *prometheus.CounterVec
+	reloadFailures          *prometheus.CounterVec
+	reloadRestarts          *prometheus.CounterVec
 }
 
 func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
@@ -160,6 +163,27 @@ func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
 			},
 			[]string{"provider", "model"},
 		),
+		reloadSuccesses: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpv_reload_success_total",
+				Help: "Total number of successful catalog reload actions",
+			},
+			[]string{"source", "action"},
+		),
+		reloadFailures: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpv_reload_failure_total",
+				Help: "Total number of failed catalog reload actions",
+			},
+			[]string{"source", "action"},
+		),
+		reloadRestarts: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpv_reload_restart_total",
+				Help: "Total number of catalog reload actions requiring restart",
+			},
+			[]string{"source", "action"},
+		),
 	}
 }
 
@@ -236,6 +260,18 @@ func (p *PrometheusMetrics) ObserveSubAgentLatency(provider string, model string
 
 func (p *PrometheusMetrics) ObserveSubAgentFilterPrecision(provider string, model string, ratio float64) {
 	p.subAgentFilterPrecision.WithLabelValues(provider, model).Observe(ratio)
+}
+
+func (p *PrometheusMetrics) RecordReloadSuccess(source domain.CatalogUpdateSource, action domain.ReloadAction) {
+	p.reloadSuccesses.WithLabelValues(string(source), string(action)).Inc()
+}
+
+func (p *PrometheusMetrics) RecordReloadFailure(source domain.CatalogUpdateSource, action domain.ReloadAction) {
+	p.reloadFailures.WithLabelValues(string(source), string(action)).Inc()
+}
+
+func (p *PrometheusMetrics) RecordReloadRestart(source domain.CatalogUpdateSource, action domain.ReloadAction) {
+	p.reloadRestarts.WithLabelValues(string(source), string(action)).Inc()
 }
 
 var _ domain.Metrics = (*PrometheusMetrics)(nil)

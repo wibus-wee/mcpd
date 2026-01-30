@@ -31,6 +31,9 @@ func TestNewPrometheusMetrics(t *testing.T) {
 	assert.NotNil(t, m.subAgentTokens)
 	assert.NotNil(t, m.subAgentLatency)
 	assert.NotNil(t, m.subAgentFilterPrecision)
+	assert.NotNil(t, m.reloadSuccesses)
+	assert.NotNil(t, m.reloadFailures)
+	assert.NotNil(t, m.reloadRestarts)
 }
 
 func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
@@ -58,6 +61,9 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 	m.ObserveSubAgentTokens("openai", "gpt-4o", 128)
 	m.ObserveSubAgentLatency("openai", "gpt-4o", 500*time.Millisecond)
 	m.ObserveSubAgentFilterPrecision("openai", "gpt-4o", 0.5)
+	m.RecordReloadSuccess(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
+	m.RecordReloadFailure(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
+	m.RecordReloadRestart(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
@@ -84,6 +90,9 @@ func TestNewPrometheusMetrics_UsesProvidedRegistry(t *testing.T) {
 	assert.Contains(t, names, "mcpv_subagent_tokens_total")
 	assert.Contains(t, names, "mcpv_subagent_latency_seconds")
 	assert.Contains(t, names, "mcpv_subagent_filter_precision")
+	assert.Contains(t, names, "mcpv_reload_success_total")
+	assert.Contains(t, names, "mcpv_reload_failure_total")
+	assert.Contains(t, names, "mcpv_reload_restart_total")
 }
 
 func TestPrometheusMetrics_ImplementsInterface(t *testing.T) {
