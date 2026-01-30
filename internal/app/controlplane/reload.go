@@ -91,8 +91,9 @@ func (m *ReloadManager) Reload(ctx context.Context) error {
 	if err := m.provider.Reload(ctx); err != nil {
 		if errors.Is(err, domain.ErrReloadRestartRequired) {
 			m.recordReloadRestart(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
+		} else {
+			m.recordReloadFailure(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
 		}
-		m.recordReloadFailure(domain.CatalogUpdateSourceManual, domain.ReloadActionEntry)
 		return err
 	}
 	if !m.started.Load() {
