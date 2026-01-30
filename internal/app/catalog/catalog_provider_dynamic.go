@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"path/filepath"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"

@@ -85,6 +85,24 @@ type RouteMetric struct {
 	Duration   time.Duration
 }
 
+// ReloadApplyResult describes the outcome of a reload apply.
+type ReloadApplyResult string
+
+const (
+	// ReloadApplyResultSuccess indicates reload apply succeeded.
+	ReloadApplyResultSuccess ReloadApplyResult = "success"
+	// ReloadApplyResultFailure indicates reload apply failed.
+	ReloadApplyResultFailure ReloadApplyResult = "failure"
+)
+
+// ReloadApplyMetric captures metrics for reload apply attempts.
+type ReloadApplyMetric struct {
+	Mode     ReloadMode
+	Result   ReloadApplyResult
+	Summary  string
+	Duration time.Duration
+}
+
 // Metrics records operational metrics for routing and instances.
 type Metrics interface {
 	ObserveRoute(metric RouteMetric)
@@ -104,4 +122,5 @@ type Metrics interface {
 	RecordReloadSuccess(source CatalogUpdateSource, action ReloadAction)
 	RecordReloadFailure(source CatalogUpdateSource, action ReloadAction)
 	RecordReloadRestart(source CatalogUpdateSource, action ReloadAction)
+	ObserveReloadApply(metric ReloadApplyMetric)
 }

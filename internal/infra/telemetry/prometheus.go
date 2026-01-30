@@ -30,6 +30,8 @@ type PrometheusMetrics struct {
 	reloadSuccesses         *prometheus.CounterVec
 	reloadFailures          *prometheus.CounterVec
 	reloadRestarts          *prometheus.CounterVec
+	reloadApplyTotal        *prometheus.CounterVec
+	reloadApplyDuration     *prometheus.HistogramVec
 }
 
 func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
@@ -183,6 +185,20 @@ func NewPrometheusMetrics(registerer prometheus.Registerer) *PrometheusMetrics {
 				Help: "Total number of catalog reload actions requiring restart",
 			},
 			[]string{"source", "action"},
+		reloadApplyTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "mcpv_reload_apply_total",
+				Help: "Total number of reload apply attempts",
+			},
+			[]string{"mode", "result", "summary"},
+		),
+		reloadApplyDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "mcpv_reload_apply_duration_seconds",
+				Help:    "Duration of reload apply attempts in seconds",
+				Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			},
+			[]string{"mode", "result"},
 		),
 	}
 }
@@ -272,6 +288,21 @@ func (p *PrometheusMetrics) RecordReloadFailure(source domain.CatalogUpdateSourc
 
 func (p *PrometheusMetrics) RecordReloadRestart(source domain.CatalogUpdateSource, action domain.ReloadAction) {
 	p.reloadRestarts.WithLabelValues(string(source), string(action)).Inc()
+func (p *PrometheusMetrics) ObserveReloadApply(metric domain.ReloadApplyMetric) {
+	mode := string(metric.Mode)
+	if mode == "" {
+		mode = string(domain.DefaultReloadMode)
+	}
+	result := string(metric.Result)
+	if result == "" {
+		result = string(domain.ReloadApplyResultSuccess)
+	}
+	summary := metric.Summary
+	if summary == "" {
+		summary = "none"
+	}
+	p.reloadApplyTotal.WithLabelValues(mode, result, summary).Inc()
+	p.reloadApplyDuration.WithLabelValues(mode, result).Observe(metric.Duration.Seconds())
 }
 
 var _ domain.Metrics = (*PrometheusMetrics)(nil)
