@@ -103,12 +103,7 @@ func UpdateRuntimeConfig(path string, update RuntimeConfigUpdate) (RuntimeUpdate
 	doc["serverInitRetryBaseSeconds"] = update.ServerInitRetryBaseSeconds
 	doc["serverInitRetryMaxSeconds"] = update.ServerInitRetryMaxSeconds
 	doc["serverInitMaxRetries"] = update.ServerInitMaxRetries
-	trimmedReloadMode := strings.TrimSpace(update.ReloadMode)
-	if trimmedReloadMode != "" {
-		doc["reloadMode"] = trimmedReloadMode
-	} else {
-		delete(doc, "reloadMode")
-	}
+	doc["reloadMode"] = strings.TrimSpace(update.ReloadMode)
 	doc["bootstrapMode"] = strings.TrimSpace(update.BootstrapMode)
 	doc["bootstrapConcurrency"] = update.BootstrapConcurrency
 	doc["bootstrapTimeoutSeconds"] = update.BootstrapTimeoutSeconds
