@@ -83,6 +83,8 @@ func DiffCatalogStates(prev CatalogState, next CatalogState) CatalogDiff {
 				diff.ToolsOnlySpecKeys = append(diff.ToolsOnlySpecKeys, specKey)
 			case SpecDiffRestartRequired:
 				diff.RestartRequiredSpecKeys = append(diff.RestartRequiredSpecKeys, specKey)
+			case SpecDiffNone:
+				// Should not occur since we checked !reflect.DeepEqual above
 			}
 		}
 	}
