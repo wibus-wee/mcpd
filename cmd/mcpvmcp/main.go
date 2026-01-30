@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -34,6 +36,18 @@ type gatewayOptions struct {
 	server              string
 	launchUIOnFail      bool
 	urlScheme           string
+	transport           string
+	httpAddr            string
+	httpPath            string
+	httpToken           string
+	httpAllowedOrigins  []string
+	httpJSONResponse    bool
+	httpSessionTimeout  int
+	httpTLSEnabled      bool
+	httpTLSCertFile     string
+	httpTLSKeyFile      string
+	httpEventStore      bool
+	httpEventStoreBytes int
 	logger              *zap.Logger
 }
 
@@ -45,6 +59,11 @@ func main() {
 		rpcKeepaliveTime:    domain.DefaultRPCKeepaliveTimeSeconds,
 		rpcKeepaliveTimeout: domain.DefaultRPCKeepaliveTimeoutSeconds,
 		logger:              zap.NewNop(),
+		transport:           "stdio",
+		httpAddr:            "127.0.0.1:8090",
+		httpPath:            "/mcp",
+		httpSessionTimeout:  0,
+		httpEventStoreBytes: 0,
 	}
 
 	root := &cobra.Command{
@@ -99,7 +118,30 @@ func main() {
 			}
 
 			gw := gateway.NewGateway(clientCfg, opts.caller, opts.tags, opts.server, opts.logger)
-			err := gw.Run(ctx)
+			var err error
+			switch opts.transport {
+			case "stdio":
+				err = gw.Run(ctx)
+			case "streamable-http":
+				if err := validateHTTPGatewayOptions(opts); err != nil {
+					return err
+				}
+				err = gw.RunStreamableHTTP(ctx, gateway.HTTPOptions{
+					Addr:               opts.httpAddr,
+					Path:               opts.httpPath,
+					Token:              opts.httpToken,
+					AllowedOrigins:     opts.httpAllowedOrigins,
+					JSONResponse:       opts.httpJSONResponse,
+					SessionTimeout:     time.Duration(opts.httpSessionTimeout) * time.Second,
+					TLSEnabled:         opts.httpTLSEnabled,
+					TLSCertFile:        opts.httpTLSCertFile,
+					TLSKeyFile:         opts.httpTLSKeyFile,
+					EventStoreEnabled:  opts.httpEventStore,
+					EventStoreMaxBytes: opts.httpEventStoreBytes,
+				})
+			default:
+				return fmt.Errorf("unsupported transport: %s", opts.transport)
+			}
 			if err != nil && opts.launchUIOnFail && isConnectionError(err) {
 				opts.logger.Info("failed to connect to mcpv, attempting to launch UI", zap.Error(err))
 				if launchErr := launchmcpvUI(opts.urlScheme, opts.logger); launchErr != nil {
@@ -126,6 +168,18 @@ func main() {
 	root.PersistentFlags().StringArrayVar(&opts.tags, "tag", nil, "tag for server visibility (repeatable)")
 	root.PersistentFlags().BoolVar(&opts.launchUIOnFail, "launch-ui-on-fail", false, "attempt to launch mcpv UI if connection fails")
 	root.PersistentFlags().StringVar(&opts.urlScheme, "url-scheme", "mcpv", "URL scheme to use for launching UI (mcpv or mcpvev)")
+	root.PersistentFlags().StringVar(&opts.transport, "transport", opts.transport, "gateway transport (stdio or streamable-http)")
+	root.PersistentFlags().StringVar(&opts.httpAddr, "http-addr", opts.httpAddr, "streamable HTTP listen address")
+	root.PersistentFlags().StringVar(&opts.httpPath, "http-path", opts.httpPath, "streamable HTTP endpoint path")
+	root.PersistentFlags().StringVar(&opts.httpToken, "http-token", "", "streamable HTTP bearer token (required for non-localhost)")
+	root.PersistentFlags().StringArrayVar(&opts.httpAllowedOrigins, "http-allowed-origin", nil, "allowed CORS origin (repeatable or *)")
+	root.PersistentFlags().BoolVar(&opts.httpJSONResponse, "http-json-response", false, "use application/json responses instead of SSE")
+	root.PersistentFlags().IntVar(&opts.httpSessionTimeout, "http-session-timeout", opts.httpSessionTimeout, "streamable HTTP session idle timeout in seconds (0 disables)")
+	root.PersistentFlags().BoolVar(&opts.httpTLSEnabled, "http-tls", false, "enable TLS for streamable HTTP listener")
+	root.PersistentFlags().StringVar(&opts.httpTLSCertFile, "http-tls-cert", "", "TLS certificate file for streamable HTTP")
+	root.PersistentFlags().StringVar(&opts.httpTLSKeyFile, "http-tls-key", "", "TLS key file for streamable HTTP")
+	root.PersistentFlags().BoolVar(&opts.httpEventStore, "http-event-store", false, "enable in-memory event store for streamable HTTP replay")
+	root.PersistentFlags().IntVar(&opts.httpEventStoreBytes, "http-event-store-bytes", opts.httpEventStoreBytes, "max bytes for in-memory event store (0 uses default)")
 
 	if err := root.Execute(); err != nil {
 		opts.logger.Fatal("command failed", zap.Error(err))
@@ -163,6 +217,30 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.launchUIOnFail, _ = flags.GetBool("launch-ui-on-fail")
 		case "url-scheme":
 			opts.urlScheme, _ = flags.GetString("url-scheme")
+		case "transport":
+			opts.transport, _ = flags.GetString("transport")
+		case "http-addr":
+			opts.httpAddr, _ = flags.GetString("http-addr")
+		case "http-path":
+			opts.httpPath, _ = flags.GetString("http-path")
+		case "http-token":
+			opts.httpToken, _ = flags.GetString("http-token")
+		case "http-allowed-origin":
+			opts.httpAllowedOrigins, _ = flags.GetStringArray("http-allowed-origin")
+		case "http-json-response":
+			opts.httpJSONResponse, _ = flags.GetBool("http-json-response")
+		case "http-session-timeout":
+			opts.httpSessionTimeout, _ = flags.GetInt("http-session-timeout")
+		case "http-tls":
+			opts.httpTLSEnabled, _ = flags.GetBool("http-tls")
+		case "http-tls-cert":
+			opts.httpTLSCertFile, _ = flags.GetString("http-tls-cert")
+		case "http-tls-key":
+			opts.httpTLSKeyFile, _ = flags.GetString("http-tls-key")
+		case "http-event-store":
+			opts.httpEventStore, _ = flags.GetBool("http-event-store")
+		case "http-event-store-bytes":
+			opts.httpEventStoreBytes, _ = flags.GetInt("http-event-store-bytes")
 		}
 	})
 }
@@ -208,6 +286,39 @@ func isConnectionError(err error) bool {
 		strings.Contains(msg, "connect: no such file or directory") ||
 		strings.Contains(msg, "failed to connect") ||
 		strings.Contains(msg, "Unavailable")
+}
+
+func validateHTTPGatewayOptions(opts gatewayOptions) error {
+	if strings.TrimSpace(opts.httpAddr) == "" {
+		return errors.New("http address is required")
+	}
+	if !isLocalhostAddr(opts.httpAddr) && strings.TrimSpace(opts.httpToken) == "" {
+		return errors.New("http token is required when binding to non-localhost address")
+	}
+	if opts.httpTLSEnabled {
+		if strings.TrimSpace(opts.httpTLSCertFile) == "" || strings.TrimSpace(opts.httpTLSKeyFile) == "" {
+			return errors.New("http tls cert and key are required when http tls is enabled")
+		}
+	}
+	return nil
+}
+
+func isLocalhostAddr(addr string) bool {
+	host := addr
+	if strings.Contains(addr, ":") {
+		if h, _, err := net.SplitHostPort(addr); err == nil {
+			host = h
+		}
+	}
+	host = strings.TrimSpace(host)
+	if host == "" || host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
 }
 
 func launchmcpvUI(scheme string, logger *zap.Logger) error {
