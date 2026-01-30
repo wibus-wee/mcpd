@@ -67,8 +67,8 @@ func (s *LogService) StartLogStream(ctx context.Context, minLevel string) error 
 	}
 
 	var baseCtx context.Context
-	switch {
-	case ctx == nil:
+	switch ctx {
+	case nil:
 		s.logger.Warn("StartLogStream received nil context, falling back to Background")
 		baseCtx = context.Background()
 	default:
