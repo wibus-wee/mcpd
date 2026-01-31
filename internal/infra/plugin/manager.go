@@ -85,8 +85,8 @@ func (m *Manager) RootDir() string {
 	return m.rootDir
 }
 
-// PluginStatus represents the runtime status of a plugin.
-type PluginStatus struct {
+// Status represents the runtime status of a plugin.
+type Status struct {
 	Name    string `json:"name"`
 	Running bool   `json:"running"`
 	Error   string `json:"error,omitempty"`
@@ -94,14 +94,17 @@ type PluginStatus struct {
 
 // GetStatus returns the runtime status of all configured plugins.
 // It compares configured specs against actually running instances.
-func (m *Manager) GetStatus(configuredSpecs []domain.PluginSpec) []PluginStatus {
+func (m *Manager) GetStatus(configuredSpecs []domain.PluginSpec) []Status {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	status := make([]PluginStatus, 0, len(configuredSpecs))
+	status := make([]Status, 0, len(configuredSpecs))
 	for _, spec := range configuredSpecs {
-		_, running := m.instances[spec.Name]
-		s := PluginStatus{
+		running := false
+		if _, ok := m.instances[spec.Name]; ok {
+			running = true
+		}
+		s := Status{
 			Name:    spec.Name,
 			Running: running,
 		}

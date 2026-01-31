@@ -76,12 +76,12 @@ func (p *DemoPlugin) HandleRequest(ctx context.Context, req *pluginv1.PluginHand
 }
 
 // HandleResponse handles outgoing responses.
-func (p *DemoPlugin) HandleResponse(ctx context.Context, req *pluginv1.PluginHandleRequest) (*pluginv1.PluginHandleResponse, error) {
+func (p *DemoPlugin) HandleResponse(_ context.Context, _ *pluginv1.PluginHandleRequest) (*pluginv1.PluginHandleResponse, error) {
 	log.Printf("[%s] HandleResponse called", p.name)
 	return &pluginv1.PluginHandleResponse{Continue: true}, nil
 }
 
-func (p *DemoPlugin) GetMetadata(ctx context.Context, _ *emptypb.Empty) (*pluginv1.PluginMetadata, error) {
+func (p *DemoPlugin) GetMetadata(_ context.Context, _ *emptypb.Empty) (*pluginv1.PluginMetadata, error) {
 	flows := []string{"request", "response"}
 	return &pluginv1.PluginMetadata{
 		Name:     p.name,
@@ -90,16 +90,16 @@ func (p *DemoPlugin) GetMetadata(ctx context.Context, _ *emptypb.Empty) (*plugin
 	}, nil
 }
 
-func (p *DemoPlugin) Configure(ctx context.Context, req *pluginv1.PluginConfigureRequest) (*pluginv1.PluginConfigureResponse, error) {
+func (p *DemoPlugin) Configure(_ context.Context, req *pluginv1.PluginConfigureRequest) (*pluginv1.PluginConfigureResponse, error) {
 	log.Printf("[%s] Configure called with config: %s", p.name, string(req.GetConfigJson()))
 	return &pluginv1.PluginConfigureResponse{}, nil
 }
 
-func (p *DemoPlugin) CheckReady(ctx context.Context, _ *emptypb.Empty) (*pluginv1.PluginReadyResponse, error) {
+func (p *DemoPlugin) CheckReady(_ context.Context, _ *emptypb.Empty) (*pluginv1.PluginReadyResponse, error) {
 	return &pluginv1.PluginReadyResponse{Ready: true}, nil
 }
 
-func (p *DemoPlugin) Shutdown(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+func (p *DemoPlugin) Shutdown(_ context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
 	log.Printf("[%s] Shutdown called", p.name)
 	return &emptypb.Empty{}, nil
 }
@@ -259,12 +259,12 @@ func main() {
 	// Remove existing socket file
 	_ = os.Remove(*socket)
 
-	// Create Unix socket listener
-	listener, err := net.Listen("unix", *socket)
+	// Create Unix socket listener with context
+	lc := &net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "unix", *socket)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", *socket, err)
 	}
-	defer listener.Close()
 
 	plugin := NewDemoPlugin(*category, *name)
 
@@ -282,17 +282,11 @@ func main() {
 		<-sigCh
 		log.Printf("Shutting down plugin '%s'", *name)
 		server.GracefulStop()
+		listener.Close()
 	}()
 
 	// Serve
 	if err := server.Serve(listener); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		listener.Close()
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

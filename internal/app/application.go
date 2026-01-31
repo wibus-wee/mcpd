@@ -189,7 +189,7 @@ func (a *Application) Run() error {
 }
 
 // GetPluginStatus returns the runtime status of all configured plugins.
-func (a *Application) GetPluginStatus() []plugin.PluginStatus {
+func (a *Application) GetPluginStatus() []plugin.Status {
 	if a.pluginManager == nil {
 		return nil
 	}

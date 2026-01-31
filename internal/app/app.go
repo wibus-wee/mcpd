@@ -101,7 +101,7 @@ func (a *App) setApplication(application *Application) {
 }
 
 // GetPluginStatus returns the runtime status of all configured plugins.
-func (a *App) GetPluginStatus() []plugin.PluginStatus {
+func (a *App) GetPluginStatus() []plugin.Status {
 	a.mu.RLock()
 	application := a.application
 	a.mu.RUnlock()
