@@ -59,10 +59,16 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 	}
 	rootDir := strings.TrimSpace(opts.RootDir)
 	if rootDir == "" {
+		// Use /tmp directly instead of os.TempDir() to avoid long paths on macOS
+		// (/var/folders/...) which can exceed Unix socket path limit (104-108 bytes)
 		var err error
-		rootDir, err = os.MkdirTemp("", "mcpv-plugins-")
+		rootDir, err = os.MkdirTemp("/tmp", "mcpv-plug-")
 		if err != nil {
-			return nil, fmt.Errorf("create plugin root dir: %w", err)
+			// Fallback to system temp dir if /tmp fails
+			rootDir, err = os.MkdirTemp("", "mcpv-plug-")
+			if err != nil {
+				return nil, fmt.Errorf("create plugin root dir: %w", err)
+			}
 		}
 	} else if err := os.MkdirAll(rootDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create plugin root dir: %w", err)
@@ -77,6 +83,42 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 
 func (m *Manager) RootDir() string {
 	return m.rootDir
+}
+
+// PluginStatus represents the runtime status of a plugin.
+type PluginStatus struct {
+	Name    string `json:"name"`
+	Running bool   `json:"running"`
+	Error   string `json:"error,omitempty"`
+}
+
+// GetStatus returns the runtime status of all configured plugins.
+// It compares configured specs against actually running instances.
+func (m *Manager) GetStatus(configuredSpecs []domain.PluginSpec) []PluginStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	status := make([]PluginStatus, 0, len(configuredSpecs))
+	for _, spec := range configuredSpecs {
+		_, running := m.instances[spec.Name]
+		s := PluginStatus{
+			Name:    spec.Name,
+			Running: running,
+		}
+		if !running {
+			s.Error = "Plugin failed to start or is not running"
+		}
+		status = append(status, s)
+	}
+	return status
+}
+
+// IsRunning checks if a specific plugin is currently running.
+func (m *Manager) IsRunning(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.instances[name]
+	return ok
 }
 
 func (m *Manager) Snapshot() []domain.PluginSpec {
@@ -308,45 +350,58 @@ func (m *Manager) connectAndHandshake(ctx context.Context, spec domain.PluginSpe
 		deadline = time.Duration(domain.DefaultPluginHandshakeTimeoutSeconds) * time.Second
 	}
 
-	conn, err := grpc.NewClient("unix://"+socketPath,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			dialer := &net.Dialer{}
-			return dialer.DialContext(ctx, "unix", socketPath)
-		}),
-	)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("plugin dial: %w", err)
-	}
+	// Wait for socket file to appear with retries
+	handshakeCtx, handshakeCancel := context.WithTimeout(ctx, deadline)
+	defer handshakeCancel()
 
-	client := pluginv1.NewPluginServiceClient(conn)
+	var conn *grpc.ClientConn
+	var client pluginv1.PluginServiceClient
+	var metadata *pluginv1.PluginMetadata
+	var lastErr error
 
-	metaCtx, metaCancel := context.WithTimeout(ctx, deadline)
-	defer metaCancel()
-	metadata, err := client.GetMetadata(metaCtx, &emptypb.Empty{})
-	if err != nil {
-		_ = conn.Close()
-		return nil, nil, nil, fmt.Errorf("plugin metadata: %w", err)
+	retryInterval := 100 * time.Millisecond
+	for {
+		select {
+		case <-handshakeCtx.Done():
+			if lastErr != nil {
+				return nil, nil, nil, fmt.Errorf("plugin handshake timeout: %w", lastErr)
+			}
+			return nil, nil, nil, handshakeCtx.Err()
+		default:
+		}
+
+		// Try to connect and get metadata
+		conn, client, metadata, lastErr = m.tryConnect(handshakeCtx, socketPath)
+		if lastErr == nil {
+			break
+		}
+
+		// Wait before retrying
+		select {
+		case <-handshakeCtx.Done():
+			return nil, nil, nil, fmt.Errorf("plugin handshake timeout: %w", lastErr)
+		case <-time.After(retryInterval):
+		}
 	}
 	if err := validateMetadata(spec, metadata); err != nil {
 		_ = conn.Close()
 		return nil, nil, nil, err
 	}
 
-	cfgCtx, cfgCancel := context.WithTimeout(ctx, deadline)
+	cfgCtx, cfgCancel := context.WithTimeout(handshakeCtx, deadline)
 	defer cfgCancel()
-	_, err = client.Configure(cfgCtx, &pluginv1.PluginConfigureRequest{ConfigJson: spec.ConfigJSON})
-	if err != nil {
+	_, cfgErr := client.Configure(cfgCtx, &pluginv1.PluginConfigureRequest{ConfigJson: spec.ConfigJSON})
+	if cfgErr != nil {
 		_ = conn.Close()
-		return nil, nil, nil, fmt.Errorf("plugin configure: %w", err)
+		return nil, nil, nil, fmt.Errorf("plugin configure: %w", cfgErr)
 	}
 
-	readyCtx, readyCancel := context.WithTimeout(ctx, deadline)
+	readyCtx, readyCancel := context.WithTimeout(handshakeCtx, deadline)
 	defer readyCancel()
-	ready, err := client.CheckReady(readyCtx, &emptypb.Empty{})
-	if err != nil {
+	ready, readyErr := client.CheckReady(readyCtx, &emptypb.Empty{})
+	if readyErr != nil {
 		_ = conn.Close()
-		return nil, nil, nil, fmt.Errorf("plugin readiness: %w", err)
+		return nil, nil, nil, fmt.Errorf("plugin readiness: %w", readyErr)
 	}
 	if ready != nil && !ready.GetReady() {
 		_ = conn.Close()
@@ -355,6 +410,32 @@ func (m *Manager) connectAndHandshake(ctx context.Context, spec domain.PluginSpe
 			msg = "plugin not ready"
 		}
 		return nil, nil, nil, errors.New(msg)
+	}
+
+	return conn, client, metadata, nil
+}
+
+func (m *Manager) tryConnect(ctx context.Context, socketPath string) (*grpc.ClientConn, pluginv1.PluginServiceClient, *pluginv1.PluginMetadata, error) {
+	conn, err := grpc.NewClient("unix://"+socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
+			dialer := &net.Dialer{}
+			return dialer.DialContext(dialCtx, "unix", socketPath)
+		}),
+	)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("plugin dial: %w", err)
+	}
+
+	client := pluginv1.NewPluginServiceClient(conn)
+
+	// Try to get metadata - this will actually establish the connection
+	metaCtx, metaCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer metaCancel()
+	metadata, err := client.GetMetadata(metaCtx, &emptypb.Empty{})
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, nil, err
 	}
 
 	return conn, client, metadata, nil
@@ -392,7 +473,12 @@ func validateMetadata(spec domain.PluginSpec, metadata *pluginv1.PluginMetadata)
 func (m *Manager) prepareSocket(name string) (string, string, error) {
 	prefix := sanitizeName(name)
 	if prefix == "" {
-		prefix = "plugin"
+		prefix = "p"
+	}
+	// Truncate prefix to 8 chars to keep socket path short
+	// (Unix socket paths have ~104-108 byte limit on many systems)
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
 	}
 	addrDir, err := os.MkdirTemp(m.rootDir, prefix+"-")
 	if err != nil {
