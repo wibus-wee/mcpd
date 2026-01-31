@@ -133,7 +133,7 @@ func (r *State) UpdateCatalog(catalog domain.Catalog, specKeys map[string]string
 }
 
 // ApplyRuntimeConfig updates runtime-dependent settings without rebuilding indexes.
-func (r *State) ApplyRuntimeConfig(ctx context.Context, prev, next domain.RuntimeConfig) error {
+func (r *State) ApplyRuntimeConfig(_ context.Context, prev, next domain.RuntimeConfig) error {
 	if r == nil {
 		return nil
 	}
