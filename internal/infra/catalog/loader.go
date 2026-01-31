@@ -423,13 +423,13 @@ func normalizePluginSpec(raw rawPluginSpec, index int) (domain.PluginSpec, []str
 		errs = append(errs, fmt.Sprintf("plugins[%d]: cmd is required", index))
 	}
 
-	var configJson json.RawMessage
+	var configJSON json.RawMessage
 	if raw.Config != nil {
 		encoded, err := json.Marshal(raw.Config)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("plugins[%d]: config must be valid JSON object: %v", index, err))
 		} else {
-			configJson = encoded
+			configJSON = encoded
 		}
 	}
 
@@ -446,7 +446,7 @@ func normalizePluginSpec(raw rawPluginSpec, index int) (domain.PluginSpec, []str
 		Cwd:        strings.TrimSpace(raw.Cwd),
 		CommitHash: strings.TrimSpace(raw.CommitHash),
 		TimeoutMs:  timeoutMs,
-		ConfigJson: configJson,
+		ConfigJSON: configJSON,
 		Flows:      flows,
 	}, nil
 }

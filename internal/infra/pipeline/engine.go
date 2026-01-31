@@ -196,10 +196,8 @@ func (e *Engine) runSequential(ctx context.Context, category domain.PluginCatego
 
 		if category == domain.PluginCategoryContent {
 			current = applyMutations(current, resp)
-		} else {
-			if len(resp.RequestJson) > 0 || len(resp.ResponseJson) > 0 {
-				e.logger.Warn("non-content plugin returned mutations", zap.String("plugin", spec.Name), zap.String("category", string(category)))
-			}
+		} else if len(resp.RequestJSON) > 0 || len(resp.ResponseJSON) > 0 {
+			e.logger.Warn("non-content plugin returned mutations", zap.String("plugin", spec.Name), zap.String("category", string(category)))
 		}
 	}
 
@@ -220,11 +218,11 @@ func flowAllowed(spec domain.PluginSpec, flow domain.PluginFlow) bool {
 
 func applyMutations(req domain.GovernanceRequest, decision domain.GovernanceDecision) domain.GovernanceRequest {
 	updated := req
-	if len(decision.RequestJson) > 0 {
-		updated.RequestJson = decision.RequestJson
+	if len(decision.RequestJSON) > 0 {
+		updated.RequestJSON = decision.RequestJSON
 	}
-	if len(decision.ResponseJson) > 0 {
-		updated.ResponseJson = decision.ResponseJson
+	if len(decision.ResponseJSON) > 0 {
+		updated.ResponseJSON = decision.ResponseJSON
 	}
 	return updated
 }
@@ -246,6 +244,10 @@ func defaultRejectCode(code string, category domain.PluginCategory) string {
 		return "rate_limited"
 	case domain.PluginCategoryValidation:
 		return "invalid_request"
+	case domain.PluginCategoryObservability,
+		domain.PluginCategoryContent,
+		domain.PluginCategoryAudit:
+		return "rejected"
 	default:
 		return "rejected"
 	}

@@ -120,7 +120,7 @@ func (s *ControlService) ListTools(ctx context.Context, req *controlv1.ListTools
 		if !respDecision.Continue {
 			return nil, mapGovernanceDecision(respDecision)
 		}
-		if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+		if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "list tools: response mutation invalid: %v", err)
 		}
 	}
@@ -185,7 +185,7 @@ func (s *ControlService) WatchTools(req *controlv1.WatchToolsRequest, stream con
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "watch tools: response mutation invalid: %v", err)
 				}
 			}
@@ -211,9 +211,9 @@ func (s *ControlService) CallTool(ctx context.Context, req *controlv1.CallToolRe
 			Caller:      client,
 			ToolName:    toolName,
 			RoutingKey:  req.GetRoutingKey(),
-			RequestJson: req.GetArgumentsJson(),
+			RequestJSON: req.GetArgumentsJson(),
 		}, func(nextCtx context.Context, govReq domain.GovernanceRequest) (json.RawMessage, error) {
-			args := govReq.RequestJson
+			args := govReq.RequestJSON
 			if len(args) == 0 {
 				args = req.GetArgumentsJson()
 			}
@@ -316,7 +316,7 @@ func (s *ControlService) ListResources(ctx context.Context, req *controlv1.ListR
 	decision, err := s.requestDecision(ctx, domain.GovernanceRequest{
 		Method:      "resources/list",
 		Caller:      client,
-		RequestJson: mustMarshalJSON(map[string]string{"cursor": cursor}),
+		RequestJSON: mustMarshalJSON(map[string]string{"cursor": cursor}),
 	})
 	if err != nil {
 		return nil, mapGovernanceError(err)
@@ -324,11 +324,11 @@ func (s *ControlService) ListResources(ctx context.Context, req *controlv1.ListR
 	if !decision.Continue {
 		return nil, mapGovernanceDecision(decision)
 	}
-	if len(decision.RequestJson) > 0 {
+	if len(decision.RequestJSON) > 0 {
 		var params struct {
 			Cursor string `json:"cursor"`
 		}
-		if err := json.Unmarshal(decision.RequestJson, &params); err != nil {
+		if err := json.Unmarshal(decision.RequestJSON, &params); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "list resources: invalid request mutation")
 		}
 		cursor = params.Cursor
@@ -356,7 +356,7 @@ func (s *ControlService) ListResources(ctx context.Context, req *controlv1.ListR
 		if !respDecision.Continue {
 			return nil, mapGovernanceDecision(respDecision)
 		}
-		if err := applyProtoMutation(resourcesSnapshot, respDecision.ResponseJson); err != nil {
+		if err := applyProtoMutation(resourcesSnapshot, respDecision.ResponseJSON); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "list resources: response mutation invalid: %v", err)
 		}
 	}
@@ -416,7 +416,7 @@ func (s *ControlService) WatchResources(req *controlv1.WatchResourcesRequest, st
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "watch resources: response mutation invalid: %v", err)
 				}
 			}
@@ -441,14 +441,14 @@ func (s *ControlService) ReadResource(ctx context.Context, req *controlv1.ReadRe
 			Method:      "resources/read",
 			Caller:      client,
 			ResourceURI: uri,
-			RequestJson: mustMarshalJSON(map[string]string{"uri": uri}),
+			RequestJSON: mustMarshalJSON(map[string]string{"uri": uri}),
 		}, func(nextCtx context.Context, govReq domain.GovernanceRequest) (json.RawMessage, error) {
 			target := uri
-			if len(govReq.RequestJson) > 0 {
+			if len(govReq.RequestJSON) > 0 {
 				var params struct {
 					URI string `json:"uri"`
 				}
-				if err := json.Unmarshal(govReq.RequestJson, &params); err != nil || strings.TrimSpace(params.URI) == "" {
+				if err := json.Unmarshal(govReq.RequestJSON, &params); err != nil || strings.TrimSpace(params.URI) == "" {
 					return nil, domain.ErrInvalidRequest
 				}
 				target = params.URI
@@ -479,7 +479,7 @@ func (s *ControlService) ListPrompts(ctx context.Context, req *controlv1.ListPro
 	decision, err := s.requestDecision(ctx, domain.GovernanceRequest{
 		Method:      "prompts/list",
 		Caller:      client,
-		RequestJson: mustMarshalJSON(map[string]string{"cursor": cursor}),
+		RequestJSON: mustMarshalJSON(map[string]string{"cursor": cursor}),
 	})
 	if err != nil {
 		return nil, mapGovernanceError(err)
@@ -487,11 +487,11 @@ func (s *ControlService) ListPrompts(ctx context.Context, req *controlv1.ListPro
 	if !decision.Continue {
 		return nil, mapGovernanceDecision(decision)
 	}
-	if len(decision.RequestJson) > 0 {
+	if len(decision.RequestJSON) > 0 {
 		var params struct {
 			Cursor string `json:"cursor"`
 		}
-		if err := json.Unmarshal(decision.RequestJson, &params); err != nil {
+		if err := json.Unmarshal(decision.RequestJSON, &params); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "list prompts: invalid request mutation")
 		}
 		cursor = params.Cursor
@@ -519,7 +519,7 @@ func (s *ControlService) ListPrompts(ctx context.Context, req *controlv1.ListPro
 		if !respDecision.Continue {
 			return nil, mapGovernanceDecision(respDecision)
 		}
-		if err := applyProtoMutation(promptsSnapshot, respDecision.ResponseJson); err != nil {
+		if err := applyProtoMutation(promptsSnapshot, respDecision.ResponseJSON); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "list prompts: response mutation invalid: %v", err)
 		}
 	}
@@ -579,7 +579,7 @@ func (s *ControlService) WatchPrompts(req *controlv1.WatchPromptsRequest, stream
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "watch prompts: response mutation invalid: %v", err)
 				}
 			}
@@ -604,9 +604,9 @@ func (s *ControlService) GetPrompt(ctx context.Context, req *controlv1.GetPrompt
 			Method:      "prompts/get",
 			Caller:      client,
 			PromptName:  promptName,
-			RequestJson: req.GetArgumentsJson(),
+			RequestJSON: req.GetArgumentsJson(),
 		}, func(nextCtx context.Context, govReq domain.GovernanceRequest) (json.RawMessage, error) {
-			args := govReq.RequestJson
+			args := govReq.RequestJSON
 			if len(args) == 0 {
 				args = req.GetArgumentsJson()
 			}
@@ -752,11 +752,11 @@ func (s *ControlService) requestDecision(ctx context.Context, req domain.Governa
 	return s.executor.Request(ctx, req)
 }
 
-func (s *ControlService) responseDecision(ctx context.Context, req domain.GovernanceRequest, responseJson []byte) (domain.GovernanceDecision, error) {
+func (s *ControlService) responseDecision(ctx context.Context, req domain.GovernanceRequest, responseJSON []byte) (domain.GovernanceDecision, error) {
 	if s.executor == nil {
 		return domain.GovernanceDecision{Continue: true}, nil
 	}
-	req.ResponseJson = responseJson
+	req.ResponseJSON = responseJSON
 	return s.executor.Response(ctx, req)
 }
 
@@ -855,7 +855,7 @@ func (s *ControlService) StreamLogs(req *controlv1.StreamLogsRequest, stream con
 	decision, err := s.requestDecision(ctx, domain.GovernanceRequest{
 		Method:      "logging/subscribe",
 		Caller:      client,
-		RequestJson: mustMarshalJSON(map[string]any{"minLevel": string(minLevel)}),
+		RequestJSON: mustMarshalJSON(map[string]any{"minLevel": string(minLevel)}),
 	})
 	if err != nil {
 		return mapGovernanceError(err)
@@ -892,7 +892,7 @@ func (s *ControlService) StreamLogs(req *controlv1.StreamLogsRequest, stream con
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoEntry, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoEntry, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "stream logs: response mutation invalid: %v", err)
 				}
 			}
@@ -957,7 +957,7 @@ func (s *ControlService) WatchRuntimeStatus(req *controlv1.WatchRuntimeStatusReq
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "watch runtime status: response mutation invalid: %v", err)
 				}
 			}
@@ -1012,7 +1012,7 @@ func (s *ControlService) WatchServerInitStatus(req *controlv1.WatchServerInitSta
 				if !respDecision.Continue {
 					return mapGovernanceDecision(respDecision)
 				}
-				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJson); err != nil {
+				if err := applyProtoMutation(protoSnapshot, respDecision.ResponseJSON); err != nil {
 					return status.Errorf(codes.InvalidArgument, "watch server init status: response mutation invalid: %v", err)
 				}
 			}
@@ -1037,7 +1037,7 @@ func (s *ControlService) AutomaticMCP(ctx context.Context, req *controlv1.Automa
 			Method:      "tools/call",
 			Caller:      client,
 			ToolName:    "mcpv.automatic_mcp",
-			RequestJson: mustMarshalJSON(params),
+			RequestJSON: mustMarshalJSON(params),
 		})
 		if err != nil {
 			return nil, mapGovernanceError(err)
@@ -1045,8 +1045,8 @@ func (s *ControlService) AutomaticMCP(ctx context.Context, req *controlv1.Automa
 		if !decision.Continue {
 			return nil, mapGovernanceDecision(decision)
 		}
-		if len(decision.RequestJson) > 0 {
-			if err := json.Unmarshal(decision.RequestJson, &params); err != nil {
+		if len(decision.RequestJSON) > 0 {
+			if err := json.Unmarshal(decision.RequestJSON, &params); err != nil {
 				return nil, status.Error(codes.InvalidArgument, "automatic_mcp: invalid request mutation")
 			}
 		}
@@ -1077,7 +1077,7 @@ func (s *ControlService) AutomaticMCP(ctx context.Context, req *controlv1.Automa
 		if !respDecision.Continue {
 			return nil, mapGovernanceDecision(respDecision)
 		}
-		if err := applyProtoMutation(resp, respDecision.ResponseJson); err != nil {
+		if err := applyProtoMutation(resp, respDecision.ResponseJSON); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "automatic_mcp: response mutation invalid: %v", err)
 		}
 	}
@@ -1105,11 +1105,11 @@ func (s *ControlService) AutomaticEval(ctx context.Context, req *controlv1.Autom
 			Caller:      client,
 			ToolName:    "mcpv.automatic_eval",
 			RoutingKey:  params.RoutingKey,
-			RequestJson: mustMarshalJSON(params),
+			RequestJSON: mustMarshalJSON(params),
 		}, func(nextCtx context.Context, govReq domain.GovernanceRequest) (json.RawMessage, error) {
 			evalParams := params
-			if len(govReq.RequestJson) > 0 {
-				if err := json.Unmarshal(govReq.RequestJson, &evalParams); err != nil {
+			if len(govReq.RequestJSON) > 0 {
+				if err := json.Unmarshal(govReq.RequestJSON, &evalParams); err != nil {
 					return nil, domain.ErrInvalidRequest
 				}
 			}

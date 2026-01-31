@@ -197,8 +197,8 @@ func (m *Manager) Handle(ctx context.Context, spec domain.PluginSpec, req domain
 		ResourceUri:  req.ResourceURI,
 		PromptName:   req.PromptName,
 		RoutingKey:   req.RoutingKey,
-		RequestJson:  req.RequestJson,
-		ResponseJson: req.ResponseJson,
+		RequestJson:  req.RequestJSON,
+		ResponseJson: req.ResponseJSON,
 		Metadata:     req.Metadata,
 	}
 
@@ -218,8 +218,8 @@ func (m *Manager) Handle(ctx context.Context, spec domain.PluginSpec, req domain
 
 	return domain.GovernanceDecision{
 		Continue:      resp.GetContinue(),
-		RequestJson:   resp.GetRequestJson(),
-		ResponseJson:  resp.GetResponseJson(),
+		RequestJSON:   resp.GetRequestJson(),
+		ResponseJSON:  resp.GetResponseJson(),
 		RejectCode:    resp.GetRejectCode(),
 		RejectMessage: resp.GetRejectMessage(),
 	}, nil
@@ -308,16 +308,12 @@ func (m *Manager) connectAndHandshake(ctx context.Context, spec domain.PluginSpe
 		deadline = time.Duration(domain.DefaultPluginHandshakeTimeoutSeconds) * time.Second
 	}
 
-	connCtx, cancel := context.WithTimeout(ctx, deadline)
-	defer cancel()
-
-	conn, err := grpc.DialContext(connCtx, "unix://"+socketPath,
+	conn, err := grpc.NewClient("unix://"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			dialer := &net.Dialer{}
 			return dialer.DialContext(ctx, "unix", socketPath)
 		}),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("plugin dial: %w", err)
@@ -339,7 +335,7 @@ func (m *Manager) connectAndHandshake(ctx context.Context, spec domain.PluginSpe
 
 	cfgCtx, cfgCancel := context.WithTimeout(ctx, deadline)
 	defer cfgCancel()
-	_, err = client.Configure(cfgCtx, &pluginv1.PluginConfigureRequest{ConfigJson: spec.ConfigJson})
+	_, err = client.Configure(cfgCtx, &pluginv1.PluginConfigureRequest{ConfigJson: spec.ConfigJSON})
 	if err != nil {
 		_ = conn.Close()
 		return nil, nil, nil, fmt.Errorf("plugin configure: %w", err)

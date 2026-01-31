@@ -37,7 +37,7 @@ type PluginSpec struct {
 	Cwd        string            `json:"cwd,omitempty"`
 	CommitHash string            `json:"commitHash,omitempty"`
 	TimeoutMs  int               `json:"timeoutMs"`
-	ConfigJson json.RawMessage   `json:"configJson,omitempty"`
+	ConfigJSON json.RawMessage   `json:"configJson,omitempty"`
 	Flows      []PluginFlow      `json:"flows,omitempty"`
 }
 
@@ -51,8 +51,8 @@ type GovernanceRequest struct {
 	ResourceURI  string
 	PromptName   string
 	RoutingKey   string
-	RequestJson  json.RawMessage
-	ResponseJson json.RawMessage
+	RequestJSON  json.RawMessage
+	ResponseJSON json.RawMessage
 	Metadata     map[string]string
 }
 
@@ -61,8 +61,8 @@ type GovernanceDecision struct {
 	Category      PluginCategory
 	Plugin        string
 	Continue      bool
-	RequestJson   json.RawMessage
-	ResponseJson  json.RawMessage
+	RequestJSON   json.RawMessage
+	ResponseJSON  json.RawMessage
 	RejectCode    string
 	RejectMessage string
 }

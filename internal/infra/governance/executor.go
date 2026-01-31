@@ -58,8 +58,8 @@ func (e *Executor) Execute(ctx context.Context, req domain.GovernanceRequest, ne
 	if !decision.Continue {
 		return handleRejection(req, decision)
 	}
-	if len(decision.RequestJson) > 0 {
-		request.RequestJson = decision.RequestJson
+	if len(decision.RequestJSON) > 0 {
+		request.RequestJSON = decision.RequestJSON
 	}
 
 	resp, err := next(ctx, request)
@@ -69,7 +69,7 @@ func (e *Executor) Execute(ctx context.Context, req domain.GovernanceRequest, ne
 
 	responseReq := request
 	responseReq.Flow = domain.PluginFlowResponse
-	responseReq.ResponseJson = resp
+	responseReq.ResponseJSON = resp
 
 	responseDecision, err := e.pipeline.Handle(ctx, responseReq)
 	if err != nil {
@@ -78,8 +78,8 @@ func (e *Executor) Execute(ctx context.Context, req domain.GovernanceRequest, ne
 	if !responseDecision.Continue {
 		return handleRejection(req, responseDecision)
 	}
-	if len(responseDecision.ResponseJson) > 0 {
-		resp = responseDecision.ResponseJson
+	if len(responseDecision.ResponseJSON) > 0 {
+		resp = responseDecision.ResponseJSON
 	}
 
 	return resp, nil

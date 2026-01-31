@@ -34,13 +34,13 @@ func (f *fakeHandler) Handle(_ context.Context, spec domain.PluginSpec, req doma
 func TestEngine_ContentMutationFlowsToNextPlugin(t *testing.T) {
 	handler := &fakeHandler{
 		responses: map[string]func(domain.GovernanceRequest) (domain.GovernanceDecision, error){
-			"content": func(req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
+			"content": func(_ domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 				return domain.GovernanceDecision{
 					Continue:    true,
-					RequestJson: json.RawMessage(`{"foo":"bar"}`),
+					RequestJSON: json.RawMessage(`{"foo":"bar"}`),
 				}, nil
 			},
-			"audit": func(req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
+			"audit": func(_ domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 				return domain.GovernanceDecision{Continue: true}, nil
 			},
 		},
@@ -55,7 +55,7 @@ func TestEngine_ContentMutationFlowsToNextPlugin(t *testing.T) {
 	decision, err := engine.Handle(context.Background(), domain.GovernanceRequest{
 		Flow:        domain.PluginFlowRequest,
 		Method:      "tools/call",
-		RequestJson: json.RawMessage(`{"foo":"old"}`),
+		RequestJSON: json.RawMessage(`{"foo":"old"}`),
 	})
 	require.NoError(t, err)
 	require.True(t, decision.Continue)
@@ -64,13 +64,13 @@ func TestEngine_ContentMutationFlowsToNextPlugin(t *testing.T) {
 	seen := handler.seen["audit"]
 	handler.mu.Unlock()
 	require.Len(t, seen, 1)
-	require.JSONEq(t, `{"foo":"bar"}`, string(seen[0].RequestJson))
+	require.JSONEq(t, `{"foo":"bar"}`, string(seen[0].RequestJSON))
 }
 
 func TestEngine_OptionalRejectionBlocksNonObservability(t *testing.T) {
 	handler := &fakeHandler{
 		responses: map[string]func(domain.GovernanceRequest) (domain.GovernanceDecision, error){
-			"authz": func(req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
+			"authz": func(_ domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 				return domain.GovernanceDecision{Continue: false, RejectMessage: "nope"}, nil
 			},
 		},
@@ -89,7 +89,7 @@ func TestEngine_OptionalRejectionBlocksNonObservability(t *testing.T) {
 func TestEngine_ObservabilityIgnoresOptionalRejection(t *testing.T) {
 	handler := &fakeHandler{
 		responses: map[string]func(domain.GovernanceRequest) (domain.GovernanceDecision, error){
-			"obs": func(req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
+			"obs": func(_ domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 				return domain.GovernanceDecision{Continue: false, RejectMessage: "ignored"}, nil
 			},
 		},
