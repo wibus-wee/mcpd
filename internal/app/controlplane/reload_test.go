@@ -176,7 +176,7 @@ func TestReloadManager_ApplyUpdate_SchedulerErrorDoesNotAdvanceState(t *testing.
 	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
-	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),
@@ -213,7 +213,7 @@ func TestReloadManager_ApplyUpdate_RegistryErrorRollsBackState(t *testing.T) {
 	require.NoError(t, err)
 	scheduler.setMinReadyErr = errors.New("min ready failed")
 
-	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),
@@ -241,7 +241,7 @@ func TestReloadManager_HandleApplyError_StrictPanics(t *testing.T) {
 	}
 
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
-	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
 
 	require.Panics(t, func() {
@@ -264,7 +264,7 @@ func TestReloadManager_HandleApplyError_LenientDoesNotPanic(t *testing.T) {
 	}
 
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
-	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
 
 	require.NotPanics(t, func() {
