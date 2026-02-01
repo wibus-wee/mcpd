@@ -1,6 +1,6 @@
 import type { PluginListEntry, PluginMetrics } from '@bindings/mcpv/internal/ui'
 import { PluginService } from '@bindings/mcpv/internal/ui'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import useSWR from 'swr'
 
 import { swrKeys } from '@/lib/swr-keys'
@@ -32,4 +32,19 @@ export function useTogglePlugin() {
   return useCallback(async (name: string, enabled: boolean) => {
     await PluginService.TogglePlugin({ name, enabled })
   }, [])
+}
+
+export function useFilteredPlugins(plugins: PluginListEntry[], searchQuery: string) {
+  return useMemo(() => {
+    if (!searchQuery.trim()) { return plugins }
+
+    const lowerQuery = searchQuery.toLowerCase()
+    return plugins.filter((plugin) => {
+      return (
+        plugin.name.toLowerCase().includes(lowerQuery)
+        || plugin.category.toLowerCase().includes(lowerQuery)
+        || plugin.flows.some(flow => flow.toLowerCase().includes(lowerQuery))
+      )
+    })
+  }, [plugins, searchQuery])
 }

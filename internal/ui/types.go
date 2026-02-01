@@ -385,16 +385,21 @@ type ProxyFetchResponse struct {
 
 // PluginListEntry represents a single plugin for the frontend.
 type PluginListEntry struct {
-	Name          string        `json:"name"`
-	Category      string        `json:"category"`
-	Flows         []string      `json:"flows"`
-	Required      bool          `json:"required"`
-	Enabled       bool          `json:"enabled"`
-	Status        string        `json:"status"`                // "running", "stopped", "error"
-	StatusError   string        `json:"statusError,omitempty"` // Error message if status is "error"
-	CommitHash    string        `json:"commitHash,omitempty"`
-	TimeoutMs     int           `json:"timeoutMs"`
-	LatestMetrics PluginMetrics `json:"latestMetrics"`
+	Name               string            `json:"name"`
+	Category           string            `json:"category"`
+	Flows              []string          `json:"flows"`
+	Required           bool              `json:"required"`
+	Enabled            bool              `json:"enabled"`
+	Status             string            `json:"status"`                // "running", "stopped", "error"
+	StatusError        string            `json:"statusError,omitempty"` // Error message if status is "error"
+	CommitHash         string            `json:"commitHash,omitempty"`
+	TimeoutMs          int               `json:"timeoutMs"`
+	HandshakeTimeoutMs int               `json:"handshakeTimeoutMs"`
+	Cmd                []string          `json:"cmd"`
+	Env                map[string]string `json:"env,omitempty"`
+	Cwd                string            `json:"cwd,omitempty"`
+	ConfigJSON         string            `json:"configJson,omitempty"` // JSON string for frontend editing
+	LatestMetrics      PluginMetrics     `json:"latestMetrics"`
 }
 
 // PluginMetrics represents aggregated metrics for a plugin.

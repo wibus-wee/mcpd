@@ -68,16 +68,21 @@ func (s *PluginService) GetPluginList(_ context.Context) ([]PluginListEntry, err
 		}
 
 		entry := PluginListEntry{
-			Name:          spec.Name,
-			Category:      string(spec.Category),
-			Flows:         mapPluginFlows(spec.Flows),
-			Required:      spec.Required,
-			Enabled:       true, // TODO: track enabled state in catalog or separate store
-			Status:        status,
-			StatusError:   statusError,
-			CommitHash:    spec.CommitHash,
-			TimeoutMs:     spec.TimeoutMs,
-			LatestMetrics: metrics,
+			Name:               spec.Name,
+			Category:           string(spec.Category),
+			Flows:              mapPluginFlows(spec.Flows),
+			Required:           spec.Required,
+			Enabled:            true, // TODO: track enabled state in catalog or separate store
+			Status:             status,
+			StatusError:        statusError,
+			CommitHash:         spec.CommitHash,
+			TimeoutMs:          spec.TimeoutMs,
+			HandshakeTimeoutMs: spec.HandshakeTimeoutMs,
+			Cmd:                spec.Cmd,
+			Env:                spec.Env,
+			Cwd:                spec.Cwd,
+			ConfigJSON:         string(spec.ConfigJSON), // Convert json.RawMessage to string
+			LatestMetrics:      metrics,
 		}
 		plugins = append(plugins, entry)
 	}

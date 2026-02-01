@@ -53,7 +53,7 @@ interface PluginEditSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   plugin?: PluginListEntry | null
-  isLoading?: boolean
+  editTargetName?: string | null
   onSaved?: () => void
 }
 
@@ -112,11 +112,11 @@ export function PluginEditSheet({
   open,
   onOpenChange,
   plugin,
-  isLoading,
+  editTargetName,
   onSaved,
 }: PluginEditSheetProps) {
-  const isEdit = Boolean(plugin)
-  const isEditLoading = Boolean(isLoading) && isEdit && !plugin
+  const isEdit = Boolean(editTargetName)
+  const isEditLoading = isEdit && !plugin
   const isMissingPlugin = isEdit && !plugin
   const isFormDisabled = isEditLoading || isMissingPlugin
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -140,16 +140,33 @@ export function PluginEditSheet({
     if (!open) return
 
     if (plugin) {
+      // Parse env map to KEY=value format
+      const envString = plugin.env
+        ? Object.entries(plugin.env)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n')
+        : ''
+
+      // Format configJson for display (pretty print if valid JSON)
+      let configJsonString = plugin.configJson || '{}'
+      try {
+        const parsed = JSON.parse(configJsonString)
+        configJsonString = JSON.stringify(parsed, null, 2)
+      }
+      catch {
+        // Keep as-is if not valid JSON
+      }
+
       reset({
         name: plugin.name,
         category: plugin.category,
-        cmd: '', // Not available in PluginListEntry, would need to fetch full spec
-        cwd: '',
-        env: '',
+        cmd: plugin.cmd?.join(' ') || '', // Join array to string for display
+        cwd: plugin.cwd || '',
+        env: envString,
         timeoutMs: plugin.timeoutMs,
         required: plugin.required,
         flows: plugin.flows,
-        configJson: '{}',
+        configJson: configJsonString,
         commitHash: plugin.commitHash ?? '',
       })
     }
@@ -300,17 +317,18 @@ export function PluginEditSheet({
               <FormField
                 label="Command"
                 required
-                description="Plugin executable path"
+                description="Plugin executable path or command with arguments (space-separated)"
               >
                 <Input
                   {...register('cmd')}
                   placeholder="./bin/my-plugin"
+                  className="font-mono text-sm"
                 />
               </FormField>
 
               <FormField
                 label="Working Directory"
-                description="Execution directory (optional)"
+                description="Execution directory (optional, defaults to config directory)"
               >
                 <Input
                   {...register('cwd')}
@@ -320,7 +338,7 @@ export function PluginEditSheet({
 
               <FormField
                 label="Environment Variables"
-                description="One per line: KEY=value"
+                description="One per line in KEY=value format"
               >
                 <Textarea
                   {...register('env')}
@@ -400,7 +418,7 @@ export function PluginEditSheet({
 
               <FormField
                 label="Config JSON"
-                description="Plugin-specific configuration in JSON format"
+                description="Plugin-specific configuration in JSON format (automatically parsed from YAML config)"
               >
                 <Textarea
                   {...register('configJson')}
@@ -411,7 +429,7 @@ export function PluginEditSheet({
 
               <FormField
                 label="Commit Hash"
-                description="Optional: Pin to specific plugin version"
+                description="Optional: Pin and verify plugin binary version (validated on startup)"
               >
                 <Input
                   {...register('commitHash')}

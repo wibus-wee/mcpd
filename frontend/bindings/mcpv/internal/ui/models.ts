@@ -453,6 +453,15 @@ export class PluginListEntry {
     "statusError"?: string;
     "commitHash"?: string;
     "timeoutMs": number;
+    "handshakeTimeoutMs": number;
+    "cmd": string[];
+    "env"?: { [_: string]: string };
+    "cwd"?: string;
+
+    /**
+     * JSON string for frontend editing
+     */
+    "configJson"?: string;
     "latestMetrics": PluginMetrics;
 
     /** Creates a new PluginListEntry instance. */
@@ -478,6 +487,12 @@ export class PluginListEntry {
         if (!("timeoutMs" in $$source)) {
             this["timeoutMs"] = 0;
         }
+        if (!("handshakeTimeoutMs" in $$source)) {
+            this["handshakeTimeoutMs"] = 0;
+        }
+        if (!("cmd" in $$source)) {
+            this["cmd"] = [];
+        }
         if (!("latestMetrics" in $$source)) {
             this["latestMetrics"] = (new PluginMetrics());
         }
@@ -490,13 +505,21 @@ export class PluginListEntry {
      */
     static createFrom($$source: any = {}): PluginListEntry {
         const $$createField2_0 = $$createType0;
-        const $$createField9_0 = $$createType9;
+        const $$createField10_0 = $$createType0;
+        const $$createField11_0 = $$createType1;
+        const $$createField14_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("flows" in $$parsedSource) {
             $$parsedSource["flows"] = $$createField2_0($$parsedSource["flows"]);
         }
+        if ("cmd" in $$parsedSource) {
+            $$parsedSource["cmd"] = $$createField10_0($$parsedSource["cmd"]);
+        }
+        if ("env" in $$parsedSource) {
+            $$parsedSource["env"] = $$createField11_0($$parsedSource["env"]);
+        }
         if ("latestMetrics" in $$parsedSource) {
-            $$parsedSource["latestMetrics"] = $$createField9_0($$parsedSource["latestMetrics"]);
+            $$parsedSource["latestMetrics"] = $$createField14_0($$parsedSource["latestMetrics"]);
         }
         return new PluginListEntry($$parsedSource as Partial<PluginListEntry>);
     }

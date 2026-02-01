@@ -1,3 +1,7 @@
+// Input: PluginListEntry array, edit handler
+// Output: Data table with plugin list and actions
+// Position: Main table component for plugins page
+
 import type { PluginListEntry } from '@bindings/mcpv/internal/ui'
 import { AlertCircleIcon, CheckCircleIcon, MinusCircleIcon, PencilIcon } from 'lucide-react'
 import { m } from 'motion/react'
@@ -5,6 +9,13 @@ import { useCallback, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -24,11 +35,10 @@ import { PluginCategoryBadge } from './plugin-category-badge'
 
 interface PluginListTableProps {
   plugins: PluginListEntry[]
-  isLoading?: boolean
-  onEditPlugin?: (plugin: PluginListEntry) => void
+  onEditRequest?: (pluginName: string) => void
 }
 
-export function PluginListTable({ plugins, isLoading, onEditPlugin }: PluginListTableProps) {
+export function PluginListTable({ plugins, onEditRequest }: PluginListTableProps) {
   const [togglingPlugins, setTogglingPlugins] = useState<Set<string>>(() => new Set())
   const togglePlugin = useTogglePlugin()
 
@@ -60,24 +70,23 @@ export function PluginListTable({ plugins, isLoading, onEditPlugin }: PluginList
     }
   }, [togglePlugin])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="size-8" />
-      </div>
-    )
-  }
-
   if (plugins.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground text-sm">
-          No plugins configured
-        </p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Add plugins to your configuration to enable governance features
-        </p>
-      </div>
+      <Empty>
+        <EmptyMedia>
+          <div className="size-16 rounded-full bg-muted flex items-center justify-center">
+            <svg className="size-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+          </div>
+        </EmptyMedia>
+        <EmptyHeader>
+          <EmptyTitle>No plugins configured</EmptyTitle>
+          <EmptyDescription>
+            Add plugins to your configuration to enable governance features
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
@@ -94,7 +103,7 @@ export function PluginListTable({ plugins, isLoading, onEditPlugin }: PluginList
           <TableHead className="text-right">Latency (ms)</TableHead>
           <TableHead className="text-center">Required</TableHead>
           <TableHead className="text-center">Enabled</TableHead>
-          <TableHead className="w-15" />
+          <TableHead className="w-20" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -190,7 +199,7 @@ export function PluginListTable({ plugins, isLoading, onEditPlugin }: PluginList
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onEditPlugin?.(plugin)}
+                  onClick={() => onEditRequest?.(plugin.name)}
                 >
                   <PencilIcon className="size-4" />
                 </Button>
@@ -198,6 +207,7 @@ export function PluginListTable({ plugins, isLoading, onEditPlugin }: PluginList
             </m.tr>
           )
         })}
+
       </TableBody>
     </Table>
   )

@@ -1,78 +1,131 @@
-import type { PluginListEntry } from '@bindings/mcpv/internal/ui'
-import { PlusIcon } from 'lucide-react'
+// Input: Hooks, child components, UI primitives
+// Output: PluginPage component - Full-width table with right-side drawer
+// Position: Main page for plugins module
+
+import { m } from 'motion/react'
 import { useCallback, useState } from 'react'
 
+import { RefreshButton } from '@/components/custom/refresh-button'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
+import { Spring } from '@/lib/spring'
 
 import { PluginEditSheet } from './components/plugin-edit-sheet'
 import { PluginListTable } from './components/plugin-list-table'
-import { usePluginList } from './hooks'
+import { useFilteredPlugins, usePluginList } from './hooks'
 
 export function PluginPage() {
-  const { data: plugins, isLoading, error, mutate } = usePluginList()
-  const [editingPlugin, setEditingPlugin] = useState<PluginListEntry | null>(null)
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const { data: plugins, mutate } = usePluginList()
+
+  const [editSheetOpen, setEditSheetOpen] = useState(false)
+  const [editingPluginName, setEditingPluginName] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const pluginCount = plugins?.length ?? 0
+  const filteredPlugins = useFilteredPlugins(plugins ?? [], searchQuery)
+
+  // Find the editing plugin from the list
+  const editingPlugin = editingPluginName
+    ? plugins?.find(p => p.name === editingPluginName) ?? null
+    : null
 
   const handleAddPlugin = useCallback(() => {
-    setEditingPlugin(null)
-    setIsSheetOpen(true)
+    setEditingPluginName(null)
+    setEditSheetOpen(true)
   }, [])
 
-  const handleEditPlugin = useCallback((plugin: PluginListEntry) => {
-    setEditingPlugin(plugin)
-    setIsSheetOpen(true)
+  const handleEditRequest = useCallback((pluginName: string) => {
+    setEditingPluginName(pluginName)
+    setEditSheetOpen(true)
   }, [])
 
-  const handleSheetOpenChange = useCallback((open: boolean) => {
-    setIsSheetOpen(open)
-    if (!open) {
-      setEditingPlugin(null)
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await mutate()
     }
-  }, [])
-
-  const handleSaved = useCallback(() => {
-    mutate()
+    finally {
+      setIsRefreshing(false)
+    }
   }, [mutate])
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Plugins</h1>
-          <p className="text-muted-foreground">
-            Manage governance plugins for request and response processing
-          </p>
-        </div>
-        <Button onClick={handleAddPlugin}>
-          <PlusIcon className="mr-2 size-4" />
-          Add Plugin
-        </Button>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4">
+        <m.div
+          className="flex items-center justify-between gap-6"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={Spring.presets.smooth}
+        >
+          <div className="flex items-center gap-4 flex-1">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight">Plugins</h1>
+                {pluginCount > 0 && (
+                  <Badge variant="secondary" size="sm">
+                    {pluginCount}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Manage governance plugins for request and response processing
+              </p>
+            </div>
+
+            <div className="flex-1 max-w-md ml-6">
+              <Input
+                type="search"
+                placeholder="Search plugins..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleAddPlugin}
+            >
+              Add Plugin
+            </Button>
+            <RefreshButton
+              onClick={handleRefresh}
+              isLoading={isRefreshing}
+              tooltip="Refresh plugins"
+            />
+          </div>
+        </m.div>
       </div>
 
-      {error && (
-        <Card className="border-destructive/50 bg-destructive/5 p-4">
-          <p className="text-destructive text-sm">
-            Failed to load plugins:
-            {' '}
-            {error instanceof Error ? error.message : 'Unknown error'}
-          </p>
-        </Card>
-      )}
+      <Separator />
 
-      <Card className="p-0">
+      {/* Table */}
+      <div className="flex-1 min-h-0 overflow-auto">
         <PluginListTable
-          plugins={plugins || []}
-          isLoading={isLoading}
-          onEditPlugin={handleEditPlugin}
+          plugins={filteredPlugins ?? []}
+          onEditRequest={handleEditRequest}
         />
-      </Card>
+      </div>
 
+      {/* Edit Sheet */}
       <PluginEditSheet
-        open={isSheetOpen}
-        onOpenChange={handleSheetOpenChange}
+        open={editSheetOpen}
+        onOpenChange={(open) => {
+          setEditSheetOpen(open)
+          if (!open) {
+            setEditingPluginName(null)
+          }
+        }}
         plugin={editingPlugin}
-        onSaved={handleSaved}
+        editTargetName={editingPluginName}
+        onSaved={() => mutate()}
       />
     </div>
   )
