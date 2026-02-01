@@ -50,6 +50,13 @@ func NewGateway(cfg rpc.ClientConfig, caller string, tags []string, serverName s
 }
 
 func (g *Gateway) Run(ctx context.Context) error {
+	return g.run(ctx, func(runCtx context.Context) error {
+		g.logger.Info("gateway starting (stdio transport)")
+		return g.server.Run(runCtx, &mcp.StdioTransport{})
+	})
+}
+
+func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) error {
 	if g.cfg.Address == "" {
 		return errors.New("rpc address is required")
 	}
@@ -102,8 +109,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	go g.syncPrompts(runCtx)
 	go newLogBridge(g.server, g.clients, g.caller, g.tags, g.serverName, g.logger).Run(runCtx)
 
-	g.logger.Info("gateway starting (stdio transport)")
-	err := g.server.Run(runCtx, &mcp.StdioTransport{})
+	err := runner(runCtx)
 	g.clients.close()
 	return err
 }

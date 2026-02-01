@@ -8,6 +8,7 @@ clientInactiveSeconds: 300
 serverInitRetryBaseSeconds: 1
 serverInitRetryMaxSeconds: 30
 serverInitMaxRetries: 5
+reloadMode: "lenient"
 bootstrapMode: "metadata"
 bootstrapConcurrency: 3
 bootstrapTimeoutSeconds: 30
