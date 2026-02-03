@@ -94,6 +94,18 @@ export function LogsBottomPanel({
                 )}
               >
                 {log.message}
+                {log.fields && Object.keys(log.fields).length > 0 && (
+                  <>
+                    {'\n\n'}
+                    <strong>Fields:</strong>
+                    {'\n'}
+                    {Object.entries(log.fields).map(([key, value]) => (
+                      <div key={key}>
+                        {key}: {JSON.stringify(value, null, 2)}
+                      </div>
+                    ))}
+                  </>
+                )}
               </pre>
             </div>
           ) : (

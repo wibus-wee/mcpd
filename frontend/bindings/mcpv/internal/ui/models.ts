@@ -193,17 +193,17 @@ export class CreateServerRequest {
 }
 
 /**
- * DebugSnapshotResponse is the metadata returned after exporting a debug snapshot.
+ * DebugSnapshotResponse returns the snapshot payload to the frontend.
  */
 export class DebugSnapshotResponse {
-    "path": string;
+    "snapshot": json$0.RawMessage;
     "size": number;
     "generatedAt": string;
 
     /** Creates a new DebugSnapshotResponse instance. */
     constructor($$source: Partial<DebugSnapshotResponse> = {}) {
-        if (!("path" in $$source)) {
-            this["path"] = "";
+        if (!("snapshot" in $$source)) {
+            this["snapshot"] = null;
         }
         if (!("size" in $$source)) {
             this["size"] = 0;

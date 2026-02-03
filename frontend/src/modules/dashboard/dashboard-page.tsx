@@ -19,6 +19,16 @@ import { ConnectIdeSheet } from '@/components/common/connect-ide-sheet'
 import { UniversalEmptyState } from '@/components/common/universal-empty-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { toastManager } from '@/components/ui/toast'
 import { useCoreActions, useCoreState } from '@/hooks/use-core-state'
@@ -41,6 +51,7 @@ function DashboardHeader() {
     stopCore,
   } = useCoreActions()
   const [isExporting, setIsExporting] = useState(false)
+  const [debugData, setDebugData] = useState<string | null>(null)
   const appLabel = appInfo?.name
     ? `${appInfo.name} · ${appInfo.version === 'dev' ? 'dev' : `v${appInfo.version}`} (${appInfo.build})`
     : 'mcpv'
@@ -52,11 +63,21 @@ function DashboardHeader() {
     setIsExporting(true)
     try {
       const result = await DebugService.ExportDebugSnapshot()
-      toastManager.add({
-        type: 'success',
-        title: 'Debug snapshot exported',
-        description: result.path,
-      })
+      const payload = JSON.stringify(result.snapshot, null, 2)
+
+      // Try clipboard first
+      try {
+        await navigator.clipboard.writeText(payload)
+        toastManager.add({
+          type: 'success',
+          title: 'Debug snapshot copied',
+          description: 'Copied to clipboard',
+        })
+      }
+      catch {
+        // Fallback: show dialog for manual copy
+        setDebugData(payload)
+      }
     }
     catch (err) {
       toastManager.add({
@@ -67,6 +88,38 @@ function DashboardHeader() {
     }
     finally {
       setIsExporting(false)
+    }
+  }
+
+  const handleCopyFromDialog = () => {
+    if (!debugData) {
+      return
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = debugData
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.append(textarea)
+    textarea.select()
+    try {
+      document.execCommand('copy')
+      toastManager.add({
+        type: 'success',
+        title: 'Copied',
+        description: 'Debug snapshot copied to clipboard',
+      })
+      setDebugData(null)
+    }
+    catch {
+      toastManager.add({
+        type: 'error',
+        title: 'Copy failed',
+        description: 'Please copy manually',
+      })
+    }
+    finally {
+      textarea.remove()
     }
   }
 
@@ -89,44 +142,44 @@ function DashboardHeader() {
           </Button>
         ) : coreStatus === 'starting'
           ? (
-              <Button onClick={stopCore} variant="outline" size="sm">
-                <SquareIcon className="size-4" />
-                Cancel
-              </Button>
-            )
+            <Button onClick={stopCore} variant="outline" size="sm">
+              <SquareIcon className="size-4" />
+              Cancel
+            </Button>
+          )
           : coreStatus === 'stopping'
             ? (
-                <Button variant="outline" size="sm" disabled>
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Stopping...
-                </Button>
-              )
+              <Button variant="outline" size="sm" disabled>
+                <Loader2Icon className="size-4 animate-spin" />
+                Stopping...
+              </Button>
+            )
             : coreStatus === 'running'
               ? (
+                <>
+                  <Button onClick={stopCore} variant="outline" size="sm">
+                    <SquareIcon className="size-4" />
+                    Stop
+                  </Button>
+                  <Button onClick={restartCore} variant="outline" size="sm">
+                    <RefreshCwIcon className="size-4" />
+                    Restart
+                  </Button>
+                </>
+              )
+              : coreStatus === 'error'
+                ? (
                   <>
+                    <Button onClick={restartCore} size="sm">
+                      <RefreshCwIcon className="size-4" />
+                      Retry
+                    </Button>
                     <Button onClick={stopCore} variant="outline" size="sm">
                       <SquareIcon className="size-4" />
                       Stop
                     </Button>
-                    <Button onClick={restartCore} variant="outline" size="sm">
-                      <RefreshCwIcon className="size-4" />
-                      Restart
-                    </Button>
                   </>
                 )
-              : coreStatus === 'error'
-                ? (
-                    <>
-                      <Button onClick={restartCore} size="sm">
-                        <RefreshCwIcon className="size-4" />
-                        Retry
-                      </Button>
-                      <Button onClick={stopCore} variant="outline" size="sm">
-                        <SquareIcon className="size-4" />
-                        Stop
-                      </Button>
-                    </>
-                  )
                 : null}
         <Button
           variant="outline"
@@ -135,7 +188,7 @@ function DashboardHeader() {
           disabled={isExporting}
         >
           <FileDownIcon className="size-4" />
-          {isExporting ? 'Exporting...' : 'Export Debug'}
+          {isExporting ? 'Copying...' : 'Copy Debug'}
         </Button>
         <Button
           variant="ghost"
@@ -146,6 +199,30 @@ function DashboardHeader() {
         </Button>
         <ConnectIdeSheet />
       </div>
+
+      <Dialog open={!!debugData} onOpenChange={open => !open && setDebugData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Debug Snapshot</DialogTitle>
+            <DialogDescription>
+              Copy the debug information below to share with support or for troubleshooting.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogPanel>
+            <pre className="rounded-lg bg-muted p-4 text-xs overflow-x-auto">
+              <code>{debugData}</code>
+            </pre>
+          </DialogPanel>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Close
+            </DialogClose>
+            <Button onClick={handleCopyFromDialog}>
+              Copy to Clipboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </m.div>
   )
 }

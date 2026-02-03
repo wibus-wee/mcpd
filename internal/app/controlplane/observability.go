@@ -101,7 +101,22 @@ func (o *ObservabilityService) GetServerInitStatus(ctx context.Context) ([]domai
 	if o.state.initManager == nil {
 		return nil, nil
 	}
-	return o.state.initManager.Statuses(ctx), nil
+	statuses := o.state.initManager.Statuses(ctx)
+
+	// Check bootstrap errors and mark failed servers
+	if o.state.bootstrapManager != nil {
+		progress := o.state.bootstrapManager.GetProgress()
+		if progress.State == domain.BootstrapFailed || len(progress.Errors) > 0 {
+			for i := range statuses {
+				if err, exists := progress.Errors[statuses[i].SpecKey]; exists && err != "" {
+					statuses[i].State = domain.ServerInitFailed
+					statuses[i].LastError = err
+				}
+			}
+		}
+	}
+
+	return statuses, nil
 }
 
 // WatchRuntimeStatus streams runtime status for a caller.

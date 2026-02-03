@@ -74,11 +74,11 @@ type BootstrapProgressResponse struct {
 	Errors    map[string]string `json:"errors,omitempty"`
 }
 
-// DebugSnapshotResponse is the metadata returned after exporting a debug snapshot.
+// DebugSnapshotResponse returns the snapshot payload to the frontend.
 type DebugSnapshotResponse struct {
-	Path        string `json:"path"`
-	Size        int64  `json:"size"`
-	GeneratedAt string `json:"generatedAt"`
+	Snapshot    json.RawMessage `json:"snapshot"`
+	Size        int64           `json:"size"`
+	GeneratedAt string          `json:"generatedAt"`
 }
 
 // StartCoreOptions controls how the core is started in Wails.

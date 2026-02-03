@@ -15,7 +15,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * ExportDebugSnapshot writes a debug snapshot to disk and returns its location.
+ * ExportDebugSnapshot builds a debug snapshot and returns its JSON payload.
  */
 export function ExportDebugSnapshot(): $CancellablePromise<$models.DebugSnapshotResponse> {
     return $Call.ByID(368167991).then(($result: any) => {

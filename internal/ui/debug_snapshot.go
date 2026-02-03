@@ -3,9 +3,6 @@ package ui
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,7 +33,7 @@ type debugSnapshotError struct {
 	Message string `json:"message"`
 }
 
-// ExportDebugSnapshot writes a debug snapshot to disk and returns its location.
+// ExportDebugSnapshot builds a debug snapshot and returns its JSON payload.
 func (s *DebugService) ExportDebugSnapshot(ctx context.Context) (DebugSnapshotResponse, error) {
 	manager := s.deps.manager()
 	if manager == nil {
@@ -47,6 +44,12 @@ func (s *DebugService) ExportDebugSnapshot(ctx context.Context) (DebugSnapshotRe
 	snapshot := debugSnapshot{
 		GeneratedAt: now.Format(time.RFC3339Nano),
 		ConfigPath:  strings.TrimSpace(manager.GetConfigPath()),
+	}
+	if snapshot.ConfigPath == "" {
+		snapshot.Errors = append(snapshot.Errors, debugSnapshotError{
+			Source:  "configPath",
+			Message: "config path is empty",
+		})
 	}
 
 	coreState, uptime, coreErr := manager.GetState()
@@ -115,32 +118,13 @@ func (s *DebugService) ExportDebugSnapshot(ctx context.Context) (DebugSnapshotRe
 		snapshot.Servers = mapServerSummaries(catalog)
 	}
 
-	outputDir := snapshot.ConfigPath
-	if outputDir == "" {
-		outputDir = os.TempDir()
-		snapshot.Errors = append(snapshot.Errors, debugSnapshotError{
-			Source:  "configPath",
-			Message: "config path is empty; using temp dir",
-		})
-	}
-
-	debugDir := filepath.Join(outputDir, "debug")
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return DebugSnapshotResponse{}, NewErrorWithDetails(ErrCodeInternal, "Failed to create debug directory", err.Error())
-	}
-
-	filename := fmt.Sprintf("mcpv-debug-%s.json", now.Format("20060102-150405"))
-	path := filepath.Join(debugDir, filename)
 	payload, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
 		return DebugSnapshotResponse{}, NewErrorWithDetails(ErrCodeInternal, "Failed to serialize debug snapshot", err.Error())
 	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
-		return DebugSnapshotResponse{}, NewErrorWithDetails(ErrCodeInternal, "Failed to write debug snapshot", err.Error())
-	}
 
 	return DebugSnapshotResponse{
-		Path:        path,
+		Snapshot:    json.RawMessage(payload),
 		Size:        int64(len(payload)),
 		GeneratedAt: snapshot.GeneratedAt,
 	}, nil
