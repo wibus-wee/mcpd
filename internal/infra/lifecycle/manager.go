@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
+	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/telemetry"
 )
@@ -286,7 +287,7 @@ func (m *Manager) initialize(ctx context.Context, conn domain.Conn, protocolVers
 		ProtocolVersion: protocolVersion,
 		ClientInfo: &mcp.Implementation{
 			Name:    "mcpv",
-			Version: "0.1.0",
+			Version: buildinfo.Version,
 		},
 		Capabilities: &mcp.ClientCapabilities{},
 	}

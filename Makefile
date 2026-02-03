@@ -5,7 +5,7 @@ CONFIG ?= .
 WAILS ?= wails3
 VERSION ?= dev
 BUILD ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-LDFLAGS := -X mcpv/internal/app.Version=$(VERSION) -X mcpv/internal/app.Build=$(BUILD)
+LDFLAGS := -X mcpv/internal/buildinfo.Version=$(VERSION) -X mcpv/internal/buildinfo.Build=$(BUILD)
 BIN_DIR ?= $(CURDIR)/bin
 WIRE := $(BIN_DIR)/wire
 

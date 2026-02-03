@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"mcpv/internal/app"
+	"mcpv/internal/buildinfo"
 	"mcpv/internal/infra/rpc"
 	"mcpv/internal/infra/subagent"
 	controlv1 "mcpv/pkg/api/control/v1"
@@ -75,7 +75,7 @@ func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) e
 
 	g.server = mcp.NewServer(&mcp.Implementation{
 		Name:    "mcpv-mcp",
-		Version: app.Version,
+		Version: buildinfo.Version,
 	}, &mcp.ServerOptions{
 		HasTools:     true,
 		HasResources: true,

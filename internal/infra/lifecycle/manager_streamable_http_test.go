@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/transport"
 )
@@ -17,7 +18,7 @@ import (
 func TestManager_StartInstance_StreamableHTTP(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "remote",
-		Version: "0.1.0",
+		Version: buildinfo.Version,
 	}, nil)
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server

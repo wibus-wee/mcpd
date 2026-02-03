@@ -21,6 +21,7 @@ jobs:
           #   platform: windows/amd64
     env:
       VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+      BUILD: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,7 +71,7 @@ jobs:
 
       - name: Build desktop app
         run: |
-          make wails-package
+          VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} make wails-package
         shell: bash
 
       - name: Upload GUI artifacts

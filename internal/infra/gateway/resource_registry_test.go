@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"mcpv/internal/app"
+	"mcpv/internal/buildinfo"
 	controlv1 "mcpv/pkg/api/control/v1"
 )
 
 func TestResourceRegistry_ApplySnapshotRegistersAndRemovesResources(t *testing.T) {
 	ctx := context.Background()
-	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: app.Version}, &mcp.ServerOptions{HasResources: true})
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: buildinfo.Version}, &mcp.ServerOptions{HasResources: true})
 
 	registry := newResourceRegistry(server, func(uri string) mcp.ResourceHandler {
 		return func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {

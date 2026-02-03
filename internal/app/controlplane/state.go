@@ -9,6 +9,7 @@ import (
 
 	"mcpv/internal/app/bootstrap"
 	"mcpv/internal/app/runtime"
+	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
 )
 
@@ -73,8 +74,8 @@ type clientState struct {
 func defaultControlPlaneInfo() domain.ControlPlaneInfo {
 	return domain.ControlPlaneInfo{
 		Name:    "mcpv",
-		Version: Version,
-		Build:   Build,
+		Version: buildinfo.Version,
+		Build:   buildinfo.Build,
 	}
 }
 

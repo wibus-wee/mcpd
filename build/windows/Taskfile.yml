@@ -19,7 +19,7 @@ vars:
   # Version configuration - aligned with root Makefile
   VERSION: '{{.VERSION | default "dev"}}'
   BUILD: '{{.BUILD | default "unknown"}}'
-  VERSION_LDFLAGS: '-X mcpd/internal/app.Version={{.VERSION}} -X mcpd/internal/app.Build={{.BUILD}}'
+  VERSION_LDFLAGS: '-X mcpv/internal/buildinfo.Version={{.VERSION}} -X mcpv/internal/buildinfo.Build={{.BUILD}}'
 
 tasks:
   build:

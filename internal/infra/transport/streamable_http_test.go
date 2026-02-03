@@ -11,13 +11,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
+	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
 )
 
 func TestStreamableHTTPTransport_ConnectAndPing(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "remote",
-		Version: "0.1.0",
+		Version: buildinfo.Version,
 	}, nil)
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
@@ -76,7 +77,7 @@ func TestStreamableHTTPTransport_EmptyEndpoint(t *testing.T) {
 
 func TestStreamableHTTPTransport_ConnectionFailure(t *testing.T) {
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return mcp.NewServer(&mcp.Implementation{Name: "remote", Version: "0.1.0"}, nil)
+		return mcp.NewServer(&mcp.Implementation{Name: "remote", Version: buildinfo.Version}, nil)
 	}, &mcp.StreamableHTTPOptions{JSONResponse: true})
 	httpServer := httptest.NewServer(handler)
 	httpServer.Close()
@@ -104,7 +105,7 @@ func TestStreamableHTTPTransport_ConnectionFailure(t *testing.T) {
 func TestStreamableHTTPTransport_CustomHeaders(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "remote",
-		Version: "0.1.0",
+		Version: buildinfo.Version,
 	}, nil)
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server

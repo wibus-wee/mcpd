@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"mcpv/internal/app"
+	"mcpv/internal/buildinfo"
 )
 
 // SystemService exposes system-level utility APIs.
@@ -67,7 +67,7 @@ func (s *SystemService) emitNavigationEvent(action string, query url.Values) {
 
 // GetVersion returns app version.
 func (s *SystemService) GetVersion() string {
-	return app.Version
+	return buildinfo.Version
 }
 
 // Ping responds with pong.

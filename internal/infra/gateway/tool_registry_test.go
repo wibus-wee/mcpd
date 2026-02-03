@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"mcpv/internal/app"
+	"mcpv/internal/buildinfo"
 	controlv1 "mcpv/pkg/api/control/v1"
 )
 
 func TestToolRegistry_ApplySnapshotRegistersAndRemovesTools(t *testing.T) {
 	ctx := context.Background()
-	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: app.Version}, &mcp.ServerOptions{HasTools: true})
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: buildinfo.Version}, &mcp.ServerOptions{HasTools: true})
 
 	registry := newToolRegistry(server, func(name string) mcp.ToolHandler {
 		return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -61,7 +61,7 @@ func connectClient(ctx context.Context, t *testing.T, server *mcp.Server) (*mcp.
 	_, err := server.Connect(ctx, st, nil)
 	require.NoError(t, err)
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "0.1.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: buildinfo.Version}, nil)
 	session, err := client.Connect(ctx, ct, nil)
 	require.NoError(t, err)
 	return client, session

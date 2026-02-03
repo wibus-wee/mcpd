@@ -1,7 +1,0 @@
-package controlplane
-
-// Version is the semantic version of mcpv, set at build time via -ldflags.
-var Version = "dev"
-
-// Build is the git commit hash or build identifier, set at build time via -ldflags.
-var Build = "unknown"

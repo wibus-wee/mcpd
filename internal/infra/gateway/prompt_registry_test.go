@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"mcpv/internal/app"
+	"mcpv/internal/buildinfo"
 	controlv1 "mcpv/pkg/api/control/v1"
 )
 
 func TestPromptRegistry_ApplySnapshotRegistersAndRemovesPrompts(t *testing.T) {
 	ctx := context.Background()
-	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: app.Version}, &mcp.ServerOptions{HasPrompts: true})
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: buildinfo.Version}, &mcp.ServerOptions{HasPrompts: true})
 
 	registry := newPromptRegistry(server, func(name string) mcp.PromptHandler {
 		return func(_ context.Context, _ *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {

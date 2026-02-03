@@ -1,9 +1,7 @@
-package app
-
-import "mcpv/internal/app/controlplane"
+package buildinfo
 
 // Version is the semantic version of mcpv, set at build time via -ldflags.
-var Version = controlplane.Version
+var Version = "dev"
 
 // Build is the git commit hash or build identifier, set at build time via -ldflags.
-var Build = controlplane.Build
+var Build = "unknown"

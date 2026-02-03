@@ -17,7 +17,7 @@ vars:
   VERSION: '{{.VERSION | default "dev"}}'
   BUILD:
     sh: git log -n 1 --format=%h
-  VERSION_LDFLAGS: '-X mcpv/internal/app.Version={{.VERSION}} -X mcpv/internal/app.Build={{.BUILD}}'
+  VERSION_LDFLAGS: '-X mcpv/internal/buildinfo.Version={{.VERSION}} -X mcpv/internal/buildinfo.Build={{.BUILD}}'
 
 tasks:
   build:
