@@ -251,27 +251,27 @@ export function LogsViewer() {
           {/* Virtual list */}
           {deferredLogs.length > 0
             ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {deferredLogs.map(log => (
-                  <LogTableRow
-                    key={log.id}
-                    log={log}
-                    isSelected={log.id === selectedId}
-                    onSelectLog={handleSelectLog}
-                    columnsClassName={logTableColumnsClassName}
-                  />
-                ))}
-              </div>
-            )
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {deferredLogs.map(log => (
+                    <LogTableRow
+                      key={log.id}
+                      log={log}
+                      isSelected={log.id === selectedId}
+                      onSelectLog={handleSelectLog}
+                      columnsClassName={logTableColumnsClassName}
+                    />
+                  ))}
+                </div>
+              )
             : (
-              <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
-                {connectionStatus === 'disconnected'
-                  ? 'Core is stopped'
-                  : connectionStatus === 'waiting'
-                    ? 'Waiting for logs...'
-                    : 'No logs found'}
-              </div>
-            )}
+                <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
+                  {connectionStatus === 'disconnected'
+                    ? 'Core is stopped'
+                    : connectionStatus === 'waiting'
+                      ? 'Waiting for logs...'
+                      : 'No logs found'}
+                </div>
+              )}
 
           {/* Bottom logs panel */}
           {selectedLog && (
