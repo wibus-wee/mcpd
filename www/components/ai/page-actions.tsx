@@ -1,12 +1,13 @@
-'use client';
-import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Copy, ExternalLinkIcon, MessageCircleIcon } from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { useCopyButton } from 'fumadocs-ui/utils/use-copy-button';
-import { buttonVariants } from 'fumadocs-ui/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from 'fumadocs-ui/components/ui/popover';
+'use client'
+import { buttonVariants } from 'fumadocs-ui/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from 'fumadocs-ui/components/ui/popover'
+import { useCopyButton } from 'fumadocs-ui/utils/use-copy-button'
+import { Check, ChevronDown, Copy, ExternalLinkIcon, MessageCircleIcon } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
-const cache = new Map<string, string>();
+import { cn } from '@/lib/cn'
+
+const cache = new Map<string, string>()
 
 export function LLMCopyButton({
   /**
@@ -14,30 +15,31 @@ export function LLMCopyButton({
    */
   markdownUrl,
 }: {
-  markdownUrl: string;
+  markdownUrl: string
 }) {
-  const [isLoading, setLoading] = useState(false);
+  const [isLoading, setLoading] = useState(false)
   const [checked, onClick] = useCopyButton(async () => {
-    const cached = cache.get(markdownUrl);
-    if (cached) return navigator.clipboard.writeText(cached);
+    const cached = cache.get(markdownUrl)
+    if (cached) return navigator.clipboard.writeText(cached)
 
-    setLoading(true);
+    setLoading(true)
 
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
           'text/plain': fetch(markdownUrl).then(async (res) => {
-            const content = await res.text();
-            cache.set(markdownUrl, content);
+            const content = await res.text()
+            cache.set(markdownUrl, content)
 
-            return content;
+            return content
           }),
         }),
-      ]);
-    } finally {
-      setLoading(false);
+      ])
     }
-  });
+    finally {
+      setLoading(false)
+    }
+  })
 
   return (
     <button
@@ -54,7 +56,7 @@ export function LLMCopyButton({
       {checked ? <Check /> : <Copy />}
       Copy Markdown
     </button>
-  );
+  )
 }
 
 export function ViewOptions({
@@ -64,17 +66,17 @@ export function ViewOptions({
   /**
    * A URL to the raw Markdown/MDX content of page
    */
-  markdownUrl: string;
+  markdownUrl: string
 
   /**
    * Source file URL on GitHub
    */
-  githubUrl: string;
+  githubUrl: string
 }) {
   const items = useMemo(() => {
-    const fullMarkdownUrl =
-      typeof window !== 'undefined' ? new URL(markdownUrl, window.location.origin) : 'loading';
-    const q = `Read ${fullMarkdownUrl}, I want to ask questions about it.`;
+    const fullMarkdownUrl
+      = typeof window !== 'undefined' ? new URL(markdownUrl, window.location.origin) : 'loading'
+    const q = `Read ${fullMarkdownUrl}, I want to ask questions about it.`
 
     return [
       {
@@ -193,8 +195,8 @@ export function ViewOptions({
         })}`,
         icon: <MessageCircleIcon />,
       },
-    ];
-  }, [githubUrl, markdownUrl]);
+    ]
+  }, [githubUrl, markdownUrl])
 
   return (
     <Popover>
@@ -211,7 +213,7 @@ export function ViewOptions({
         <ChevronDown className="size-3.5 text-fd-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="flex flex-col">
-        {items.map((item) => (
+        {items.map(item => (
           <a
             key={item.href}
             href={item.href}
@@ -226,5 +228,5 @@ export function ViewOptions({
         ))}
       </PopoverContent>
     </Popover>
-  );
+  )
 }
