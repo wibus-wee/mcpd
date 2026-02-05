@@ -64,6 +64,28 @@ type InfoResponse struct {
 	Build   string `json:"build"`
 }
 
+// UpdateCheckOptions controls update polling behavior.
+type UpdateCheckOptions struct {
+	IntervalHours     int  `json:"intervalHours"`
+	IncludePrerelease bool `json:"includePrerelease"`
+}
+
+// UpdateRelease describes a GitHub release for update notifications.
+type UpdateRelease struct {
+	Version     string `json:"version"`
+	Name        string `json:"name,omitempty"`
+	URL         string `json:"url"`
+	PublishedAt string `json:"publishedAt,omitempty"`
+	Prerelease  bool   `json:"prerelease"`
+}
+
+// UpdateCheckResult reports the latest update check state.
+type UpdateCheckResult struct {
+	CurrentVersion  string         `json:"currentVersion"`
+	UpdateAvailable bool           `json:"updateAvailable"`
+	Latest          *UpdateRelease `json:"latest,omitempty"`
+}
+
 // BootstrapProgressResponse represents bootstrap progress for the frontend.
 type BootstrapProgressResponse struct {
 	State     string            `json:"state"`

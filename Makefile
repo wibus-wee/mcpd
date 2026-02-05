@@ -19,7 +19,8 @@ export CGO_LDFLAGS=-mmacosx-version-min=$(MACOS_MIN)
 
 build:
 	mkdir -p bin/core
-	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core ./...
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core/mcpv ./cmd/mcpv
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core/mcpvmcp ./cmd/mcpvmcp
 
 test:
 	$(GO) test ./...

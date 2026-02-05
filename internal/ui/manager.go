@@ -48,6 +48,9 @@ type Manager struct {
 	coreStarted    time.Time
 	coreError      error
 	watchersCancel context.CancelFunc
+
+	// Update checker
+	updateChecker *UpdateChecker
 }
 
 // NewManager creates a new Manager instance.
@@ -384,7 +387,7 @@ func (m *Manager) Restart(ctx context.Context) error {
 // Shutdown performs cleanup on application exit.
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	updateChecker := m.updateChecker
 
 	// Cancel all watchers
 	m.state.CancelAllWatches()
@@ -396,6 +399,11 @@ func (m *Manager) Shutdown() {
 	// Stop Core if running
 	if m.coreState == CoreStateRunning && m.coreCancel != nil {
 		m.coreCancel()
+	}
+	m.mu.Unlock()
+
+	if updateChecker != nil {
+		updateChecker.Stop()
 	}
 }
 
@@ -452,8 +460,12 @@ func (m *Manager) GetSharedState() *SharedState {
 // This allows setting the app after Manager creation (for dependency injection).
 func (m *Manager) SetWailsApp(wails *application.App) {
 	m.mu.Lock()
+	updateChecker := m.updateChecker
 	defer m.mu.Unlock()
 	m.wails = wails
+	if updateChecker != nil {
+		updateChecker.SetWailsApp(wails)
+	}
 }
 
 // GetConfigPath returns the configuration path.
@@ -468,6 +480,25 @@ func (m *Manager) GetCoreApp() *app.App {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.coreApp
+}
+
+// SetUpdateChecker wires the update checker into the manager.
+func (m *Manager) SetUpdateChecker(checker *UpdateChecker) {
+	m.mu.Lock()
+	m.updateChecker = checker
+	wails := m.wails
+	m.mu.Unlock()
+
+	if checker != nil && wails != nil {
+		checker.SetWailsApp(wails)
+	}
+}
+
+// UpdateChecker returns the update checker if configured.
+func (m *Manager) UpdateChecker() *UpdateChecker {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.updateChecker
 }
 
 func (m *Manager) ReloadConfig(ctx context.Context) error {

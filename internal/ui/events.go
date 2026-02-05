@@ -32,6 +32,9 @@ const (
 
 	// Error events.
 	EventError = "error"
+
+	// Update check events.
+	EventUpdateAvailable = "update:available"
 )
 
 // CoreStateEvent represents core state changes.
@@ -94,6 +97,12 @@ type ServerInitUpdatedEvent struct {
 // ActiveClientsUpdatedEvent represents active client updates.
 type ActiveClientsUpdatedEvent struct {
 	Clients []ActiveClient `json:"clients"`
+}
+
+// UpdateAvailableEvent represents update notifications.
+type UpdateAvailableEvent struct {
+	CurrentVersion string        `json:"currentVersion"`
+	Latest         UpdateRelease `json:"latest"`
 }
 
 // Helper functions for event emission
@@ -252,6 +261,13 @@ func emitActiveClientsUpdated(app *application.App, snapshot domain.ActiveClient
 		Clients: clients,
 	}
 	app.Event.Emit(EventActiveClientsUpdated, event)
+}
+
+func emitUpdateAvailable(app *application.App, event UpdateAvailableEvent) {
+	if app == nil {
+		return
+	}
+	app.Event.Emit(EventUpdateAvailable, event)
 }
 
 func formatTimestamp(t time.Time) string {

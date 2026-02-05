@@ -19,6 +19,7 @@ require (
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.53
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 	go.uber.org/zap v1.27.0
+	golang.org/x/mod v0.30.0
 	google.golang.org/grpc v1.74.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.0
 	google.golang.org/protobuf v1.36.10

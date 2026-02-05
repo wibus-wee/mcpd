@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,20 +33,27 @@ type Gateway struct {
 	prompts         *promptRegistry
 	registered      atomic.Bool
 	subAgentEnabled atomic.Bool
+	toolsReadyCh    chan struct{}
+	toolsReadyOnce  sync.Once
+	toolsReadyWarn  atomic.Bool
+	toolsReadyWait  time.Duration
 }
 
 const defaultHeartbeatInterval = 2 * time.Second
+const defaultToolsReadyWait = 2 * time.Second
 
 func NewGateway(cfg rpc.ClientConfig, caller string, tags []string, serverName string, logger *zap.Logger) *Gateway {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &Gateway{
-		cfg:        cfg,
-		caller:     caller,
-		tags:       tags,
-		serverName: serverName,
-		logger:     logger.Named("gateway"),
+		cfg:            cfg,
+		caller:         caller,
+		tags:           tags,
+		serverName:     serverName,
+		logger:         logger.Named("gateway"),
+		toolsReadyCh:   make(chan struct{}),
+		toolsReadyWait: defaultToolsReadyWait,
 	}
 }
 
@@ -81,6 +89,7 @@ func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) e
 		HasResources: true,
 		HasPrompts:   true,
 	})
+	g.server.AddReceivingMiddleware(g.toolsReadyMiddleware())
 
 	g.clients = newClientManager(g.cfg, g.logger)
 	g.registry = newToolRegistry(g.server, g.toolHandler, g.logger)
@@ -325,6 +334,51 @@ func (g *Gateway) readResource(ctx context.Context, uri string) (*controlv1.Read
 	return resp, nil
 }
 
+func (g *Gateway) toolsReadyMiddleware() mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if method == "tools/list" {
+				g.waitForToolsReady(ctx)
+			}
+			return next(ctx, method, req)
+		}
+	}
+}
+
+func (g *Gateway) waitForToolsReady(ctx context.Context) {
+	if g.toolsReadyCh == nil {
+		return
+	}
+	select {
+	case <-g.toolsReadyCh:
+		return
+	default:
+	}
+	wait := g.toolsReadyWait
+	if wait <= 0 {
+		return
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	select {
+	case <-g.toolsReadyCh:
+		return
+	case <-waitCtx.Done():
+		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) && !g.toolsReadyWarn.Swap(true) {
+			g.logger.Warn("tools snapshot not ready before tools/list", zap.Duration("wait", wait))
+		}
+		return
+	}
+}
+
+func (g *Gateway) markToolsReady() {
+	g.toolsReadyOnce.Do(func() {
+		if g.toolsReadyCh != nil {
+			close(g.toolsReadyCh)
+		}
+	})
+}
+
 func (g *Gateway) syncTools(ctx context.Context) {
 	backoff := newBackoff(1*time.Second, 30*time.Second)
 	lastETag := ""
@@ -357,6 +411,7 @@ func (g *Gateway) syncTools(ctx context.Context) {
 			g.registry.ApplySnapshot(resp.GetSnapshot())
 			lastETag = resp.GetSnapshot().GetEtag()
 		}
+		g.markToolsReady()
 
 		stream, err := client.Control().WatchTools(ctx, &controlv1.WatchToolsRequest{
 			Caller:   g.caller,
@@ -655,6 +710,8 @@ func (g *Gateway) registerSubAgentTools() {
 	// Register mcpv.automatic_eval
 	automaticEvalTool := subagent.AutomaticEvalTool()
 	g.server.AddTool(&automaticEvalTool, g.automaticEvalHandler())
+
+	g.markToolsReady()
 }
 
 // automaticMCPHandler handles the mcpv.automatic_mcp tool call.

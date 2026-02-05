@@ -1734,6 +1734,101 @@ export class ToolEntry {
 }
 
 /**
+ * UpdateCheckOptions controls update polling behavior.
+ */
+export class UpdateCheckOptions {
+    "intervalHours": number;
+    "includePrerelease": boolean;
+
+    /** Creates a new UpdateCheckOptions instance. */
+    constructor($$source: Partial<UpdateCheckOptions> = {}) {
+        if (!("intervalHours" in $$source)) {
+            this["intervalHours"] = 0;
+        }
+        if (!("includePrerelease" in $$source)) {
+            this["includePrerelease"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateCheckOptions instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateCheckOptions {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateCheckOptions($$parsedSource as Partial<UpdateCheckOptions>);
+    }
+}
+
+/**
+ * UpdateCheckResult reports the latest update check state.
+ */
+export class UpdateCheckResult {
+    "currentVersion": string;
+    "updateAvailable": boolean;
+    "latest"?: UpdateRelease | null;
+
+    /** Creates a new UpdateCheckResult instance. */
+    constructor($$source: Partial<UpdateCheckResult> = {}) {
+        if (!("currentVersion" in $$source)) {
+            this["currentVersion"] = "";
+        }
+        if (!("updateAvailable" in $$source)) {
+            this["updateAvailable"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateCheckResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateCheckResult {
+        const $$createField2_0 = $$createType29;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("latest" in $$parsedSource) {
+            $$parsedSource["latest"] = $$createField2_0($$parsedSource["latest"]);
+        }
+        return new UpdateCheckResult($$parsedSource as Partial<UpdateCheckResult>);
+    }
+}
+
+/**
+ * UpdateRelease describes a GitHub release for update notifications.
+ */
+export class UpdateRelease {
+    "version": string;
+    "name"?: string;
+    "url": string;
+    "publishedAt"?: string;
+    "prerelease": boolean;
+
+    /** Creates a new UpdateRelease instance. */
+    constructor($$source: Partial<UpdateRelease> = {}) {
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("url" in $$source)) {
+            this["url"] = "";
+        }
+        if (!("prerelease" in $$source)) {
+            this["prerelease"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateRelease instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateRelease {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateRelease($$parsedSource as Partial<UpdateRelease>);
+    }
+}
+
+/**
  * UpdateRuntimeConfigRequest updates runtime.yaml configuration.
  */
 export class UpdateRuntimeConfigRequest {
@@ -1952,3 +2047,5 @@ const $$createType24 = PoolStats.createFrom;
 const $$createType25 = PoolMetrics.createFrom;
 const $$createType26 = StartCausePolicy.createFrom;
 const $$createType27 = $Create.Nullable($$createType26);
+const $$createType28 = UpdateRelease.createFrom;
+const $$createType29 = $Create.Nullable($$createType28);

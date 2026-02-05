@@ -10,6 +10,28 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * CheckForUpdates triggers an immediate update check.
+ */
+export function CheckForUpdates(): $CancellablePromise<$models.UpdateCheckResult> {
+    return $Call.ByID(2851822347).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * GetUpdateCheckOptions returns current update checker options.
+ */
+export function GetUpdateCheckOptions(): $CancellablePromise<$models.UpdateCheckOptions> {
+    return $Call.ByID(3048177455).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
 /**
  * GetVersion returns app version.
  */
@@ -37,3 +59,16 @@ export function Ping(): $CancellablePromise<string> {
 export function ResolvemcpvmcpPath(): $CancellablePromise<string> {
     return $Call.ByID(4220615561);
 }
+
+/**
+ * SetUpdateCheckOptions updates update checker options.
+ */
+export function SetUpdateCheckOptions(opts: $models.UpdateCheckOptions): $CancellablePromise<$models.UpdateCheckOptions> {
+    return $Call.ByID(128000755, opts).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+// Private type creation functions
+const $$createType0 = $models.UpdateCheckResult.createFrom;
+const $$createType1 = $models.UpdateCheckOptions.createFrom;

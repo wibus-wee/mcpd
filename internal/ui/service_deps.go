@@ -109,3 +109,15 @@ func (d *ServiceDeps) getCoreApp() (*app.App, error) {
 	}
 	return coreApp, nil
 }
+
+func (d *ServiceDeps) updateChecker() (*UpdateChecker, error) {
+	manager := d.manager()
+	if manager == nil {
+		return nil, NewError(ErrCodeInternal, "Manager not initialized")
+	}
+	checker := manager.UpdateChecker()
+	if checker == nil {
+		return nil, NewError(ErrCodeInternal, "Update checker not initialized")
+	}
+	return checker, nil
+}

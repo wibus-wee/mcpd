@@ -76,6 +76,33 @@ func (s *SystemService) Ping(_ context.Context) string {
 	return "pong"
 }
 
+// GetUpdateCheckOptions returns current update checker options.
+func (s *SystemService) GetUpdateCheckOptions() (UpdateCheckOptions, error) {
+	checker, err := s.deps.updateChecker()
+	if err != nil {
+		return UpdateCheckOptions{}, err
+	}
+	return checker.Options(), nil
+}
+
+// SetUpdateCheckOptions updates update checker options.
+func (s *SystemService) SetUpdateCheckOptions(opts UpdateCheckOptions) (UpdateCheckOptions, error) {
+	checker, err := s.deps.updateChecker()
+	if err != nil {
+		return UpdateCheckOptions{}, err
+	}
+	return checker.SetOptions(opts), nil
+}
+
+// CheckForUpdates triggers an immediate update check.
+func (s *SystemService) CheckForUpdates(ctx context.Context) (UpdateCheckResult, error) {
+	checker, err := s.deps.updateChecker()
+	if err != nil {
+		return UpdateCheckResult{}, err
+	}
+	return checker.CheckNow(ctx)
+}
+
 // ResolvemcpvmcpPath resolves the mcpvmcp executable path.
 func (s *SystemService) ResolvemcpvmcpPath() string {
 	name := "mcpvmcp"

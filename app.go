@@ -53,6 +53,14 @@ func main() {
 	serviceRegistry.SetWailsApp(wailsApp)
 	manager.SetWailsApp(wailsApp)
 
+	updateChecker := ui.NewUpdateChecker(uiLogger, ui.UpdateCheckOptions{
+		IntervalHours:     24,
+		IncludePrerelease: false,
+	})
+	manager.SetUpdateChecker(updateChecker)
+	updateChecker.SetWailsApp(wailsApp)
+	updateChecker.Start()
+
 	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "mcpv",
 		Width:            1200,
