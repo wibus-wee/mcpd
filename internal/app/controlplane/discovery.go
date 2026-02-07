@@ -41,6 +41,13 @@ func (d *DiscoveryService) ListTools(_ context.Context, client string) (domain.T
 	}
 	if serverName != "" {
 		snapshot, ok := runtime.Tools().SnapshotForServer(serverName)
+		if ok && len(snapshot.Tools) > 0 {
+			return snapshot, nil
+		}
+		cached := d.cachedToolSnapshotForServer(serverName)
+		if len(cached.Tools) > 0 {
+			return cached, nil
+		}
 		if !ok {
 			return domain.ToolSnapshot{}, nil
 		}
@@ -577,6 +584,50 @@ func (d *DiscoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, visi
 			return filtered[i].Name < filtered[j].Name
 		}
 		return filtered[i].ServerName < filtered[j].ServerName
+	})
+	return domain.ToolSnapshot{
+		ETag:  hashutil.ToolETag(d.state.logger, filtered),
+		Tools: filtered,
+	}
+}
+
+func (d *DiscoveryService) cachedToolSnapshotForServer(serverName string) domain.ToolSnapshot {
+	if serverName == "" {
+		return domain.ToolSnapshot{}
+	}
+	cache := d.metadataCache()
+	if cache == nil {
+		return domain.ToolSnapshot{}
+	}
+	serverSpecKeys := d.state.ServerSpecKeys()
+	specKey := serverSpecKeys[serverName]
+	if specKey == "" {
+		return domain.ToolSnapshot{}
+	}
+	tools, ok := cache.GetTools(specKey)
+	if !ok || len(tools) == 0 {
+		return domain.ToolSnapshot{}
+	}
+
+	filtered := make([]domain.ToolDefinition, 0, len(tools))
+	for _, tool := range tools {
+		if tool.Name == "" {
+			continue
+		}
+		toolDef := tool
+		if toolDef.SpecKey == "" {
+			toolDef.SpecKey = specKey
+		}
+		if toolDef.ServerName == "" {
+			toolDef.ServerName = serverName
+		}
+		filtered = append(filtered, toolDef)
+	}
+	if len(filtered) == 0 {
+		return domain.ToolSnapshot{}
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Name < filtered[j].Name
 	})
 	return domain.ToolSnapshot{
 		ETag:  hashutil.ToolETag(d.state.logger, filtered),
