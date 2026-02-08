@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +28,7 @@ type Service struct {
 	registry *registry.ClientRegistry
 	logs     *telemetry.LogBroadcaster
 
+	idxMu                     sync.RWMutex
 	runtimeStatusIdx           *aggregator.RuntimeStatusIndex
 	serverInitIdx              *aggregator.ServerInitIndex
 	runtimeStatusWorkerStarted atomic.Bool
@@ -128,18 +130,19 @@ func (o *Service) WatchRuntimeStatus(ctx context.Context, client string) (<-chan
 	if _, err := o.registry.ResolveVisibleSpecKeys(client); err != nil {
 		return closedRuntimeStatusChannel(), err
 	}
-	if o.runtimeStatusIdx == nil {
+	idx := o.runtimeStatusIndex()
+	if idx == nil {
 		return closedRuntimeStatusChannel(), nil
 	}
 
 	output := make(chan domain.RuntimeStatusSnapshot, 1)
-	updates := o.runtimeStatusIdx.Subscribe(ctx)
+	updates := idx.Subscribe(ctx)
 	changes := o.registry.WatchClientChanges(ctx)
 
 	go func() {
 		defer close(output)
 		var last domain.RuntimeStatusSnapshot
-		last = o.runtimeStatusIdx.Current()
+		last = idx.Current()
 		o.sendFilteredRuntimeStatus(output, client, last)
 		for {
 			select {
@@ -167,10 +170,11 @@ func (o *Service) WatchRuntimeStatus(ctx context.Context, client string) (<-chan
 
 // WatchRuntimeStatusAllServers streams runtime status across all servers.
 func (o *Service) WatchRuntimeStatusAllServers(ctx context.Context) (<-chan domain.RuntimeStatusSnapshot, error) {
-	if o.runtimeStatusIdx == nil {
+	idx := o.runtimeStatusIndex()
+	if idx == nil {
 		return closedRuntimeStatusChannel(), nil
 	}
-	return o.runtimeStatusIdx.Subscribe(ctx), nil
+	return idx.Subscribe(ctx), nil
 }
 
 // WatchServerInitStatus streams server init status for a caller.
@@ -178,18 +182,19 @@ func (o *Service) WatchServerInitStatus(ctx context.Context, client string) (<-c
 	if _, err := o.registry.ResolveVisibleSpecKeys(client); err != nil {
 		return closedServerInitStatusChannel(), err
 	}
-	if o.serverInitIdx == nil {
+	idx := o.serverInitIndex()
+	if idx == nil {
 		return closedServerInitStatusChannel(), nil
 	}
 
 	output := make(chan domain.ServerInitStatusSnapshot, 1)
-	updates := o.serverInitIdx.Subscribe(ctx)
+	updates := idx.Subscribe(ctx)
 	changes := o.registry.WatchClientChanges(ctx)
 
 	go func() {
 		defer close(output)
 		var last domain.ServerInitStatusSnapshot
-		last = o.serverInitIdx.Current()
+		last = idx.Current()
 		o.sendFilteredServerInitStatus(output, client, last)
 		for {
 			select {
@@ -217,15 +222,18 @@ func (o *Service) WatchServerInitStatus(ctx context.Context, client string) (<-c
 
 // WatchServerInitStatusAllServers streams server init status across all servers.
 func (o *Service) WatchServerInitStatusAllServers(ctx context.Context) (<-chan domain.ServerInitStatusSnapshot, error) {
-	if o.serverInitIdx == nil {
+	idx := o.serverInitIndex()
+	if idx == nil {
 		return closedServerInitStatusChannel(), nil
 	}
-	return o.serverInitIdx.Subscribe(ctx), nil
+	return idx.Subscribe(ctx), nil
 }
 
 // SetRuntimeStatusIndex updates the runtime status index.
 func (o *Service) SetRuntimeStatusIndex(idx *aggregator.RuntimeStatusIndex) {
+	o.idxMu.Lock()
 	o.runtimeStatusIdx = idx
+	o.idxMu.Unlock()
 	if idx == nil {
 		return
 	}
@@ -237,7 +245,9 @@ func (o *Service) SetRuntimeStatusIndex(idx *aggregator.RuntimeStatusIndex) {
 
 // SetServerInitIndex updates the server init status index.
 func (o *Service) SetServerInitIndex(idx *aggregator.ServerInitIndex) {
+	o.idxMu.Lock()
 	o.serverInitIdx = idx
+	o.idxMu.Unlock()
 	if idx == nil {
 		return
 	}
@@ -257,7 +267,11 @@ func (o *Service) runRuntimeStatusWorker() {
 			return
 		case <-ticker.C:
 			ctx := o.state.Context()
-			if err := o.runtimeStatusIdx.Refresh(ctx); err != nil {
+			idx := o.runtimeStatusIndex()
+			if idx == nil {
+				continue
+			}
+			if err := idx.Refresh(ctx); err != nil {
 				o.state.Logger().Warn("runtime status refresh failed", zap.Error(err))
 			}
 		}
@@ -274,11 +288,29 @@ func (o *Service) runServerInitWorker() {
 			return
 		case <-ticker.C:
 			ctx := o.state.Context()
-			if err := o.serverInitIdx.Refresh(ctx); err != nil {
+			idx := o.serverInitIndex()
+			if idx == nil {
+				continue
+			}
+			if err := idx.Refresh(ctx); err != nil {
 				o.state.Logger().Warn("server init status refresh failed", zap.Error(err))
 			}
 		}
 	}
+}
+
+func (o *Service) runtimeStatusIndex() *aggregator.RuntimeStatusIndex {
+	o.idxMu.RLock()
+	idx := o.runtimeStatusIdx
+	o.idxMu.RUnlock()
+	return idx
+}
+
+func (o *Service) serverInitIndex() *aggregator.ServerInitIndex {
+	o.idxMu.RLock()
+	idx := o.serverInitIdx
+	o.idxMu.RUnlock()
+	return idx
 }
 
 func compareLogLevel(a, b domain.LogLevel) int {

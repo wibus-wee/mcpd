@@ -41,14 +41,20 @@ type BaseIndex[Snapshot any, Target any, Cache any, ServerSnapshot any] struct {
 	listChanges   core.ListChangeSubscriber
 	hooks         BaseHooks[Snapshot, Target, Cache]
 
+	// Lock ordering (only if multiple locks are ever held): specsMu -> bootstrapMu -> baseMu -> serverMu.
+	// Prefer single-lock sections and avoid holding any lock while calling external components.
+	// specsMu guards specs/specKeys/cfg/specKeySet.
 	specsMu         sync.RWMutex
 	specKeySet      map[string]struct{}
 	bootstrapWaiter core.BootstrapWaiter
+	// bootstrapMu guards bootstrapWaiter/bootstrapOnce.
 	bootstrapMu     sync.RWMutex
 	bootstrapOnce   sync.Once
+	// baseMu guards baseCtx/baseCancel.
 	baseMu          sync.RWMutex
 	baseCtx         context.Context
 	baseCancel      context.CancelFunc
+	// serverMu guards serverSnapshots.
 	serverMu        sync.RWMutex
 	serverSnapshots map[string]ServerSnapshot
 

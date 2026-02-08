@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -22,6 +23,7 @@ type Service struct {
 	state    State
 	registry *registry.ClientRegistry
 	tools    *discovery.ToolDiscoveryService
+	subAgentMu sync.RWMutex
 	subAgent domain.SubAgent
 	cache    *domain.SessionCache
 }
@@ -35,21 +37,35 @@ func NewAutomationService(state State, registry *registry.ClientRegistry, tools 
 	}
 }
 
+func (a *Service) getSubAgent() domain.SubAgent {
+	a.subAgentMu.RLock()
+	agent := a.subAgent
+	a.subAgentMu.RUnlock()
+	return agent
+}
+
 // SetSubAgent sets the active SubAgent implementation.
 func (a *Service) SetSubAgent(agent domain.SubAgent) {
+	a.subAgentMu.Lock()
 	a.subAgent = agent
+	a.subAgentMu.Unlock()
 }
 
 // IsSubAgentEnabled reports whether SubAgent is enabled.
 func (a *Service) IsSubAgentEnabled() bool {
-	return a.subAgent != nil
+	return a.getSubAgent() != nil
 }
 
 // IsSubAgentEnabledForClient reports whether SubAgent is enabled for a client.
 func (a *Service) IsSubAgentEnabledForClient(client string) bool {
-	if a.subAgent == nil {
+	agent := a.getSubAgent()
+	if agent == nil {
 		return false
 	}
+	return a.isSubAgentEnabledForClient(client)
+}
+
+func (a *Service) isSubAgentEnabledForClient(client string) bool {
 	tags, err := a.registry.ResolveClientTags(client)
 	if err != nil {
 		return false
@@ -64,8 +80,9 @@ func (a *Service) IsSubAgentEnabledForClient(client string) bool {
 
 // AutomaticMCP filters tools using the automatic MCP flow.
 func (a *Service) AutomaticMCP(ctx context.Context, client string, params domain.AutomaticMCPParams) (domain.AutomaticMCPResult, error) {
-	if a.subAgent != nil && a.IsSubAgentEnabledForClient(client) {
-		return a.subAgent.SelectToolsForClient(ctx, client, params)
+	agent := a.getSubAgent()
+	if agent != nil && a.isSubAgentEnabledForClient(client) {
+		return agent.SelectToolsForClient(ctx, client, params)
 	}
 
 	return a.fallbackAutomaticMCP(ctx, client, params)
