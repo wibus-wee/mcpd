@@ -218,15 +218,14 @@ func provideControlPlaneState(
 	runtimeState *runtime.State,
 	state *domain.CatalogState,
 	scheduler domain.Scheduler,
-	initManager *bootstrap.ServerInitializationManager,
-	bootstrapManager *bootstrap.Manager,
+	startup *bootstrap.ServerStartupOrchestrator,
 	logger *zap.Logger,
 ) *controlplane.State {
-	controlState := controlplane.NewState(ctx, runtimeState, scheduler, initManager, bootstrapManager, state, logger)
+	controlState := controlplane.NewState(ctx, runtimeState, scheduler, startup, state, logger)
 
-	if bootstrapManager != nil && runtimeState != nil {
+	if startup != nil && startup.HasBootstrap() && runtimeState != nil {
 		waiter := func(ctx context.Context) error {
-			return bootstrapManager.WaitForCompletion(ctx)
+			return startup.WaitForBootstrap(ctx)
 		}
 		runtimeState.SetBootstrapWaiter(waiter)
 	}

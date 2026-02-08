@@ -15,25 +15,23 @@ import (
 type State struct {
 	mu sync.RWMutex
 
-	info             domain.ControlPlaneInfo
-	runtimeState     *runtime.State
-	specRegistry     map[string]domain.ServerSpec
-	serverSpecKeys   map[string]string
-	scheduler        domain.Scheduler
-	initManager      *bootstrap.ServerInitializationManager
-	bootstrapManager *bootstrap.Manager
-	runtime          domain.RuntimeConfig
-	catalog          domain.Catalog
-	logger           *zap.Logger
-	ctx              context.Context
+	info           domain.ControlPlaneInfo
+	runtimeState   *runtime.State
+	specRegistry   map[string]domain.ServerSpec
+	serverSpecKeys map[string]string
+	scheduler      domain.Scheduler
+	startup        *bootstrap.ServerStartupOrchestrator
+	runtime        domain.RuntimeConfig
+	catalog        domain.Catalog
+	logger         *zap.Logger
+	ctx            context.Context
 }
 
 func NewState(
 	ctx context.Context,
 	runtimeState *runtime.State,
 	scheduler domain.Scheduler,
-	initManager *bootstrap.ServerInitializationManager,
-	bootstrapManager *bootstrap.Manager,
+	startup *bootstrap.ServerStartupOrchestrator,
 	state *domain.CatalogState,
 	logger *zap.Logger,
 ) *State {
@@ -48,17 +46,16 @@ func NewState(
 	serverSpecKeys := copySpecKeyMap(summary.ServerSpecKeys)
 
 	return &State{
-		info:             defaultControlPlaneInfo(),
-		runtimeState:     runtimeState,
-		specRegistry:     specRegistry,
-		serverSpecKeys:   serverSpecKeys,
-		scheduler:        scheduler,
-		initManager:      initManager,
-		bootstrapManager: bootstrapManager,
-		runtime:          summary.Runtime,
-		catalog:          state.Catalog,
-		logger:           logger.Named("control_plane"),
-		ctx:              ctx,
+		info:           defaultControlPlaneInfo(),
+		runtimeState:   runtimeState,
+		specRegistry:   specRegistry,
+		serverSpecKeys: serverSpecKeys,
+		scheduler:      scheduler,
+		startup:        startup,
+		runtime:        summary.Runtime,
+		catalog:        state.Catalog,
+		logger:         logger.Named("control_plane"),
+		ctx:            ctx,
 	}
 }
 
@@ -123,18 +120,11 @@ func (s *State) Scheduler() domain.Scheduler {
 	return s.scheduler
 }
 
-// InitManager returns the server initialization manager.
-func (s *State) InitManager() *bootstrap.ServerInitializationManager {
+// Startup returns the startup orchestrator.
+func (s *State) Startup() *bootstrap.ServerStartupOrchestrator {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.initManager
-}
-
-// BootstrapManager returns the bootstrap manager.
-func (s *State) BootstrapManager() *bootstrap.Manager {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.bootstrapManager
+	return s.startup
 }
 
 // Logger returns the control plane logger.

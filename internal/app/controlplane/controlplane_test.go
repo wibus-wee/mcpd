@@ -56,7 +56,7 @@ func newTestControlPlane(
 		panic(err)
 	}
 	runtimeState := runtime.NewStateFromSpecKeys(state.Summary.ServerSpecKeys)
-	controlState := NewState(ctx, runtimeState, scheduler, nil, nil, &state, zap.NewNop())
+	controlState := NewState(ctx, runtimeState, scheduler, nil, &state, zap.NewNop())
 	registry := NewClientRegistry(controlState)
 	tools := NewToolDiscoveryService(controlState, registry)
 	resources := NewResourceDiscoveryService(controlState, registry)

@@ -11,8 +11,7 @@ import (
 
 type State interface {
 	Scheduler() domain.Scheduler
-	InitManager() *bootstrap.ServerInitializationManager
-	BootstrapManager() *bootstrap.Manager
+	Startup() *bootstrap.ServerStartupOrchestrator
 	Context() context.Context
 	Logger() *zap.Logger
 }

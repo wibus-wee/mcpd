@@ -43,15 +43,16 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	initManager := bootstrap.NewServerInitializationManager(scheduler, &prevState, zap.NewNop())
+	startup := bootstrap.NewServerStartupOrchestrator(initManager, nil, zap.NewNop())
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, initManager, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, startup, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
 	require.NoError(t, err)
 	scheduler.minReadyCalls = nil
 
-	manager := NewReloadManager(nil, state, registry, scheduler, initManager, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, startup, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),
@@ -96,7 +97,7 @@ func TestReloadManager_ApplyUpdate_RemovesServer(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
@@ -139,7 +140,7 @@ func TestReloadManager_ApplyUpdate_PluginApplyFailureRetainsState(t *testing.T) 
 	nextState := newCatalogState(t, nextCatalog)
 
 	scheduler := &schedulerStub{}
-	state := NewState(context.Background(), runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys), scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys), scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	pluginManager, err := plugin.NewManager(plugin.ManagerOptions{Logger: zap.NewNop(), RootDir: t.TempDir()})
@@ -176,7 +177,7 @@ func TestReloadManager_ApplyUpdate_SchedulerErrorDoesNotAdvanceState(t *testing.
 
 	scheduler := &schedulerStub{applyErr: errors.New("apply failed")}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
@@ -209,7 +210,7 @@ func TestReloadManager_ApplyUpdate_RegistryErrorRollsBackState(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")

@@ -199,10 +199,11 @@ func (c *ControlPlane) GetServerInitStatus(ctx context.Context) ([]domain.Server
 
 // RetryServerInit requests a retry for server initialization.
 func (c *ControlPlane) RetryServerInit(_ context.Context, specKey string) error {
-	if c.state.initManager == nil {
+	startup := c.state.Startup()
+	if startup == nil {
 		return errors.New("server init manager not configured")
 	}
-	return c.state.initManager.RetrySpec(specKey)
+	return startup.RetryInit(specKey)
 }
 
 // WatchRuntimeStatus streams runtime status snapshots for a client.
@@ -267,17 +268,19 @@ func (c *ControlPlane) AutomaticEval(ctx context.Context, client string, params 
 
 // GetBootstrapProgress returns bootstrap progress.
 func (c *ControlPlane) GetBootstrapProgress(_ context.Context) (domain.BootstrapProgress, error) {
-	if c.state.bootstrapManager == nil {
+	startup := c.state.Startup()
+	if startup == nil {
 		return domain.BootstrapProgress{State: domain.BootstrapCompleted}, nil
 	}
-	return c.state.bootstrapManager.GetProgress(), nil
+	return startup.BootstrapProgress(), nil
 }
 
 // WatchBootstrapProgress streams bootstrap progress updates.
 func (c *ControlPlane) WatchBootstrapProgress(ctx context.Context) (<-chan domain.BootstrapProgress, error) {
 	ch := make(chan domain.BootstrapProgress, 1)
 
-	if c.state.bootstrapManager == nil {
+	startup := c.state.Startup()
+	if startup == nil || !startup.HasBootstrap() {
 		close(ch)
 		return ch, nil
 	}
@@ -290,7 +293,7 @@ func (c *ControlPlane) WatchBootstrapProgress(ctx context.Context) (<-chan domai
 
 		// Send initial progress
 		select {
-		case ch <- c.state.bootstrapManager.GetProgress():
+		case ch <- startup.BootstrapProgress():
 		case <-ctx.Done():
 			return
 		}
@@ -300,7 +303,7 @@ func (c *ControlPlane) WatchBootstrapProgress(ctx context.Context) (<-chan domai
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				progress := c.state.bootstrapManager.GetProgress()
+				progress := startup.BootstrapProgress()
 
 				select {
 				case ch <- progress:

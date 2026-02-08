@@ -25,7 +25,7 @@ type ReloadManager struct {
 	state         *State
 	registry      *ClientRegistry
 	scheduler     domain.Scheduler
-	initManager   *bootstrap.ServerInitializationManager
+	startup       *bootstrap.ServerStartupOrchestrator
 	pluginManager *plugin.Manager
 	pipeline      *pipeline.Engine
 	metrics       domain.Metrics
@@ -59,7 +59,7 @@ func NewReloadManager(
 	state *State,
 	registry *ClientRegistry,
 	scheduler domain.Scheduler,
-	initManager *bootstrap.ServerInitializationManager,
+	startup *bootstrap.ServerStartupOrchestrator,
 	pluginManager *plugin.Manager,
 	pipelineEngine *pipeline.Engine,
 	metrics domain.Metrics,
@@ -80,7 +80,7 @@ func NewReloadManager(
 		state:         state,
 		registry:      registry,
 		scheduler:     scheduler,
-		initManager:   initManager,
+		startup:       startup,
 		pluginManager: pluginManager,
 		pipeline:      pipelineEngine,
 		metrics:       metrics,
@@ -264,7 +264,7 @@ func (m *ReloadManager) buildReloadSteps(prev domain.CatalogState, update domain
 	reverseDiff := domain.DiffCatalogStates(update.Snapshot, prev)
 
 	steps := make([]reloadStep, 0, 2)
-	if !runtimeOnly || m.initManager != nil {
+	if !runtimeOnly || m.startup != nil {
 		steps = append(steps, reloadStep{
 			name: "scheduler_apply",
 			apply: func(ctx context.Context) error {
@@ -276,8 +276,8 @@ func (m *ReloadManager) buildReloadSteps(prev domain.CatalogState, update domain
 						return err
 					}
 				}
-				if m.initManager != nil {
-					m.initManager.ApplyCatalogState(&update.Snapshot)
+				if m.startup != nil {
+					m.startup.ApplyCatalogState(&update.Snapshot)
 				}
 				return nil
 			},
@@ -288,8 +288,8 @@ func (m *ReloadManager) buildReloadSteps(prev domain.CatalogState, update domain
 						rollbackErr = err
 					}
 				}
-				if m.initManager != nil {
-					m.initManager.ApplyCatalogState(&prev)
+				if m.startup != nil {
+					m.startup.ApplyCatalogState(&prev)
 				}
 				return rollbackErr
 			},

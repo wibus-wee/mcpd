@@ -56,9 +56,9 @@ func (r *ClientRegistry) activateSpecs(ctx context.Context, specKeys []string, c
 	// Perform the actual start operations outside the lock.
 	for _, task := range tasks {
 		causeCtx := domain.WithStartCause(ctx, task.cause)
-		initManager := r.state.InitManager()
-		if initManager != nil {
-			err := initManager.SetMinReady(task.specKey, task.minReady, task.cause)
+		startup := r.state.Startup()
+		if startup != nil {
+			err := startup.SetMinReady(task.specKey, task.minReady, task.cause)
 			if err == nil {
 				continue
 			}
@@ -102,9 +102,9 @@ func (r *ClientRegistry) deactivateSpecs(ctx context.Context, specKeys []string)
 
 	// Perform actual stop outside lock.
 	for _, specKey := range specsToStop {
-		initManager := r.state.InitManager()
-		if initManager != nil {
-			_ = initManager.SetMinReady(specKey, 0, domain.StartCause{})
+		startup := r.state.Startup()
+		if startup != nil {
+			_ = startup.SetMinReady(specKey, 0, domain.StartCause{})
 		}
 		scheduler := r.state.Scheduler()
 		if scheduler == nil {

@@ -73,7 +73,7 @@ func (f *fakeState) Scheduler() domain.Scheduler {
 	return f.scheduler
 }
 
-func (f *fakeState) InitManager() *bootstrap.ServerInitializationManager {
+func (f *fakeState) Startup() *bootstrap.ServerStartupOrchestrator {
 	return nil
 }
 

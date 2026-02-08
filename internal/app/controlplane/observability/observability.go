@@ -102,16 +102,15 @@ func (o *Service) GetPoolStatus(ctx context.Context) ([]domain.PoolInfo, error) 
 
 // GetServerInitStatus returns current server init statuses.
 func (o *Service) GetServerInitStatus(ctx context.Context) ([]domain.ServerInitStatus, error) {
-	initManager := o.state.InitManager()
-	if initManager == nil {
+	startup := o.state.Startup()
+	if startup == nil {
 		return nil, nil
 	}
-	statuses := initManager.Statuses(ctx)
+	statuses := startup.InitStatuses(ctx)
 
 	// Check bootstrap errors and mark failed servers
-	bootstrapManager := o.state.BootstrapManager()
-	if bootstrapManager != nil {
-		progress := bootstrapManager.GetProgress()
+	if startup.HasBootstrap() {
+		progress := startup.BootstrapProgress()
 		if progress.State == domain.BootstrapFailed || len(progress.Errors) > 0 {
 			for i := range statuses {
 				if err, exists := progress.Errors[statuses[i].SpecKey]; exists && err != "" {

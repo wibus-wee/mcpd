@@ -17,5 +17,5 @@ type State interface {
 	Logger() *zap.Logger
 	Context() context.Context
 	Scheduler() domain.Scheduler
-	InitManager() *bootstrap.ServerInitializationManager
+	Startup() *bootstrap.ServerStartupOrchestrator
 }
