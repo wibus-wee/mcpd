@@ -76,33 +76,6 @@ func MarshalPromptDefinition(prompt domain.PromptDefinition) ([]byte, error) {
 	return json.Marshal(&wire)
 }
 
-// MustMarshalToolDefinition encodes a tool definition or panics.
-func MustMarshalToolDefinition(tool domain.ToolDefinition) []byte {
-	raw, err := MarshalToolDefinition(tool)
-	if err != nil {
-		panic(err)
-	}
-	return raw
-}
-
-// MustMarshalResourceDefinition encodes a resource definition or panics.
-func MustMarshalResourceDefinition(resource domain.ResourceDefinition) []byte {
-	raw, err := MarshalResourceDefinition(resource)
-	if err != nil {
-		panic(err)
-	}
-	return raw
-}
-
-// MustMarshalPromptDefinition encodes a prompt definition or panics.
-func MustMarshalPromptDefinition(prompt domain.PromptDefinition) []byte {
-	raw, err := MarshalPromptDefinition(prompt)
-	if err != nil {
-		panic(err)
-	}
-	return raw
-}
-
 // HashToolDefinition returns a deterministic hash for a tool definition or an error.
 func HashToolDefinition(tool domain.ToolDefinition) (string, error) {
 	raw, err := MarshalToolDefinition(tool)

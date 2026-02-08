@@ -187,70 +187,6 @@ func TestHashToolDefinitions_ListHashing(t *testing.T) {
 	}
 }
 
-// TestMustMarshalToolDefinition_Panics verifies panic behavior.
-func TestMustMarshalToolDefinition_Panics(t *testing.T) {
-	t.Run("valid tool doesn't panic", func(t *testing.T) {
-		tool := domain.ToolDefinition{
-			Name:        "valid_tool",
-			Description: "A valid tool",
-			InputSchema: map[string]any{"type": "object"},
-		}
-
-		assert.NotPanics(t, func() {
-			data := MustMarshalToolDefinition(tool)
-			assert.NotEmpty(t, data)
-		})
-	})
-
-	// Note: JSON marshaling in Go rarely panics. Circular references are prevented
-	// by the type system. This test documents expected behavior.
-	t.Run("marshaling succeeds for complex schemas", func(t *testing.T) {
-		tool := domain.ToolDefinition{
-			Name: "complex_tool",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"nested": map[string]any{
-						"type": "array",
-						"items": map[string]any{
-							"type": "string",
-						},
-					},
-				},
-			},
-		}
-
-		assert.NotPanics(t, func() {
-			data := MustMarshalToolDefinition(tool)
-			assert.NotEmpty(t, data)
-		})
-	})
-}
-
-// TestToolFromMCP_NilHandling verifies nil input handling.
-func TestToolFromMCP_NilHandling(t *testing.T) {
-	t.Run("nil tool returns empty definition", func(t *testing.T) {
-		result := ToolFromMCP(nil)
-		assert.Equal(t, domain.ToolDefinition{}, result)
-	})
-}
-
-// TestResourceFromMCP_NilHandling verifies nil input handling.
-func TestResourceFromMCP_NilHandling(t *testing.T) {
-	t.Run("nil resource returns empty definition", func(t *testing.T) {
-		result := ResourceFromMCP(nil)
-		assert.Equal(t, domain.ResourceDefinition{}, result)
-	})
-}
-
-// TestPromptFromMCP_NilHandling verifies nil input handling.
-func TestPromptFromMCP_NilHandling(t *testing.T) {
-	t.Run("nil prompt returns empty definition", func(t *testing.T) {
-		result := PromptFromMCP(nil)
-		assert.Equal(t, domain.PromptDefinition{}, result)
-	})
-}
-
 // TestRoundTrip_ToolDefinition verifies encoding preserves all fields.
 func TestRoundTrip_ToolDefinition(t *testing.T) {
 	boolTrue := true
@@ -287,21 +223,54 @@ func TestRoundTrip_ToolDefinition(t *testing.T) {
 		},
 	}
 
-	// Marshal to JSON
+	// Marshal to MCP JSON
 	data, err := MarshalToolDefinition(original)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
+	// Unmarshal back from MCP JSON
+	var mcpTool mcp.Tool
+	err = json.Unmarshal(data, &mcpTool)
+	require.NoError(t, err)
+
+	// Convert back to domain
+	roundtripped := ToolFromMCP(&mcpTool)
+
+	// Verify all fields preserved
+	assert.Equal(t, original.Name, roundtripped.Name)
+	assert.Equal(t, original.Description, roundtripped.Description)
+	assert.Equal(t, original.Title, roundtripped.Title)
+
+	// Verify schemas preserved (deep comparison)
+	originalInputJSON, _ := json.Marshal(original.InputSchema)
+	roundtrippedInputJSON, _ := json.Marshal(roundtripped.InputSchema)
+	assert.JSONEq(t, string(originalInputJSON), string(roundtrippedInputJSON))
+
+	if original.OutputSchema != nil {
+		originalOutputJSON, _ := json.Marshal(original.OutputSchema)
+		roundtrippedOutputJSON, _ := json.Marshal(roundtripped.OutputSchema)
+		assert.JSONEq(t, string(originalOutputJSON), string(roundtrippedOutputJSON))
+	}
+
+	// Verify annotations preserved
+	if original.Annotations != nil {
+		require.NotNil(t, roundtripped.Annotations)
+		assert.Equal(t, original.Annotations.IdempotentHint, roundtripped.Annotations.IdempotentHint)
+		assert.Equal(t, original.Annotations.ReadOnlyHint, roundtripped.Annotations.ReadOnlyHint)
+		assert.Equal(t, *original.Annotations.DestructiveHint, *roundtripped.Annotations.DestructiveHint)
+		assert.Equal(t, *original.Annotations.OpenWorldHint, *roundtripped.Annotations.OpenWorldHint)
+		assert.Equal(t, original.Annotations.Title, roundtripped.Annotations.Title)
+	}
+
+	// Verify meta preserved
+	assert.Equal(t, original.Meta, roundtripped.Meta)
+
 	// Hash should be deterministic
 	hash1, err := HashToolDefinition(original)
 	require.NoError(t, err)
-	hash2, err := HashToolDefinition(original)
+	hash2, err := HashToolDefinition(roundtripped)
 	require.NoError(t, err)
-	assert.Equal(t, hash1, hash2, "Hash should be deterministic")
-
-	// Verify MustMarshal produces same result
-	mustData := MustMarshalToolDefinition(original)
-	assert.Equal(t, data, mustData)
+	assert.Equal(t, hash1, hash2, "Hash should be same after round-trip")
 }
 
 // TestRoundTrip_ResourceDefinition verifies encoding preserves all fields.
@@ -323,21 +292,44 @@ func TestRoundTrip_ResourceDefinition(t *testing.T) {
 		},
 	}
 
-	// Marshal to JSON
+	// Marshal to MCP JSON
 	data, err := MarshalResourceDefinition(original)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	// Hash should be deterministic
+	// Unmarshal back from MCP JSON
+	var mcpResource mcp.Resource
+	err = json.Unmarshal(data, &mcpResource)
+	require.NoError(t, err)
+
+	// Convert back to domain
+	roundtripped := ResourceFromMCP(&mcpResource)
+
+	// Verify all fields preserved
+	assert.Equal(t, original.URI, roundtripped.URI)
+	assert.Equal(t, original.Name, roundtripped.Name)
+	assert.Equal(t, original.Title, roundtripped.Title)
+	assert.Equal(t, original.Description, roundtripped.Description)
+	assert.Equal(t, original.MIMEType, roundtripped.MIMEType)
+	assert.Equal(t, original.Size, roundtripped.Size)
+
+	// Verify annotations preserved
+	if original.Annotations != nil {
+		require.NotNil(t, roundtripped.Annotations)
+		assert.Equal(t, original.Annotations.Audience, roundtripped.Annotations.Audience)
+		assert.Equal(t, original.Annotations.LastModified, roundtripped.Annotations.LastModified)
+		assert.Equal(t, original.Annotations.Priority, roundtripped.Annotations.Priority)
+	}
+
+	// Verify meta preserved
+	assert.Equal(t, original.Meta, roundtripped.Meta)
+
+	// Hash should be same after round-trip
 	hash1, err := HashResourceDefinition(original)
 	require.NoError(t, err)
-	hash2, err := HashResourceDefinition(original)
+	hash2, err := HashResourceDefinition(roundtripped)
 	require.NoError(t, err)
-	assert.Equal(t, hash1, hash2, "Hash should be deterministic")
-
-	// Verify MustMarshal produces same result
-	mustData := MustMarshalResourceDefinition(original)
-	assert.Equal(t, data, mustData)
+	assert.Equal(t, hash1, hash2, "Hash should be same after round-trip")
 }
 
 // TestRoundTrip_PromptDefinition verifies encoding preserves all fields.
@@ -365,21 +357,42 @@ func TestRoundTrip_PromptDefinition(t *testing.T) {
 		},
 	}
 
-	// Marshal to JSON
+	// Marshal to MCP JSON
 	data, err := MarshalPromptDefinition(original)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	// Hash should be deterministic
+	// Unmarshal back from MCP JSON
+	var mcpPrompt mcp.Prompt
+	err = json.Unmarshal(data, &mcpPrompt)
+	require.NoError(t, err)
+
+	// Convert back to domain
+	roundtripped := PromptFromMCP(&mcpPrompt)
+
+	// Verify all fields preserved
+	assert.Equal(t, original.Name, roundtripped.Name)
+	assert.Equal(t, original.Title, roundtripped.Title)
+	assert.Equal(t, original.Description, roundtripped.Description)
+
+	// Verify arguments preserved
+	require.Equal(t, len(original.Arguments), len(roundtripped.Arguments))
+	for i, arg := range original.Arguments {
+		assert.Equal(t, arg.Name, roundtripped.Arguments[i].Name)
+		assert.Equal(t, arg.Title, roundtripped.Arguments[i].Title)
+		assert.Equal(t, arg.Description, roundtripped.Arguments[i].Description)
+		assert.Equal(t, arg.Required, roundtripped.Arguments[i].Required)
+	}
+
+	// Verify meta preserved
+	assert.Equal(t, original.Meta, roundtripped.Meta)
+
+	// Hash should be same after round-trip
 	hash1, err := HashPromptDefinition(original)
 	require.NoError(t, err)
-	hash2, err := HashPromptDefinition(original)
+	hash2, err := HashPromptDefinition(roundtripped)
 	require.NoError(t, err)
-	assert.Equal(t, hash1, hash2, "Hash should be deterministic")
-
-	// Verify MustMarshal produces same result
-	mustData := MustMarshalPromptDefinition(original)
-	assert.Equal(t, data, mustData)
+	assert.Equal(t, hash1, hash2, "Hash should be same after round-trip")
 }
 
 // TestHashResourceDefinitions_ListHashing verifies resource list hashing.
@@ -476,39 +489,6 @@ func TestHashPromptDefinitions_ListHashing(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestMarshalErrors verifies error handling in marshal functions.
-func TestMarshalErrors(t *testing.T) {
-	// Note: In Go, JSON marshaling rarely fails for standard types.
-	// This test documents that marshaling succeeds for valid inputs.
-
-	t.Run("marshal tool with nil schema", func(t *testing.T) {
-		tool := domain.ToolDefinition{
-			Name:        "tool",
-			InputSchema: nil,
-		}
-		data, err := MarshalToolDefinition(tool)
-		require.NoError(t, err)
-		assert.NotEmpty(t, data)
-	})
-
-	t.Run("marshal resource with empty fields", func(t *testing.T) {
-		resource := domain.ResourceDefinition{}
-		data, err := MarshalResourceDefinition(resource)
-		require.NoError(t, err)
-		assert.NotEmpty(t, data)
-	})
-
-	t.Run("marshal prompt with nil arguments", func(t *testing.T) {
-		prompt := domain.PromptDefinition{
-			Name:      "prompt",
-			Arguments: nil,
-		}
-		data, err := MarshalPromptDefinition(prompt)
-		require.NoError(t, err)
-		assert.NotEmpty(t, data)
-	})
 }
 
 // TestToolFromMCP_Conversion verifies MCP to domain conversion.

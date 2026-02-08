@@ -1,12 +1,12 @@
-name: "Go Test"
+name: "Web Test"
 
 on:
   workflow_call:
   workflow_dispatch: {}
 
 jobs:
-  lint-web:
-    name: lint (Web)
+  test-web:
+    name: Test (Web)
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
@@ -37,4 +37,6 @@ jobs:
 
       - name: Test Web Files
         working-directory: frontend
-        run: pnpm test
+        run: |
+          pnpm test
+          pnpm typecheck
