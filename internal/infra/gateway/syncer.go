@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"mcpv/internal/infra/retry"
 	"mcpv/internal/infra/rpc"
 	controlv1 "mcpv/pkg/api/control/v1"
 )
@@ -73,7 +74,10 @@ func runSnapshotSync[S any](
 	applyFn func(S) string,
 	readyFn func(),
 ) {
-	backoff := newBackoff(1*time.Second, 30*time.Second)
+	backoff := retry.NewBackoff(retry.Policy{
+		BaseDelay: time.Second,
+		MaxDelay:  30 * time.Second,
+	})
 	lastETag := ""
 
 	for {

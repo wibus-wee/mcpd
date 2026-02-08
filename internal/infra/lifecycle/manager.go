@@ -16,6 +16,7 @@ import (
 
 	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/retry"
 	"mcpv/internal/infra/telemetry"
 )
 
@@ -251,31 +252,43 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 }
 
 func (m *Manager) initializeWithRetry(ctx context.Context, conn domain.Conn, spec domain.ServerSpec) (domain.ServerCapabilities, error) {
+	var caps domain.ServerCapabilities
 	var lastErr error
-	attempts := initializeRetryCount + 1
-	for attempt := 1; attempt <= attempts; attempt++ {
-		caps, err := m.initialize(ctx, conn, spec.ProtocolVersion)
-		if err == nil {
-			return caps, nil
-		}
-		lastErr = err
-		if attempt == attempts {
-			break
-		}
-		m.logger.Debug("initialize retry failed",
-			zap.String("server", spec.Name),
-			zap.Int("attempt", attempt),
-			zap.Error(err),
-		)
-		timer := time.NewTimer(initializeRetryDelay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return domain.ServerCapabilities{}, ctx.Err()
-		case <-timer.C:
-		}
+	attempt := 0
+	policy := retry.Policy{
+		BaseDelay:  initializeRetryDelay,
+		MaxDelay:   initializeRetryDelay,
+		Factor:     1,
+		MaxRetries: initializeRetryCount,
 	}
-	return domain.ServerCapabilities{}, lastErr
+
+	err := retry.Retry(ctx, policy, func(ctx context.Context) error {
+		attempt++
+		result, initErr := m.initialize(ctx, conn, spec.ProtocolVersion)
+		if initErr == nil {
+			caps = result
+			return nil
+		}
+		lastErr = initErr
+		if policy.MaxRetries < 0 || attempt <= policy.MaxRetries {
+			m.logger.Debug("initialize retry failed",
+				zap.String("server", spec.Name),
+				zap.Int("attempt", attempt),
+				zap.Error(initErr),
+			)
+		}
+		return initErr
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return domain.ServerCapabilities{}, ctx.Err()
+		}
+		if lastErr != nil {
+			return domain.ServerCapabilities{}, lastErr
+		}
+		return domain.ServerCapabilities{}, err
+	}
+	return caps, nil
 }
 
 func (m *Manager) initialize(ctx context.Context, conn domain.Conn, protocolVersion string) (domain.ServerCapabilities, error) {

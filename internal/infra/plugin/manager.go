@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/retry"
 	"mcpv/internal/infra/telemetry"
 	pluginv1 "mcpv/pkg/api/plugin/v1"
 )
@@ -378,33 +379,25 @@ func (m *Manager) connectAndHandshake(ctx context.Context, spec domain.PluginSpe
 	defer handshakeCancel()
 
 	var lastErr error
-
-	retryInterval := 100 * time.Millisecond
-	for {
-		select {
-		case <-handshakeCtx.Done():
+	retryPolicy := retry.Policy{
+		BaseDelay:  100 * time.Millisecond,
+		MaxDelay:   100 * time.Millisecond,
+		Factor:     1,
+		MaxRetries: -1,
+	}
+	if retryErr := retry.Retry(handshakeCtx, retryPolicy, func(ctx context.Context) error {
+		conn, client, metadata, lastErr = m.tryConnect(ctx, socketPath)
+		return lastErr
+	}); retryErr != nil {
+		if errors.Is(retryErr, context.DeadlineExceeded) || errors.Is(retryErr, context.Canceled) {
 			if lastErr != nil {
 				err = fmt.Errorf("plugin handshake timeout: %w", lastErr)
 			} else {
-				err = handshakeCtx.Err()
+				err = retryErr
 			}
 			return nil, nil, nil, err
-		default:
 		}
-
-		// Try to connect and get metadata
-		conn, client, metadata, lastErr = m.tryConnect(handshakeCtx, socketPath)
-		if lastErr == nil {
-			break
-		}
-
-		// Wait before retrying
-		select {
-		case <-handshakeCtx.Done():
-			err = fmt.Errorf("plugin handshake timeout: %w", lastErr)
-			return nil, nil, nil, err
-		case <-time.After(retryInterval):
-		}
+		return nil, nil, nil, retryErr
 	}
 	if err = validateMetadata(spec, metadata); err != nil {
 		_ = conn.Close()
