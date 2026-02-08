@@ -246,9 +246,10 @@ func TestReloadManager_HandleApplyError_StrictPanics(t *testing.T) {
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
 	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
+	manager.observer.coreLogger = logger
 
 	require.Panics(t, func() {
-		manager.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
+		manager.observer.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
 	})
 }
 
@@ -269,9 +270,10 @@ func TestReloadManager_HandleApplyError_LenientDoesNotPanic(t *testing.T) {
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
 	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
+	manager.observer.coreLogger = logger
 
 	require.NotPanics(t, func() {
-		manager.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
+		manager.observer.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
 	})
 }
 
