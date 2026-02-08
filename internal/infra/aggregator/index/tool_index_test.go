@@ -1,4 +1,4 @@
-package aggregator
+package index
 
 import (
 	"context"
@@ -336,15 +336,20 @@ func TestToolIndex_FlatNamespaceConflictsRename(t *testing.T) {
 
 func TestToolIndex_CallToolPropagatesRouteError(t *testing.T) {
 	ctx := context.Background()
-	index := NewToolIndex(&failingRouter{err: context.DeadlineExceeded}, nil, map[string]string{}, domain.RuntimeConfig{
-		ToolNamespaceStrategy: domain.ToolNamespaceStrategyPrefix,
-	}, nil, zap.NewNop(), nil, nil, nil)
-	index.index.state.Store(genericIndexState[domain.ToolSnapshot, domain.ToolTarget]{
-		snapshot: domain.ToolSnapshot{},
-		targets: map[string]domain.ToolTarget{
-			"echo.echo": {ServerType: "echo", SpecKey: "spec-echo", ToolName: "echo"},
-		},
-	})
+	router := &callErrorRouter{
+		tools: []*mcp.Tool{{Name: "echo", InputSchema: map[string]any{"type": "object"}}},
+		err:   context.DeadlineExceeded,
+	}
+	specs := map[string]domain.ServerSpec{
+		"echo": {Name: "echo"},
+	}
+	specKeys := map[string]string{
+		"echo": "spec-echo",
+	}
+	cfg := domain.RuntimeConfig{ExposeTools: true, ToolNamespaceStrategy: domain.ToolNamespaceStrategyPrefix}
+
+	index := NewToolIndex(router, specs, specKeys, cfg, nil, zap.NewNop(), nil, nil, nil)
+	require.NoError(t, index.Refresh(ctx))
 
 	_, err := index.CallTool(ctx, "echo.echo", json.RawMessage(`{}`), "")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -471,6 +476,34 @@ func (f *failingRouter) Route(_ context.Context, _, _, _ string, _ json.RawMessa
 
 func (f *failingRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, _ domain.RouteOptions) (json.RawMessage, error) {
 	return f.Route(ctx, serverType, specKey, routingKey, payload)
+}
+
+type callErrorRouter struct {
+	tools []*mcp.Tool
+	err   error
+}
+
+func (c *callErrorRouter) Route(_ context.Context, serverType, _, _ string, payload json.RawMessage) (json.RawMessage, error) {
+	msg, err := jsonrpc.DecodeMessage(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, ok := msg.(*jsonrpc.Request)
+	if !ok {
+		return nil, errors.New("invalid jsonrpc request")
+	}
+	switch req.Method {
+	case "tools/list":
+		return encodeResponse(req.ID, &mcp.ListToolsResult{Tools: c.tools})
+	case "tools/call":
+		return nil, c.err
+	default:
+		return nil, errors.New("unsupported method")
+	}
+}
+
+func (c *callErrorRouter) RouteWithOptions(ctx context.Context, serverType, specKey, routingKey string, payload json.RawMessage, _ domain.RouteOptions) (json.RawMessage, error) {
+	return c.Route(ctx, serverType, specKey, routingKey, payload)
 }
 
 type flakyRouter struct {

@@ -1,4 +1,4 @@
-package aggregator
+package core
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"mcpv/internal/domain"
 )
 
-type listChangeSubscriber interface {
+type ListChangeSubscriber interface {
 	Subscribe(ctx context.Context, kind domain.ListChangeKind) <-chan domain.ListChangeEvent
 }
 
-func listChangeApplies(specs map[string]domain.ServerSpec, specKeySet map[string]struct{}, event domain.ListChangeEvent) bool {
+func ListChangeApplies(specs map[string]domain.ServerSpec, specKeySet map[string]struct{}, event domain.ListChangeEvent) bool {
 	if event.ServerType != "" {
 		if _, ok := specs[event.ServerType]; ok {
 			return true
@@ -24,7 +24,7 @@ func listChangeApplies(specs map[string]domain.ServerSpec, specKeySet map[string
 	return false
 }
 
-func specKeySet(specKeys map[string]string) map[string]struct{} {
+func SpecKeySet(specKeys map[string]string) map[string]struct{} {
 	if len(specKeys) == 0 {
 		return map[string]struct{}{}
 	}

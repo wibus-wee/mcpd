@@ -1,4 +1,4 @@
-package aggregator
+package index
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/aggregator/core"
 	"mcpv/internal/infra/hashutil"
 	"mcpv/internal/infra/mcpcodec"
 	"mcpv/internal/infra/telemetry"
@@ -27,11 +28,11 @@ type PromptIndex struct {
 	metadataCache        *domain.MetadataCache
 	logger               *zap.Logger
 	health               *telemetry.HealthTracker
-	gate                 *RefreshGate
-	listChanges          listChangeSubscriber
+	gate                 *core.RefreshGate
+	listChanges          core.ListChangeSubscriber
 	specsMu              sync.RWMutex
 	specKeySet           map[string]struct{}
-	bootstrapWaiter      BootstrapWaiter
+	bootstrapWaiter      core.BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
 	baseMu               sync.RWMutex
@@ -40,8 +41,8 @@ type PromptIndex struct {
 	serverMu             sync.RWMutex
 	serverSnapshots      map[string]serverPromptSnapshot
 
-	reqBuilder requestBuilder
-	index      *GenericIndex[domain.PromptSnapshot, domain.PromptTarget, promptCache]
+	reqBuilder core.RequestBuilder
+	index      *core.GenericIndex[domain.PromptSnapshot, domain.PromptTarget, promptCache]
 }
 
 type promptCache struct {
@@ -56,7 +57,7 @@ type serverPromptSnapshot struct {
 }
 
 // NewPromptIndex builds a PromptIndex for the provided runtime configuration.
-func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *PromptIndex {
+func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *core.RefreshGate, listChanges core.ListChangeSubscriber) *PromptIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -73,10 +74,10 @@ func NewPromptIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKe
 		health:          health,
 		gate:            gate,
 		listChanges:     listChanges,
-		specKeySet:      specKeySet(specKeys),
+		specKeySet:      core.SpecKeySet(specKeys),
 		serverSnapshots: map[string]serverPromptSnapshot{},
 	}
-	promptIndex.index = NewGenericIndex(GenericIndexOptions[domain.PromptSnapshot, domain.PromptTarget, promptCache]{
+	promptIndex.index = core.NewGenericIndex(core.GenericIndexOptions[domain.PromptSnapshot, domain.PromptTarget, promptCache]{
 		Name:              "prompt_index",
 		LogLabel:          "prompt",
 		FetchErrorMessage: "prompt list fetch failed",
@@ -161,7 +162,7 @@ func (a *PromptIndex) ResolveForServer(serverName, promptName string) (domain.Pr
 }
 
 // SetBootstrapWaiter registers a bootstrap completion hook.
-func (a *PromptIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
+func (a *PromptIndex) SetBootstrapWaiter(waiter core.BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
@@ -263,9 +264,9 @@ func (a *PromptIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys m
 	if specKeys == nil {
 		specKeys = map[string]string{}
 	}
-	specsCopy := copyServerSpecs(specs)
-	specKeysCopy := copySpecKeys(specKeys)
-	specKeySetCopy := specKeySet(specKeysCopy)
+	specsCopy := core.CopyServerSpecs(specs)
+	specKeysCopy := core.CopySpecKeys(specKeys)
+	specKeySetCopy := core.SpecKeySet(specKeysCopy)
 
 	a.specsMu.Lock()
 	a.specs = specsCopy
@@ -280,7 +281,7 @@ func (a *PromptIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys m
 func (a *PromptIndex) ApplyRuntimeConfig(cfg domain.RuntimeConfig) {
 	a.specsMu.Lock()
 	prevCfg := a.cfg
-	specsCopy := copyServerSpecs(a.specs)
+	specsCopy := core.CopyServerSpecs(a.specs)
 	a.cfg = cfg
 	a.specsMu.Unlock()
 	a.index.UpdateSpecs(specsCopy, cfg)
@@ -313,7 +314,7 @@ func (a *PromptIndex) startListChangeListener(ctx context.Context) {
 				specs := a.specs
 				specKeySet := a.specKeySet
 				a.specsMu.RUnlock()
-				if !listChangeApplies(specs, specKeySet, event) {
+				if !core.ListChangeApplies(specs, specKeySet, event) {
 					continue
 				}
 				if err := a.index.Refresh(ctx); err != nil {
@@ -344,7 +345,7 @@ func (a *PromptIndex) startBootstrapRefresh(ctx context.Context) {
 			a.specsMu.RLock()
 			cfg := a.cfg
 			a.specsMu.RUnlock()
-			refreshCtx, cancel := withRefreshTimeout(ctx, cfg)
+			refreshCtx, cancel := core.WithRefreshTimeout(ctx, cfg)
 			defer cancel()
 			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("prompt refresh after bootstrap failed", zap.Error(err))
@@ -393,7 +394,7 @@ func (a *PromptIndex) buildSnapshot(cache map[string]promptCache) (domain.Prompt
 	strategy := a.cfg.ToolNamespaceStrategy
 	a.specsMu.RUnlock()
 
-	serverTypes := sortedServerTypes(cache)
+	serverTypes := core.SortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
 		spec := specs[serverType]
@@ -489,14 +490,14 @@ func renamePromptDefinition(def domain.PromptDefinition, newName string) domain.
 	return def
 }
 
-func (a *PromptIndex) refreshErrorDecision(_ string, err error) refreshErrorDecision {
+func (a *PromptIndex) refreshErrorDecision(_ string, err error) core.RefreshErrorDecision {
 	if errors.Is(err, domain.ErrNoReadyInstance) {
-		return refreshErrorSkip
+		return core.RefreshErrorSkip
 	}
 	if errors.Is(err, domain.ErrMethodNotAllowed) {
-		return refreshErrorDropCache
+		return core.RefreshErrorDropCache
 	}
-	return refreshErrorLog
+	return core.RefreshErrorLog
 }
 
 func (a *PromptIndex) fetchServerCache(ctx context.Context, serverType string, spec domain.ServerSpec) (promptCache, error) {

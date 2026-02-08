@@ -1,4 +1,4 @@
-package aggregator
+package index
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/aggregator/core"
 	"mcpv/internal/infra/hashutil"
 	"mcpv/internal/infra/mcpcodec"
 	"mcpv/internal/infra/telemetry"
@@ -27,11 +28,11 @@ type ResourceIndex struct {
 	metadataCache        *domain.MetadataCache
 	logger               *zap.Logger
 	health               *telemetry.HealthTracker
-	gate                 *RefreshGate
-	listChanges          listChangeSubscriber
+	gate                 *core.RefreshGate
+	listChanges          core.ListChangeSubscriber
 	specsMu              sync.RWMutex
 	specKeySet           map[string]struct{}
-	bootstrapWaiter      BootstrapWaiter
+	bootstrapWaiter      core.BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
 	baseMu               sync.RWMutex
@@ -40,8 +41,8 @@ type ResourceIndex struct {
 	serverMu             sync.RWMutex
 	serverSnapshots      map[string]serverResourceSnapshot
 
-	reqBuilder requestBuilder
-	index      *GenericIndex[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]
+	reqBuilder core.RequestBuilder
+	index      *core.GenericIndex[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]
 }
 
 type resourceCache struct {
@@ -56,7 +57,7 @@ type serverResourceSnapshot struct {
 }
 
 // NewResourceIndex builds a ResourceIndex for the provided runtime configuration.
-func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ResourceIndex {
+func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *core.RefreshGate, listChanges core.ListChangeSubscriber) *ResourceIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -73,10 +74,10 @@ func NewResourceIndex(rt domain.Router, specs map[string]domain.ServerSpec, spec
 		health:          health,
 		gate:            gate,
 		listChanges:     listChanges,
-		specKeySet:      specKeySet(specKeys),
+		specKeySet:      core.SpecKeySet(specKeys),
 		serverSnapshots: map[string]serverResourceSnapshot{},
 	}
-	resourceIndex.index = NewGenericIndex(GenericIndexOptions[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]{
+	resourceIndex.index = core.NewGenericIndex(core.GenericIndexOptions[domain.ResourceSnapshot, domain.ResourceTarget, resourceCache]{
 		Name:              "resource_index",
 		LogLabel:          "resource",
 		FetchErrorMessage: "resource list fetch failed",
@@ -161,7 +162,7 @@ func (a *ResourceIndex) ResolveForServer(serverName, uri string) (domain.Resourc
 }
 
 // SetBootstrapWaiter registers a bootstrap completion hook.
-func (a *ResourceIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
+func (a *ResourceIndex) SetBootstrapWaiter(waiter core.BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
@@ -258,7 +259,7 @@ func (a *ResourceIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys
 	for key, value := range specKeys {
 		specKeysCopy[key] = value
 	}
-	specKeySetCopy := specKeySet(specKeysCopy)
+	specKeySetCopy := core.SpecKeySet(specKeysCopy)
 
 	a.specsMu.Lock()
 	a.specs = specsCopy
@@ -273,7 +274,7 @@ func (a *ResourceIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys
 func (a *ResourceIndex) ApplyRuntimeConfig(cfg domain.RuntimeConfig) {
 	a.specsMu.Lock()
 	prevCfg := a.cfg
-	specsCopy := copyServerSpecs(a.specs)
+	specsCopy := core.CopyServerSpecs(a.specs)
 	a.cfg = cfg
 	a.specsMu.Unlock()
 	a.index.UpdateSpecs(specsCopy, cfg)
@@ -306,7 +307,7 @@ func (a *ResourceIndex) startListChangeListener(ctx context.Context) {
 				specs := a.specs
 				specKeySet := a.specKeySet
 				a.specsMu.RUnlock()
-				if !listChangeApplies(specs, specKeySet, event) {
+				if !core.ListChangeApplies(specs, specKeySet, event) {
 					continue
 				}
 				if err := a.index.Refresh(ctx); err != nil {
@@ -337,7 +338,7 @@ func (a *ResourceIndex) startBootstrapRefresh(ctx context.Context) {
 			a.specsMu.RLock()
 			cfg := a.cfg
 			a.specsMu.RUnlock()
-			refreshCtx, cancel := withRefreshTimeout(ctx, cfg)
+			refreshCtx, cancel := core.WithRefreshTimeout(ctx, cfg)
 			defer cancel()
 			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("resource refresh after bootstrap failed", zap.Error(err))
@@ -385,7 +386,7 @@ func (a *ResourceIndex) buildSnapshot(cache map[string]resourceCache) (domain.Re
 	specs := a.specs
 	a.specsMu.RUnlock()
 
-	serverTypes := sortedServerTypes(cache)
+	serverTypes := core.SortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
 		spec := specs[serverType]
@@ -443,14 +444,14 @@ func copyResourceTargets(in map[string]domain.ResourceTarget) map[string]domain.
 	return out
 }
 
-func (a *ResourceIndex) refreshErrorDecision(_ string, err error) refreshErrorDecision {
+func (a *ResourceIndex) refreshErrorDecision(_ string, err error) core.RefreshErrorDecision {
 	if errors.Is(err, domain.ErrNoReadyInstance) {
-		return refreshErrorSkip
+		return core.RefreshErrorSkip
 	}
 	if errors.Is(err, domain.ErrMethodNotAllowed) {
-		return refreshErrorDropCache
+		return core.RefreshErrorDropCache
 	}
-	return refreshErrorLog
+	return core.RefreshErrorLog
 }
 
 func (a *ResourceIndex) fetchServerCache(ctx context.Context, serverType string, spec domain.ServerSpec) (resourceCache, error) {

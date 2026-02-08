@@ -1,4 +1,4 @@
-package aggregator
+package core
 
 import "mcpv/internal/domain"
 

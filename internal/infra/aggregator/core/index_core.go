@@ -1,4 +1,4 @@
-package aggregator
+package core
 
 import (
 	"context"
@@ -12,12 +12,12 @@ import (
 	"mcpv/internal/infra/telemetry"
 )
 
-type refreshErrorDecision int
+type RefreshErrorDecision int
 
 const (
-	refreshErrorLog refreshErrorDecision = iota
-	refreshErrorSkip
-	refreshErrorDropCache
+	RefreshErrorLog RefreshErrorDecision = iota
+	RefreshErrorSkip
+	RefreshErrorDropCache
 )
 
 type GenericIndexOptions[Snapshot any, Target any, Cache any] struct {
@@ -37,7 +37,7 @@ type GenericIndexOptions[Snapshot any, Target any, Cache any] struct {
 	BuildSnapshot     func(cache map[string]Cache) (Snapshot, map[string]Target)
 	CacheETag         func(cache Cache) string
 	Fetch             func(ctx context.Context, serverType string, spec domain.ServerSpec) (Cache, error)
-	OnRefreshError    func(serverType string, err error) refreshErrorDecision
+	OnRefreshError    func(serverType string, err error) RefreshErrorDecision
 	ShouldStart       func(cfg domain.RuntimeConfig) bool
 }
 
@@ -62,7 +62,7 @@ type GenericIndex[Snapshot any, Target any, Cache any] struct {
 	buildSnapshot     func(cache map[string]Cache) (Snapshot, map[string]Target)
 	cacheETag         func(cache Cache) string
 	fetch             func(ctx context.Context, serverType string, spec domain.ServerSpec) (Cache, error)
-	onRefreshError    func(serverType string, err error) refreshErrorDecision
+	onRefreshError    func(serverType string, err error) RefreshErrorDecision
 	shouldStart       func(cfg domain.RuntimeConfig) bool
 	failureThreshold  int
 
@@ -83,7 +83,7 @@ func NewGenericIndex[Snapshot any, Target any, Cache any](opts GenericIndexOptio
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	specs := copyServerSpecs(opts.Specs)
+	specs := CopyServerSpecs(opts.Specs)
 	shouldStart := opts.ShouldStart
 	if shouldStart == nil {
 		shouldStart = func(domain.RuntimeConfig) bool { return true }
@@ -256,7 +256,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 	cfg := g.cfg
 	g.mu.Unlock()
 
-	serverTypes := sortedServerTypes(specs)
+	serverTypes := SortedServerTypes(specs)
 	if len(serverTypes) == 0 {
 		return nil
 	}
@@ -268,7 +268,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 	}
 
 	results := make(chan refreshResult, len(serverTypes))
-	timeout := refreshTimeout(cfg)
+	timeout := RefreshTimeout(cfg)
 	workerCount := refreshWorkerCount(cfg, len(serverTypes))
 	if workerCount == 0 {
 		return nil
@@ -315,19 +315,19 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 	changed := false
 	for res := range results {
 		if res.err != nil {
-			decision := refreshErrorLog
+			decision := RefreshErrorLog
 			if g.onRefreshError != nil {
 				decision = g.onRefreshError(res.serverType, res.err)
 			}
 			switch decision {
-			case refreshErrorSkip:
+			case RefreshErrorSkip:
 				continue
-			case refreshErrorDropCache:
+			case RefreshErrorDropCache:
 				g.deleteCache(res.serverType)
 				g.resetFailure(res.serverType)
 				changed = true
 				continue
-			case refreshErrorLog:
+			case RefreshErrorLog:
 				fallthrough
 			default:
 				failures := g.recordFailure(res.serverType)
@@ -372,7 +372,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) Refresh(ctx context.Context) err
 }
 
 func (g *GenericIndex[Snapshot, Target, Cache]) UpdateSpecs(specs map[string]domain.ServerSpec, cfg domain.RuntimeConfig) {
-	specsCopy := copyServerSpecs(specs)
+	specsCopy := CopyServerSpecs(specs)
 
 	g.mu.Lock()
 	g.specs = specsCopy
@@ -449,7 +449,7 @@ func (g *GenericIndex[Snapshot, Target, Cache]) sendSnapshot(ch chan Snapshot, s
 	}
 }
 
-func copyServerSpecs(specs map[string]domain.ServerSpec) map[string]domain.ServerSpec {
+func CopyServerSpecs(specs map[string]domain.ServerSpec) map[string]domain.ServerSpec {
 	if len(specs) == 0 {
 		return map[string]domain.ServerSpec{}
 	}

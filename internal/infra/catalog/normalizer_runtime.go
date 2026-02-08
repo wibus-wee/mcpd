@@ -1,0 +1,205 @@
+package catalog
+
+import (
+	"strings"
+
+	"mcpv/internal/domain"
+)
+
+func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []string) {
+	var errs []string
+
+	routeTimeout := cfg.RouteTimeoutSeconds
+	if routeTimeout <= 0 {
+		errs = append(errs, "routeTimeoutSeconds must be > 0")
+	}
+
+	pingInterval := cfg.PingIntervalSeconds
+	if pingInterval < 0 {
+		errs = append(errs, "pingIntervalSeconds must be >= 0")
+	}
+
+	toolRefresh := cfg.ToolRefreshSeconds
+	if toolRefresh < 0 {
+		errs = append(errs, "toolRefreshSeconds must be >= 0")
+	}
+
+	refreshConcurrency := cfg.ToolRefreshConcurrency
+	if refreshConcurrency < 0 {
+		errs = append(errs, "toolRefreshConcurrency must be >= 0")
+	}
+	if refreshConcurrency <= 0 {
+		refreshConcurrency = domain.DefaultToolRefreshConcurrency
+	}
+
+	clientCheck := cfg.ClientCheckSeconds
+	if clientCheck <= 0 {
+		errs = append(errs, "clientCheckSeconds must be > 0")
+	}
+
+	clientInactive := cfg.ClientInactiveSeconds
+	if clientInactive <= 0 {
+		errs = append(errs, "clientInactiveSeconds must be > 0")
+	}
+
+	serverInitRetryBase := cfg.ServerInitRetryBaseSeconds
+	if serverInitRetryBase <= 0 {
+		errs = append(errs, "serverInitRetryBaseSeconds must be > 0")
+	}
+	serverInitRetryMax := cfg.ServerInitRetryMaxSeconds
+	if serverInitRetryMax <= 0 {
+		errs = append(errs, "serverInitRetryMaxSeconds must be > 0")
+	}
+	if serverInitRetryBase > 0 && serverInitRetryMax > 0 && serverInitRetryMax < serverInitRetryBase {
+		errs = append(errs, "serverInitRetryMaxSeconds must be >= serverInitRetryBaseSeconds")
+	}
+	serverInitMaxRetries := cfg.ServerInitMaxRetries
+	if serverInitMaxRetries < 0 {
+		errs = append(errs, "serverInitMaxRetries must be >= 0")
+	}
+
+	reloadMode := strings.ToLower(strings.TrimSpace(cfg.ReloadMode))
+	if reloadMode == "" {
+		reloadMode = string(domain.DefaultReloadMode)
+	}
+	if reloadMode != string(domain.ReloadModeStrict) && reloadMode != string(domain.ReloadModeLenient) {
+		errs = append(errs, "reloadMode must be strict or lenient")
+	}
+
+	bootstrapMode := strings.ToLower(strings.TrimSpace(cfg.BootstrapMode))
+	if bootstrapMode == "" {
+		bootstrapMode = string(domain.DefaultBootstrapMode)
+	}
+	if bootstrapMode != string(domain.BootstrapModeMetadata) && bootstrapMode != string(domain.BootstrapModeDisabled) {
+		errs = append(errs, "bootstrapMode must be metadata or disabled")
+	}
+
+	bootstrapConcurrency := cfg.BootstrapConcurrency
+	if bootstrapConcurrency <= 0 {
+		bootstrapConcurrency = domain.DefaultBootstrapConcurrency
+	}
+	bootstrapTimeoutSeconds := cfg.BootstrapTimeoutSeconds
+	if bootstrapTimeoutSeconds <= 0 {
+		bootstrapTimeoutSeconds = domain.DefaultBootstrapTimeoutSeconds
+	}
+
+	defaultActivationMode := strings.ToLower(strings.TrimSpace(cfg.DefaultActivationMode))
+	if defaultActivationMode == "" {
+		defaultActivationMode = string(domain.DefaultActivationMode)
+	}
+	if defaultActivationMode != string(domain.ActivationOnDemand) && defaultActivationMode != string(domain.ActivationAlwaysOn) {
+		errs = append(errs, "defaultActivationMode must be on-demand or always-on")
+	}
+
+	strategy := strings.ToLower(strings.TrimSpace(cfg.ToolNamespaceStrategy))
+	if strategy == "" {
+		strategy = string(domain.DefaultToolNamespaceStrategy)
+	}
+	if strategy != string(domain.ToolNamespaceStrategyPrefix) && strategy != string(domain.ToolNamespaceStrategyFlat) {
+		errs = append(errs, "toolNamespaceStrategy must be prefix or flat")
+	}
+
+	observabilityCfg, observabilityErrs := normalizeObservabilityConfig(cfg.Observability)
+	errs = append(errs, observabilityErrs...)
+
+	rpcCfg, rpcErrs := normalizeRPCConfig(cfg.RPC)
+	errs = append(errs, rpcErrs...)
+
+	enabledTags := normalizeTags(cfg.SubAgent.EnabledTags)
+	return domain.RuntimeConfig{
+		RouteTimeoutSeconds:        routeTimeout,
+		PingIntervalSeconds:        pingInterval,
+		ToolRefreshSeconds:         toolRefresh,
+		ToolRefreshConcurrency:     refreshConcurrency,
+		ClientCheckSeconds:         clientCheck,
+		ClientInactiveSeconds:      clientInactive,
+		ServerInitRetryBaseSeconds: serverInitRetryBase,
+		ServerInitRetryMaxSeconds:  serverInitRetryMax,
+		ServerInitMaxRetries:       serverInitMaxRetries,
+		ReloadMode:                 domain.ReloadMode(reloadMode),
+		BootstrapMode:              domain.BootstrapMode(bootstrapMode),
+		BootstrapConcurrency:       bootstrapConcurrency,
+		BootstrapTimeoutSeconds:    bootstrapTimeoutSeconds,
+		DefaultActivationMode:      domain.ActivationMode(defaultActivationMode),
+		ExposeTools:                cfg.ExposeTools,
+		ToolNamespaceStrategy:      domain.ToolNamespaceStrategy(strategy),
+		Observability:              observabilityCfg,
+		RPC:                        rpcCfg,
+		SubAgent: domain.SubAgentConfig{
+			EnabledTags:        enabledTags,
+			Model:              cfg.SubAgent.Model,
+			Provider:           cfg.SubAgent.Provider,
+			APIKey:             cfg.SubAgent.APIKey,
+			APIKeyEnvVar:       cfg.SubAgent.APIKeyEnvVar,
+			BaseURL:            cfg.SubAgent.BaseURL,
+			MaxToolsPerRequest: cfg.SubAgent.MaxToolsPerRequest,
+			FilterPrompt:       cfg.SubAgent.FilterPrompt,
+		},
+	}, errs
+}
+
+func normalizeObservabilityConfig(cfg rawObservabilityConfig) (domain.ObservabilityConfig, []string) {
+	addr := strings.TrimSpace(cfg.ListenAddress)
+	if addr == "" {
+		addr = domain.DefaultObservabilityListenAddress
+	}
+	return domain.ObservabilityConfig{
+		ListenAddress: addr,
+	}, nil
+}
+
+func normalizeRPCConfig(cfg rawRPCConfig) (domain.RPCConfig, []string) {
+	var errs []string
+
+	addr := strings.TrimSpace(cfg.ListenAddress)
+	if addr == "" {
+		errs = append(errs, "rpc.listenAddress is required")
+	}
+
+	if cfg.MaxRecvMsgSize <= 0 {
+		errs = append(errs, "rpc.maxRecvMsgSize must be > 0")
+	}
+	if cfg.MaxSendMsgSize <= 0 {
+		errs = append(errs, "rpc.maxSendMsgSize must be > 0")
+	}
+	if cfg.KeepaliveTimeSeconds < 0 {
+		errs = append(errs, "rpc.keepaliveTimeSeconds must be >= 0")
+	}
+	if cfg.KeepaliveTimeoutSeconds < 0 {
+		errs = append(errs, "rpc.keepaliveTimeoutSeconds must be >= 0")
+	}
+
+	socketMode := strings.TrimSpace(cfg.SocketMode)
+	if socketMode == "" {
+		socketMode = domain.DefaultRPCSocketMode
+	}
+	if _, err := parseSocketMode(socketMode); err != nil {
+		errs = append(errs, err.Error())
+	}
+
+	tlsCfg := domain.RPCTLSConfig{
+		Enabled:    cfg.TLS.Enabled,
+		CertFile:   strings.TrimSpace(cfg.TLS.CertFile),
+		KeyFile:    strings.TrimSpace(cfg.TLS.KeyFile),
+		CAFile:     strings.TrimSpace(cfg.TLS.CAFile),
+		ClientAuth: cfg.TLS.ClientAuth,
+	}
+	if tlsCfg.Enabled {
+		if tlsCfg.CertFile == "" || tlsCfg.KeyFile == "" {
+			errs = append(errs, "rpc.tls.certFile and rpc.tls.keyFile are required when rpc.tls.enabled is true")
+		}
+		if tlsCfg.ClientAuth && tlsCfg.CAFile == "" {
+			errs = append(errs, "rpc.tls.caFile is required when rpc.tls.clientAuth is true")
+		}
+	}
+
+	return domain.RPCConfig{
+		ListenAddress:           addr,
+		MaxRecvMsgSize:          cfg.MaxRecvMsgSize,
+		MaxSendMsgSize:          cfg.MaxSendMsgSize,
+		KeepaliveTimeSeconds:    cfg.KeepaliveTimeSeconds,
+		KeepaliveTimeoutSeconds: cfg.KeepaliveTimeoutSeconds,
+		SocketMode:              socketMode,
+		TLS:                     tlsCfg,
+	}, errs
+}

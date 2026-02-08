@@ -1,6 +1,6 @@
-package aggregator
+package core
 
-func copySpecKeys(specKeys map[string]string) map[string]string {
+func CopySpecKeys(specKeys map[string]string) map[string]string {
 	if len(specKeys) == 0 {
 		return map[string]string{}
 	}

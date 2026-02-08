@@ -1,4 +1,4 @@
-package aggregator
+package core
 
 import (
 	"encoding/json"
@@ -8,11 +8,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
-type requestBuilder struct {
+type RequestBuilder struct {
 	seq atomic.Uint64
 }
 
-func (b *requestBuilder) Build(method string, params any) (json.RawMessage, error) {
+func (b *RequestBuilder) Build(method string, params any) (json.RawMessage, error) {
 	seq := b.seq.Add(1)
 	id, err := jsonrpc.MakeID(fmt.Sprintf("mcpv-%s-%d", method, seq))
 	if err != nil {

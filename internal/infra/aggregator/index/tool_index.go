@@ -1,4 +1,4 @@
-package aggregator
+package index
 
 import (
 	"context"
@@ -14,13 +14,11 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/aggregator/core"
 	"mcpv/internal/infra/hashutil"
 	"mcpv/internal/infra/mcpcodec"
 	"mcpv/internal/infra/telemetry"
 )
-
-// BootstrapWaiter waits for bootstrap completion using the provided context.
-type BootstrapWaiter func(ctx context.Context) error
 
 // ToolIndex aggregates tool metadata across specs and supports routing calls.
 type ToolIndex struct {
@@ -31,11 +29,11 @@ type ToolIndex struct {
 	metadataCache        *domain.MetadataCache
 	logger               *zap.Logger
 	health               *telemetry.HealthTracker
-	gate                 *RefreshGate
-	listChanges          listChangeSubscriber
+	gate                 *core.RefreshGate
+	listChanges          core.ListChangeSubscriber
 	specsMu              sync.RWMutex
 	specKeySet           map[string]struct{}
-	bootstrapWaiter      BootstrapWaiter
+	bootstrapWaiter      core.BootstrapWaiter
 	bootstrapWaiterMu    sync.RWMutex
 	bootstrapRefreshOnce sync.Once
 	baseMu               sync.RWMutex
@@ -44,8 +42,8 @@ type ToolIndex struct {
 	serverMu             sync.RWMutex
 	serverSnapshots      map[string]serverToolSnapshot
 
-	reqBuilder requestBuilder
-	index      *GenericIndex[domain.ToolSnapshot, domain.ToolTarget, serverCache]
+	reqBuilder core.RequestBuilder
+	index      *core.GenericIndex[domain.ToolSnapshot, domain.ToolTarget, serverCache]
 }
 
 type serverCache struct {
@@ -60,7 +58,7 @@ type serverToolSnapshot struct {
 }
 
 // NewToolIndex builds a ToolIndex for the provided runtime configuration.
-func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *RefreshGate, listChanges listChangeSubscriber) *ToolIndex {
+func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys map[string]string, cfg domain.RuntimeConfig, metadataCache *domain.MetadataCache, logger *zap.Logger, health *telemetry.HealthTracker, gate *core.RefreshGate, listChanges core.ListChangeSubscriber) *ToolIndex {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -77,10 +75,10 @@ func NewToolIndex(rt domain.Router, specs map[string]domain.ServerSpec, specKeys
 		health:          health,
 		gate:            gate,
 		listChanges:     listChanges,
-		specKeySet:      specKeySet(specKeys),
+		specKeySet:      core.SpecKeySet(specKeys),
 		serverSnapshots: map[string]serverToolSnapshot{},
 	}
-	toolIndex.index = NewGenericIndex(GenericIndexOptions[domain.ToolSnapshot, domain.ToolTarget, serverCache]{
+	toolIndex.index = core.NewGenericIndex(core.GenericIndexOptions[domain.ToolSnapshot, domain.ToolTarget, serverCache]{
 		Name:              "tool_index",
 		LogLabel:          "tool",
 		FetchErrorMessage: "tool list fetch failed",
@@ -150,7 +148,7 @@ func (a *ToolIndex) CachedSnapshot() domain.ToolSnapshot {
 	}
 
 	cache := make(map[string]serverCache)
-	serverTypes := sortedServerTypes(specs)
+	serverTypes := core.SortedServerTypes(specs)
 	for _, serverType := range serverTypes {
 		spec := specs[serverType]
 		cached, ok := a.cachedServerCache(serverType, spec)
@@ -194,7 +192,7 @@ func (a *ToolIndex) ResolveForServer(serverName, toolName string) (domain.ToolTa
 }
 
 // SetBootstrapWaiter registers a bootstrap completion hook.
-func (a *ToolIndex) SetBootstrapWaiter(waiter BootstrapWaiter) {
+func (a *ToolIndex) SetBootstrapWaiter(waiter core.BootstrapWaiter) {
 	a.bootstrapWaiterMu.Lock()
 	a.bootstrapWaiter = waiter
 	a.bootstrapWaiterMu.Unlock()
@@ -282,9 +280,9 @@ func (a *ToolIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map
 	if specKeys == nil {
 		specKeys = map[string]string{}
 	}
-	specsCopy := copyServerSpecs(specs)
-	specKeysCopy := copySpecKeys(specKeys)
-	specKeySetCopy := specKeySet(specKeysCopy)
+	specsCopy := core.CopyServerSpecs(specs)
+	specKeysCopy := core.CopySpecKeys(specKeys)
+	specKeySetCopy := core.SpecKeySet(specKeysCopy)
 
 	a.specsMu.Lock()
 	a.specs = specsCopy
@@ -299,7 +297,7 @@ func (a *ToolIndex) UpdateSpecs(specs map[string]domain.ServerSpec, specKeys map
 func (a *ToolIndex) ApplyRuntimeConfig(cfg domain.RuntimeConfig) {
 	a.specsMu.Lock()
 	prevCfg := a.cfg
-	specsCopy := copyServerSpecs(a.specs)
+	specsCopy := core.CopyServerSpecs(a.specs)
 	a.cfg = cfg
 	a.specsMu.Unlock()
 	a.index.UpdateSpecs(specsCopy, cfg)
@@ -349,7 +347,7 @@ func (a *ToolIndex) startListChangeListener(ctx context.Context) {
 				if !exposeTools {
 					continue
 				}
-				if !listChangeApplies(specs, specKeySet, event) {
+				if !core.ListChangeApplies(specs, specKeySet, event) {
 					continue
 				}
 				if err := a.index.Refresh(ctx); err != nil {
@@ -380,7 +378,7 @@ func (a *ToolIndex) startBootstrapRefresh(ctx context.Context) {
 			a.specsMu.RLock()
 			cfg := a.cfg
 			a.specsMu.RUnlock()
-			refreshCtx, cancel := withRefreshTimeout(ctx, cfg)
+			refreshCtx, cancel := core.WithRefreshTimeout(ctx, cfg)
 			defer cancel()
 			if err := a.index.Refresh(refreshCtx); err != nil {
 				a.logger.Warn("tool refresh after bootstrap failed", zap.Error(err))
@@ -429,7 +427,7 @@ func (a *ToolIndex) buildSnapshot(cache map[string]serverCache) (domain.ToolSnap
 	strategy := a.cfg.ToolNamespaceStrategy
 	a.specsMu.RUnlock()
 
-	serverTypes := sortedServerTypes(cache)
+	serverTypes := core.SortedServerTypes(cache)
 	for _, serverType := range serverTypes {
 		server := cache[serverType]
 		spec := specs[serverType]
@@ -533,11 +531,11 @@ func renameToolDefinition(def domain.ToolDefinition, newName string) (domain.Too
 	return def, nil
 }
 
-func (a *ToolIndex) refreshErrorDecision(_ string, err error) refreshErrorDecision {
+func (a *ToolIndex) refreshErrorDecision(_ string, err error) core.RefreshErrorDecision {
 	if errors.Is(err, domain.ErrNoReadyInstance) {
-		return refreshErrorSkip
+		return core.RefreshErrorSkip
 	}
-	return refreshErrorLog
+	return core.RefreshErrorLog
 }
 
 func (a *ToolIndex) fetchServerCache(ctx context.Context, serverType string, spec domain.ServerSpec) (serverCache, error) {
@@ -687,19 +685,6 @@ func namespaceTool(serverType, toolName string, strategy domain.ToolNamespaceStr
 		return toolName
 	}
 	return fmt.Sprintf("%s.%s", serverType, toolName)
-}
-
-func sortedServerTypes[T any](specs map[string]T) []string {
-	keys := make([]string, 0, len(specs))
-	for key := range specs {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func refreshTimeout(cfg domain.RuntimeConfig) time.Duration {
-	return cfg.RouteTimeout()
 }
 
 func allowedTools(spec domain.ServerSpec) func(string) bool {
