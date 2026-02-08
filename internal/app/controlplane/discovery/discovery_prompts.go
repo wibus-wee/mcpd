@@ -6,95 +6,46 @@ import (
 	"sort"
 
 	"mcpv/internal/app/controlplane/registry"
+	"mcpv/internal/app/runtime"
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/hashutil"
 )
 
 type PromptDiscoveryService struct {
-	discoverySupport
+	*Service[domain.PromptSnapshot]
 }
 
 func NewPromptDiscoveryService(state State, registry *registry.ClientRegistry) *PromptDiscoveryService {
-	return &PromptDiscoveryService{discoverySupport: newDiscoverySupport(state, registry)}
+	service := &PromptDiscoveryService{}
+	base := NewDiscoveryService(state, registry, Options[domain.PromptSnapshot]{
+		GetIndex: func(rt *runtime.State) snapshotIndex[domain.PromptSnapshot] { return rt.Prompts() },
+	})
+	service.Service = base
+	base.filterSnapshot = service.filterPromptSnapshot
+	return service
 }
 
 // ListPrompts lists prompts visible to a client.
-func (d *PromptDiscoveryService) ListPrompts(_ context.Context, client string, cursor string) (domain.PromptPage, error) {
-	serverName, err := d.resolveClientServer(client)
+func (d *PromptDiscoveryService) ListPrompts(ctx context.Context, client string, cursor string) (domain.PromptPage, error) {
+	snapshot, err := d.ListSnapshot(ctx, client)
 	if err != nil {
 		return domain.PromptPage{}, err
 	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Prompts() == nil {
-		return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
-	}
-	if serverName != "" {
-		snapshot, ok := runtime.Prompts().SnapshotForServer(serverName)
-		if !ok {
-			return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
-		}
-		return paginatePrompts(snapshot, cursor)
-	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return domain.PromptPage{}, err
-	}
-	snapshot := runtime.Prompts().Snapshot()
-	filtered := d.filterPromptSnapshot(snapshot, visibleSpecKeys)
-	return paginatePrompts(filtered, cursor)
+	return paginatePrompts(snapshot, cursor)
 }
 
 // ListPromptsAll lists prompts across all servers.
-func (d *PromptDiscoveryService) ListPromptsAll(_ context.Context, cursor string) (domain.PromptPage, error) {
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Prompts() == nil {
-		return domain.PromptPage{Snapshot: domain.PromptSnapshot{}}, nil
+func (d *PromptDiscoveryService) ListPromptsAll(ctx context.Context, cursor string) (domain.PromptPage, error) {
+	snapshot, err := d.ListSnapshotAll(ctx)
+	if err != nil {
+		return domain.PromptPage{}, err
 	}
-	snapshot := runtime.Prompts().Snapshot()
 	return paginatePrompts(snapshot, cursor)
 }
 
 // WatchPrompts streams prompt snapshots for a client.
 func (d *PromptDiscoveryService) WatchPrompts(ctx context.Context, client string) (<-chan domain.PromptSnapshot, error) {
-	if _, err := d.resolveClientServer(client); err != nil {
-		return closedPromptSnapshotChannel(), err
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Prompts() == nil {
-		return closedPromptSnapshotChannel(), nil
-	}
-
-	output := make(chan domain.PromptSnapshot, 1)
-	indexCh := runtime.Prompts().Subscribe(ctx)
-	changes := d.registry.WatchClientChanges(ctx)
-
-	go func() {
-		defer close(output)
-		var last domain.PromptSnapshot
-		last = runtime.Prompts().Snapshot()
-		d.sendFilteredPrompts(output, client, last)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case snapshot, ok := <-indexCh:
-				if !ok {
-					return
-				}
-				last = snapshot
-				d.sendFilteredPrompts(output, client, snapshot)
-			case event, ok := <-changes:
-				if !ok {
-					return
-				}
-				if event.Client == client {
-					d.sendFilteredPrompts(output, client, last)
-				}
-			}
-		}
-	}()
-
-	return output, nil
+	return d.WatchSnapshots(ctx, client)
 }
 
 // GetPrompt resolves a prompt for a client.
@@ -147,37 +98,6 @@ func (d *PromptDiscoveryService) GetPromptAll(ctx context.Context, name string, 
 	return runtime.Prompts().GetPrompt(ctx, name, args)
 }
 
-func (d *PromptDiscoveryService) sendFilteredPrompts(ch chan<- domain.PromptSnapshot, client string, snapshot domain.PromptSnapshot) {
-	serverName, err := d.resolveClientServer(client)
-	if err != nil {
-		return
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Prompts() == nil {
-		return
-	}
-	if serverName != "" {
-		serverSnapshot, ok := runtime.Prompts().SnapshotForServer(serverName)
-		if !ok {
-			return
-		}
-		select {
-		case ch <- serverSnapshot:
-		default:
-		}
-		return
-	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return
-	}
-	filtered := d.filterPromptSnapshot(snapshot, visibleSpecKeys)
-	select {
-	case ch <- filtered:
-	default:
-	}
-}
-
 func (d *PromptDiscoveryService) filterPromptSnapshot(snapshot domain.PromptSnapshot, visibleSpecKeys []string) domain.PromptSnapshot {
 	if len(snapshot.Prompts) == 0 {
 		return domain.PromptSnapshot{}
@@ -206,10 +126,4 @@ func (d *PromptDiscoveryService) filterPromptSnapshot(snapshot domain.PromptSnap
 		ETag:    hashutil.PromptETag(d.state.Logger(), filtered),
 		Prompts: filtered,
 	}
-}
-
-func closedPromptSnapshotChannel() chan domain.PromptSnapshot {
-	ch := make(chan domain.PromptSnapshot)
-	close(ch)
-	return ch
 }

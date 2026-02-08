@@ -6,95 +6,46 @@ import (
 	"sort"
 
 	"mcpv/internal/app/controlplane/registry"
+	"mcpv/internal/app/runtime"
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/hashutil"
 )
 
 type ResourceDiscoveryService struct {
-	discoverySupport
+	*Service[domain.ResourceSnapshot]
 }
 
 func NewResourceDiscoveryService(state State, registry *registry.ClientRegistry) *ResourceDiscoveryService {
-	return &ResourceDiscoveryService{discoverySupport: newDiscoverySupport(state, registry)}
+	service := &ResourceDiscoveryService{}
+	base := NewDiscoveryService(state, registry, Options[domain.ResourceSnapshot]{
+		GetIndex: func(rt *runtime.State) snapshotIndex[domain.ResourceSnapshot] { return rt.Resources() },
+	})
+	service.Service = base
+	base.filterSnapshot = service.filterResourceSnapshot
+	return service
 }
 
 // ListResources lists resources visible to a client.
-func (d *ResourceDiscoveryService) ListResources(_ context.Context, client string, cursor string) (domain.ResourcePage, error) {
-	serverName, err := d.resolveClientServer(client)
+func (d *ResourceDiscoveryService) ListResources(ctx context.Context, client string, cursor string) (domain.ResourcePage, error) {
+	snapshot, err := d.ListSnapshot(ctx, client)
 	if err != nil {
 		return domain.ResourcePage{}, err
 	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Resources() == nil {
-		return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
-	}
-	if serverName != "" {
-		snapshot, ok := runtime.Resources().SnapshotForServer(serverName)
-		if !ok {
-			return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
-		}
-		return paginateResources(snapshot, cursor)
-	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return domain.ResourcePage{}, err
-	}
-	snapshot := runtime.Resources().Snapshot()
-	filtered := d.filterResourceSnapshot(snapshot, visibleSpecKeys)
-	return paginateResources(filtered, cursor)
+	return paginateResources(snapshot, cursor)
 }
 
 // ListResourcesAll lists resources across all servers.
-func (d *ResourceDiscoveryService) ListResourcesAll(_ context.Context, cursor string) (domain.ResourcePage, error) {
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Resources() == nil {
-		return domain.ResourcePage{Snapshot: domain.ResourceSnapshot{}}, nil
+func (d *ResourceDiscoveryService) ListResourcesAll(ctx context.Context, cursor string) (domain.ResourcePage, error) {
+	snapshot, err := d.ListSnapshotAll(ctx)
+	if err != nil {
+		return domain.ResourcePage{}, err
 	}
-	snapshot := runtime.Resources().Snapshot()
 	return paginateResources(snapshot, cursor)
 }
 
 // WatchResources streams resource snapshots for a client.
 func (d *ResourceDiscoveryService) WatchResources(ctx context.Context, client string) (<-chan domain.ResourceSnapshot, error) {
-	if _, err := d.resolveClientServer(client); err != nil {
-		return closedResourceSnapshotChannel(), err
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Resources() == nil {
-		return closedResourceSnapshotChannel(), nil
-	}
-
-	output := make(chan domain.ResourceSnapshot, 1)
-	indexCh := runtime.Resources().Subscribe(ctx)
-	changes := d.registry.WatchClientChanges(ctx)
-
-	go func() {
-		defer close(output)
-		var last domain.ResourceSnapshot
-		last = runtime.Resources().Snapshot()
-		d.sendFilteredResources(output, client, last)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case snapshot, ok := <-indexCh:
-				if !ok {
-					return
-				}
-				last = snapshot
-				d.sendFilteredResources(output, client, snapshot)
-			case event, ok := <-changes:
-				if !ok {
-					return
-				}
-				if event.Client == client {
-					d.sendFilteredResources(output, client, last)
-				}
-			}
-		}
-	}()
-
-	return output, nil
+	return d.WatchSnapshots(ctx, client)
 }
 
 // ReadResource reads a resource on behalf of a client.
@@ -147,37 +98,6 @@ func (d *ResourceDiscoveryService) ReadResourceAll(ctx context.Context, uri stri
 	return runtime.Resources().ReadResource(ctx, uri)
 }
 
-func (d *ResourceDiscoveryService) sendFilteredResources(ch chan<- domain.ResourceSnapshot, client string, snapshot domain.ResourceSnapshot) {
-	serverName, err := d.resolveClientServer(client)
-	if err != nil {
-		return
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Resources() == nil {
-		return
-	}
-	if serverName != "" {
-		serverSnapshot, ok := runtime.Resources().SnapshotForServer(serverName)
-		if !ok {
-			return
-		}
-		select {
-		case ch <- serverSnapshot:
-		default:
-		}
-		return
-	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return
-	}
-	filtered := d.filterResourceSnapshot(snapshot, visibleSpecKeys)
-	select {
-	case ch <- filtered:
-	default:
-	}
-}
-
 func (d *ResourceDiscoveryService) filterResourceSnapshot(snapshot domain.ResourceSnapshot, visibleSpecKeys []string) domain.ResourceSnapshot {
 	if len(snapshot.Resources) == 0 {
 		return domain.ResourceSnapshot{}
@@ -206,10 +126,4 @@ func (d *ResourceDiscoveryService) filterResourceSnapshot(snapshot domain.Resour
 		ETag:      hashutil.ResourceETag(d.state.Logger(), filtered),
 		Resources: filtered,
 	}
-}
-
-func closedResourceSnapshotChannel() chan domain.ResourceSnapshot {
-	ch := make(chan domain.ResourceSnapshot)
-	close(ch)
-	return ch
 }

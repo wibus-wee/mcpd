@@ -9,47 +9,29 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/app/controlplane/registry"
+	"mcpv/internal/app/runtime"
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/hashutil"
 )
 
 type ToolDiscoveryService struct {
-	discoverySupport
+	*Service[domain.ToolSnapshot]
 }
 
 func NewToolDiscoveryService(state State, registry *registry.ClientRegistry) *ToolDiscoveryService {
-	return &ToolDiscoveryService{discoverySupport: newDiscoverySupport(state, registry)}
+	service := &ToolDiscoveryService{}
+	base := NewDiscoveryService(state, registry, Options[domain.ToolSnapshot]{
+		GetIndex: func(rt *runtime.State) snapshotIndex[domain.ToolSnapshot] { return rt.Tools() },
+	})
+	service.Service = base
+	base.filterSnapshot = service.filterToolSnapshot
+	base.serverSnapshotForList = service.serverSnapshotForList
+	return service
 }
 
 // ListTools lists tools visible to a client.
-func (d *ToolDiscoveryService) ListTools(_ context.Context, client string) (domain.ToolSnapshot, error) {
-	serverName, err := d.resolveClientServer(client)
-	if err != nil {
-		return domain.ToolSnapshot{}, err
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Tools() == nil {
-		return domain.ToolSnapshot{}, nil
-	}
-	if serverName != "" {
-		snapshot, ok := runtime.Tools().SnapshotForServer(serverName)
-		if ok && len(snapshot.Tools) > 0 {
-			return snapshot, nil
-		}
-		cached := d.cachedToolSnapshotForServer(serverName)
-		if len(cached.Tools) > 0 {
-			return cached, nil
-		}
-		if !ok {
-			return domain.ToolSnapshot{}, nil
-		}
-		return snapshot, nil
-	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return domain.ToolSnapshot{}, err
-	}
-	return d.filterToolSnapshot(runtime.Tools().Snapshot(), visibleSpecKeys), nil
+func (d *ToolDiscoveryService) ListTools(ctx context.Context, client string) (domain.ToolSnapshot, error) {
+	return d.ListSnapshot(ctx, client)
 }
 
 // ListToolCatalog returns the full tool catalog snapshot.
@@ -85,45 +67,7 @@ func (d *ToolDiscoveryService) ListToolCatalog(_ context.Context) (domain.ToolCa
 
 // WatchTools streams tool snapshots for a client.
 func (d *ToolDiscoveryService) WatchTools(ctx context.Context, client string) (<-chan domain.ToolSnapshot, error) {
-	if _, err := d.resolveClientServer(client); err != nil {
-		return closedToolSnapshotChannel(), err
-	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Tools() == nil {
-		return closedToolSnapshotChannel(), nil
-	}
-
-	output := make(chan domain.ToolSnapshot, 1)
-	indexCh := runtime.Tools().Subscribe(ctx)
-	changes := d.registry.WatchClientChanges(ctx)
-
-	go func() {
-		defer close(output)
-		var last domain.ToolSnapshot
-		last = runtime.Tools().Snapshot()
-		d.sendFilteredTools(output, client, last)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case snapshot, ok := <-indexCh:
-				if !ok {
-					return
-				}
-				last = snapshot
-				d.sendFilteredTools(output, client, snapshot)
-			case event, ok := <-changes:
-				if !ok {
-					return
-				}
-				if event.Client == client {
-					d.sendFilteredTools(output, client, last)
-				}
-			}
-		}
-	}()
-
-	return output, nil
+	return d.WatchSnapshots(ctx, client)
 }
 
 // CallTool executes a tool on behalf of a client.
@@ -196,35 +140,19 @@ func (d *ToolDiscoveryService) GetToolSnapshotForClient(client string) (domain.T
 	return d.ListTools(context.Background(), client)
 }
 
-func (d *ToolDiscoveryService) sendFilteredTools(ch chan<- domain.ToolSnapshot, client string, snapshot domain.ToolSnapshot) {
-	serverName, err := d.resolveClientServer(client)
-	if err != nil {
-		return
+func (d *ToolDiscoveryService) serverSnapshotForList(serverName string, index snapshotIndex[domain.ToolSnapshot]) (domain.ToolSnapshot, bool) {
+	snapshot, ok := index.SnapshotForServer(serverName)
+	if ok && len(snapshot.Tools) > 0 {
+		return snapshot, true
 	}
-	runtime := d.state.RuntimeState()
-	if runtime == nil || runtime.Tools() == nil {
-		return
+	cached := d.cachedToolSnapshotForServer(serverName)
+	if len(cached.Tools) > 0 {
+		return cached, true
 	}
-	if serverName != "" {
-		serverSnapshot, ok := runtime.Tools().SnapshotForServer(serverName)
-		if !ok {
-			return
-		}
-		select {
-		case ch <- serverSnapshot:
-		default:
-		}
-		return
+	if !ok {
+		return domain.ToolSnapshot{}, false
 	}
-	visibleSpecKeys, err := d.resolveVisibleSpecKeys(client)
-	if err != nil {
-		return
-	}
-	filtered := d.filterToolSnapshot(snapshot, visibleSpecKeys)
-	select {
-	case ch <- filtered:
-	default:
-	}
+	return snapshot, true
 }
 
 func (d *ToolDiscoveryService) filterToolSnapshot(snapshot domain.ToolSnapshot, visibleSpecKeys []string) domain.ToolSnapshot {
@@ -305,12 +233,6 @@ func (d *ToolDiscoveryService) cachedToolSnapshotForServer(serverName string) do
 		ETag:  hashutil.ToolETag(d.state.Logger(), filtered),
 		Tools: filtered,
 	}
-}
-
-func closedToolSnapshotChannel() chan domain.ToolSnapshot {
-	ch := make(chan domain.ToolSnapshot)
-	close(ch)
-	return ch
 }
 
 func buildToolCatalogSnapshot(logger *zap.Logger, liveTools []domain.ToolDefinition, cachedTools []domain.ToolDefinition, cachedAt map[string]time.Time) domain.ToolCatalogSnapshot {
