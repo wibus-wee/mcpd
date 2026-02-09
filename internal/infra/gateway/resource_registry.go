@@ -15,7 +15,6 @@ type resourceRegistry struct {
 	server     *mcp.Server
 	handler    func(uri string) mcp.ResourceHandler
 	logger     *zap.Logger
-	applyMu    sync.Mutex
 	mu         sync.Mutex
 	etag       string
 	registered map[string]struct{}
@@ -38,19 +37,16 @@ func (r *resourceRegistry) ApplySnapshot(snapshot *controlv1.ResourcesSnapshot) 
 		return
 	}
 
-	r.applyMu.Lock()
-	defer r.applyMu.Unlock()
-
 	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if snapshot.GetEtag() != "" && snapshot.GetEtag() == r.etag {
-		r.mu.Unlock()
 		return
 	}
 	prev := make(map[string]struct{}, len(r.registered))
 	for uri := range r.registered {
 		prev[uri] = struct{}{}
 	}
-	r.mu.Unlock()
 
 	next := make(map[string]struct{})
 	toAdd := make([]mcp.Resource, 0, len(snapshot.GetResources()))
@@ -96,10 +92,8 @@ func (r *resourceRegistry) ApplySnapshot(snapshot *controlv1.ResourcesSnapshot) 
 		r.server.RemoveResources(remove...)
 	}
 
-	r.mu.Lock()
 	r.registered = next
 	r.etag = snapshot.GetEtag()
-	r.mu.Unlock()
 }
 
 func validResourceURI(raw string) bool {

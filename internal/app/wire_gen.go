@@ -9,6 +9,7 @@ package app
 import (
 	"context"
 	"mcpv/internal/app/bootstrap"
+	"mcpv/internal/app/bootstrap/serverinit"
 	"mcpv/internal/app/catalog"
 	"mcpv/internal/app/controlplane"
 	"mcpv/internal/domain"
@@ -45,26 +46,29 @@ func InitializeApplication(ctx context.Context, cfg ServeConfig, logging Logging
 	}
 	metadataCache := domain.NewMetadataCache()
 	state := newRuntimeState(catalogState, scheduler, metrics, healthTracker, metadataCache, listChangeHub, logger)
-	serverInitializationManager := bootstrap.NewServerInitializationManager(scheduler, catalogState, logger)
-	manager := NewBootstrapManagerProvider(lifecycle, scheduler, catalogState, metadataCache, logger)
-	controlplaneState := provideControlPlaneState(ctx, state, catalogState, scheduler, serverInitializationManager, manager, logger)
+	manager := serverinit.NewManager(scheduler, catalogState, logger)
+	metadataManager := NewBootstrapManagerProvider(lifecycle, scheduler, catalogState, metadataCache, logger)
+	serverStartupOrchestrator := bootstrap.NewServerStartupOrchestrator(manager, metadataManager, logger)
+	controlplaneState := provideControlPlaneState(ctx, state, catalogState, scheduler, serverStartupOrchestrator, logger)
 	clientRegistry := controlplane.NewClientRegistry(controlplaneState)
-	discoveryService := controlplane.NewDiscoveryService(controlplaneState, clientRegistry)
+	toolDiscoveryService := controlplane.NewToolDiscoveryService(controlplaneState, clientRegistry)
+	resourceDiscoveryService := controlplane.NewResourceDiscoveryService(controlplaneState, clientRegistry)
+	promptDiscoveryService := controlplane.NewPromptDiscoveryService(controlplaneState, clientRegistry)
 	logBroadcaster := NewLogBroadcaster(appLogging)
-	observabilityService := controlplane.NewObservabilityService(controlplaneState, clientRegistry, logBroadcaster)
-	automationService := controlplane.NewAutomationService(controlplaneState, clientRegistry, discoveryService)
-	controlPlane := controlplane.NewControlPlane(controlplaneState, clientRegistry, discoveryService, observabilityService, automationService)
-	pluginManager, err := NewPluginManager(logger, metrics)
+	service := controlplane.NewObservabilityService(controlplaneState, clientRegistry, logBroadcaster)
+	automationService := controlplane.NewAutomationService(controlplaneState, clientRegistry, toolDiscoveryService)
+	controlPlane := controlplane.NewControlPlane(controlplaneState, clientRegistry, toolDiscoveryService, resourceDiscoveryService, promptDiscoveryService, service, automationService)
+	managerManager, err := NewPluginManager(logger, metrics)
 	if err != nil {
 		return nil, err
 	}
-	engine, err := NewPipelineEngine(catalogState, pluginManager, metrics, logger)
+	engine, err := NewPipelineEngine(catalogState, managerManager, metrics, logger)
 	if err != nil {
 		return nil, err
 	}
 	executor := NewGovernanceExecutor(engine)
 	server := NewRPCServer(controlPlane, executor, catalogState, logger)
-	reloadManager := controlplane.NewReloadManager(dynamicCatalogProvider, controlplaneState, clientRegistry, scheduler, serverInitializationManager, pluginManager, engine, metrics, healthTracker, metadataCache, listChangeHub, logger)
+	reloadManager := controlplane.NewReloadManager(dynamicCatalogProvider, controlplaneState, clientRegistry, scheduler, serverStartupOrchestrator, managerManager, engine, metrics, healthTracker, metadataCache, listChangeHub, logger)
 	applicationOptions := ApplicationOptions{
 		Context:           ctx,
 		ServeConfig:       cfg,
@@ -75,12 +79,11 @@ func InitializeApplication(ctx context.Context, cfg ServeConfig, logging Logging
 		CatalogState:      catalogState,
 		ControlPlaneState: controlplaneState,
 		Scheduler:         scheduler,
-		InitManager:       serverInitializationManager,
-		BootstrapManager:  manager,
+		Startup:           serverStartupOrchestrator,
 		ControlPlane:      controlPlane,
 		RPCServer:         server,
 		ReloadManager:     reloadManager,
-		PluginManager:     pluginManager,
+		PluginManager:     managerManager,
 	}
 	application := NewApplication(applicationOptions)
 	return application, nil

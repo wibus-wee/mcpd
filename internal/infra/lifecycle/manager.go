@@ -16,8 +16,29 @@ import (
 
 	"mcpv/internal/buildinfo"
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/retry"
 	"mcpv/internal/infra/telemetry"
 )
+
+func wrapLifecycleStartError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if code, ok := domain.CodeFrom(err); ok {
+		return domain.Wrap(code, "lifecycle start", err)
+	}
+	return domain.Wrap(domain.CodeUnavailable, "lifecycle start", err)
+}
+
+func wrapLifecycleStopError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if code, ok := domain.CodeFrom(err); ok {
+		return domain.Wrap(code, "lifecycle stop", err)
+	}
+	return domain.Wrap(domain.CodeInternal, "lifecycle stop", err)
+}
 
 type Manager struct {
 	launcher  domain.Launcher
@@ -96,7 +117,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 			telemetry.DurationField(time.Since(started)),
 			zap.Error(err),
 		)
-		return nil, err
+		return nil, wrapLifecycleStartError(err)
 	}
 
 	startCtx, cancelStart := context.WithCancel(baseCtx)
@@ -131,7 +152,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 				telemetry.DurationField(time.Since(started)),
 				zap.Error(err),
 			)
-			return nil, fmt.Errorf("start launcher: %w", err)
+			return nil, wrapLifecycleStartError(fmt.Errorf("start launcher: %w", err))
 		}
 		if streams.Reader == nil || streams.Writer == nil {
 			err := errors.New("launcher returned nil streams")
@@ -145,7 +166,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 			if stop != nil {
 				_ = stop(ctx)
 			}
-			return nil, err
+			return nil, wrapLifecycleStartError(err)
 		}
 		if stop == nil {
 			stop = func(context.Context) error { return nil }
@@ -169,7 +190,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		if stop != nil {
 			_ = stop(ctx)
 		}
-		return nil, fmt.Errorf("connect transport: %w", err)
+		return nil, wrapLifecycleStartError(fmt.Errorf("connect transport: %w", err))
 	}
 	if conn == nil {
 		err := errors.New("transport returned nil connection")
@@ -183,7 +204,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 		if stop != nil {
 			_ = stop(ctx)
 		}
-		return nil, err
+		return nil, wrapLifecycleStartError(err)
 	}
 
 	instance := domain.NewInstance(domain.InstanceOptions{
@@ -220,7 +241,7 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 				)
 			}
 		}
-		return nil, fmt.Errorf("initialize: %w", err)
+		return nil, wrapLifecycleStartError(fmt.Errorf("initialize: %w", err))
 	}
 	if setter, ok := conn.(interface {
 		SetCapabilities(domain.ServerCapabilities)
@@ -251,31 +272,43 @@ func (m *Manager) StartInstance(ctx context.Context, specKey string, spec domain
 }
 
 func (m *Manager) initializeWithRetry(ctx context.Context, conn domain.Conn, spec domain.ServerSpec) (domain.ServerCapabilities, error) {
+	var caps domain.ServerCapabilities
 	var lastErr error
-	attempts := initializeRetryCount + 1
-	for attempt := 1; attempt <= attempts; attempt++ {
-		caps, err := m.initialize(ctx, conn, spec.ProtocolVersion)
-		if err == nil {
-			return caps, nil
-		}
-		lastErr = err
-		if attempt == attempts {
-			break
-		}
-		m.logger.Debug("initialize retry failed",
-			zap.String("server", spec.Name),
-			zap.Int("attempt", attempt),
-			zap.Error(err),
-		)
-		timer := time.NewTimer(initializeRetryDelay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return domain.ServerCapabilities{}, ctx.Err()
-		case <-timer.C:
-		}
+	attempt := 0
+	policy := retry.Policy{
+		BaseDelay:  initializeRetryDelay,
+		MaxDelay:   initializeRetryDelay,
+		Factor:     1,
+		MaxRetries: initializeRetryCount,
 	}
-	return domain.ServerCapabilities{}, lastErr
+
+	err := retry.Retry(ctx, policy, func(ctx context.Context) error {
+		attempt++
+		result, initErr := m.initialize(ctx, conn, spec.ProtocolVersion)
+		if initErr == nil {
+			caps = result
+			return nil
+		}
+		lastErr = initErr
+		if policy.MaxRetries < 0 || attempt <= policy.MaxRetries {
+			m.logger.Debug("initialize retry failed",
+				zap.String("server", spec.Name),
+				zap.Int("attempt", attempt),
+				zap.Error(initErr),
+			)
+		}
+		return initErr
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return domain.ServerCapabilities{}, ctx.Err()
+		}
+		if lastErr != nil {
+			return domain.ServerCapabilities{}, lastErr
+		}
+		return domain.ServerCapabilities{}, err
+	}
+	return caps, nil
 }
 
 func (m *Manager) initialize(ctx context.Context, conn domain.Conn, protocolVersion string) (domain.ServerCapabilities, error) {
@@ -343,7 +376,7 @@ func (m *Manager) notifyInitialized(ctx context.Context, conn domain.Conn, spec 
 
 func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, reason string) error {
 	if instance == nil {
-		return errors.New("instance is nil")
+		return wrapLifecycleStopError(errors.New("instance is nil"))
 	}
 
 	started := time.Now()
@@ -358,7 +391,7 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 	m.mu.Unlock()
 
 	if conn == nil && stop == nil {
-		return fmt.Errorf("unknown instance: %s", instanceID)
+		return wrapLifecycleStopError(fmt.Errorf("unknown instance: %s", instanceID))
 	}
 
 	var closeErr error
@@ -386,10 +419,10 @@ func (m *Manager) StopInstance(ctx context.Context, instance *domain.Instance, r
 		}
 	}
 	if stopErr != nil {
-		return fmt.Errorf("stop instance %s: %w", instanceID, errors.Join(stopErr, closeErr))
+		return wrapLifecycleStopError(fmt.Errorf("stop instance %s: %w", instanceID, errors.Join(stopErr, closeErr)))
 	}
 	if closeErr != nil {
-		return fmt.Errorf("close instance %s: %w", instanceID, closeErr)
+		return wrapLifecycleStopError(fmt.Errorf("close instance %s: %w", instanceID, closeErr))
 	}
 
 	instance.SetState(domain.InstanceStateStopped)

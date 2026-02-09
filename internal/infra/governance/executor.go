@@ -12,77 +12,48 @@ import (
 )
 
 type Executor struct {
-	pipeline *pipeline.Engine
+	chain *Chain
 }
 
 func NewExecutor(pipe *pipeline.Engine) *Executor {
-	return &Executor{pipeline: pipe}
+	if pipe == nil {
+		return &Executor{}
+	}
+	return &Executor{chain: NewChain(NewPipelinePolicy(pipe))}
+}
+
+func NewExecutorWithPolicies(policies ...Policy) *Executor {
+	return &Executor{chain: NewChain(policies...)}
 }
 
 func (e *Executor) Request(ctx context.Context, req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if e.pipeline == nil {
+	if e.chain == nil {
 		return domain.GovernanceDecision{Continue: true}, nil
 	}
-	req.Flow = domain.PluginFlowRequest
-	return e.pipeline.Handle(ctx, req)
+	return e.chain.Request(ctx, req)
 }
 
 func (e *Executor) Response(ctx context.Context, req domain.GovernanceRequest) (domain.GovernanceDecision, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if e.pipeline == nil {
+	if e.chain == nil {
 		return domain.GovernanceDecision{Continue: true}, nil
 	}
-	req.Flow = domain.PluginFlowResponse
-	return e.pipeline.Handle(ctx, req)
+	return e.chain.Response(ctx, req)
 }
 
 func (e *Executor) Execute(ctx context.Context, req domain.GovernanceRequest, next func(context.Context, domain.GovernanceRequest) (json.RawMessage, error)) (json.RawMessage, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if e.pipeline == nil {
+	if e.chain == nil {
 		return next(ctx, req)
 	}
-
-	request := req
-	request.Flow = domain.PluginFlowRequest
-	decision, err := e.pipeline.Handle(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	if !decision.Continue {
-		return handleRejection(req, decision)
-	}
-	if len(decision.RequestJSON) > 0 {
-		request.RequestJSON = decision.RequestJSON
-	}
-
-	resp, err := next(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	responseReq := request
-	responseReq.Flow = domain.PluginFlowResponse
-	responseReq.ResponseJSON = resp
-
-	responseDecision, err := e.pipeline.Handle(ctx, responseReq)
-	if err != nil {
-		return nil, err
-	}
-	if !responseDecision.Continue {
-		return handleRejection(req, responseDecision)
-	}
-	if len(responseDecision.ResponseJSON) > 0 {
-		resp = responseDecision.ResponseJSON
-	}
-
-	return resp, nil
+	return e.chain.Execute(ctx, req, next)
 }
 
 func handleRejection(req domain.GovernanceRequest, decision domain.GovernanceDecision) (json.RawMessage, error) {

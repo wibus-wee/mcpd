@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
-	infraCatalog "mcpv/internal/infra/catalog"
+	catalogloader "mcpv/internal/infra/catalog/loader"
 )
 
 const defaultReloadDebounce = 200 * time.Millisecond
@@ -19,7 +19,7 @@ const defaultReloadDebounce = 200 * time.Millisecond
 // DynamicCatalogProvider loads and watches catalog updates.
 type DynamicCatalogProvider struct {
 	logger      *zap.Logger
-	loader      *infraCatalog.Loader
+	loader      *catalogloader.Loader
 	configPath  string
 	allowCreate bool
 
@@ -42,7 +42,7 @@ func NewDynamicCatalogProvider(ctx context.Context, configPath string, logger *z
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	loader := infraCatalog.NewLoader(logger)
+	loader := catalogloader.NewLoader(logger)
 	catalogData, err := loader.Load(ctx, configPath)
 	if err != nil {
 		return nil, err

@@ -11,9 +11,10 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"mcpv/internal/app/bootstrap"
+	"mcpv/internal/app/bootstrap/serverinit"
 	"mcpv/internal/app/runtime"
 	"mcpv/internal/domain"
-	"mcpv/internal/infra/plugin"
+	pluginmanager "mcpv/internal/infra/plugin/manager"
 )
 
 func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
@@ -42,16 +43,17 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 	require.NotEqual(t, prevSpecKey, nextSpecKey)
 
 	scheduler := &schedulerStub{}
-	initManager := bootstrap.NewServerInitializationManager(scheduler, &prevState, zap.NewNop())
+	initManager := serverinit.NewManager(scheduler, &prevState, zap.NewNop())
+	startup := bootstrap.NewServerStartupOrchestrator(initManager, nil, zap.NewNop())
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, initManager, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, startup, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
 	require.NoError(t, err)
 	scheduler.minReadyCalls = nil
 
-	manager := NewReloadManager(nil, state, registry, scheduler, initManager, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	manager := NewReloadManager(nil, state, registry, scheduler, startup, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	update := domain.CatalogUpdate{
 		Snapshot: nextState,
 		Diff:     domain.DiffCatalogStates(prevState, nextState),
@@ -65,7 +67,10 @@ func TestReloadManager_ApplyUpdate_UpdatesRuntimeAndRegistry(t *testing.T) {
 	require.Equal(t, nextState.Summary.SpecRegistry, scheduler.lastRegistry)
 
 	require.Contains(t, scheduler.minReadyCalls, reloadMinReadyCall{specKey: nextSpecKey, minReady: 2})
-	require.Equal(t, 1, registry.specCounts[nextSpecKey])
+	visibleKeys, err := registry.ResolveVisibleSpecKeys("client-1")
+	require.NoError(t, err)
+	require.Contains(t, visibleKeys, nextSpecKey)
+	require.NotContains(t, visibleKeys, prevSpecKey)
 }
 
 func TestReloadManager_ApplyUpdate_RemovesServer(t *testing.T) {
@@ -93,7 +98,7 @@ func TestReloadManager_ApplyUpdate_RemovesServer(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
@@ -136,10 +141,10 @@ func TestReloadManager_ApplyUpdate_PluginApplyFailureRetainsState(t *testing.T) 
 	nextState := newCatalogState(t, nextCatalog)
 
 	scheduler := &schedulerStub{}
-	state := NewState(context.Background(), runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys), scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys), scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
-	pluginManager, err := plugin.NewManager(plugin.ManagerOptions{Logger: zap.NewNop(), RootDir: t.TempDir()})
+	pluginManager, err := pluginmanager.NewManager(pluginmanager.Options{Logger: zap.NewNop(), RootDir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { pluginManager.Stop(context.Background()) })
 
@@ -173,7 +178,7 @@ func TestReloadManager_ApplyUpdate_SchedulerErrorDoesNotAdvanceState(t *testing.
 
 	scheduler := &schedulerStub{applyErr: errors.New("apply failed")}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	manager := NewReloadManager(nil, state, registry, scheduler, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
@@ -206,7 +211,7 @@ func TestReloadManager_ApplyUpdate_RegistryErrorRollsBackState(t *testing.T) {
 
 	scheduler := &schedulerStub{}
 	runtimeState := runtime.NewStateFromSpecKeys(prevState.Summary.ServerSpecKeys)
-	state := NewState(context.Background(), runtimeState, scheduler, nil, nil, &prevState, zap.NewNop())
+	state := NewState(context.Background(), runtimeState, scheduler, nil, &prevState, zap.NewNop())
 	registry := NewClientRegistry(state)
 
 	_, err := registry.RegisterClient(context.Background(), "client-1", 1, nil, "")
@@ -243,9 +248,10 @@ func TestReloadManager_HandleApplyError_StrictPanics(t *testing.T) {
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
 	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
+	manager.observer.SetCoreLogger(logger)
 
 	require.Panics(t, func() {
-		manager.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
+		manager.observer.HandleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
 	})
 }
 
@@ -266,9 +272,10 @@ func TestReloadManager_HandleApplyError_LenientDoesNotPanic(t *testing.T) {
 	logger := zap.New(zapcore.NewNopCore(), zap.WithFatalHook(zapcore.WriteThenPanic))
 	manager := NewReloadManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 	manager.coreLogger = logger
+	manager.observer.SetCoreLogger(logger)
 
 	require.NotPanics(t, func() {
-		manager.handleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
+		manager.observer.HandleApplyError(update, errors.New("apply failed"), 10*time.Millisecond)
 	})
 }
 

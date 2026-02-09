@@ -4,13 +4,13 @@
 
 'use client'
 
+import { LogService } from '@bindings/mcpv/internal/ui/services'
 import type {
   ActiveClient,
   CoreStateResponse,
   ServerInitStatus,
   ServerRuntimeStatus,
-} from '@bindings/mcpv/internal/ui'
-import { LogService } from '@bindings/mcpv/internal/ui'
+} from '@bindings/mcpv/internal/ui/types'
 import { useRouter, useRouterState } from '@tanstack/react-router'
 import { Events } from '@wailsio/runtime'
 import { Provider, useAtomValue } from 'jotai'
@@ -20,7 +20,7 @@ import { startTransition, useCallback, useEffect, useRef } from 'react'
 import { SWRConfig, useSWRConfig } from 'swr'
 
 import { logStreamTokenAtom } from '@/atoms/logs'
-import { AnchoredToastProvider, ToastProvider } from '@/components/ui/toast'
+import { AnchoredToastProvider, toastManager, ToastProvider } from '@/components/ui/toast'
 import { activeClientsKey } from '@/hooks/use-active-clients'
 import { coreStateKey, useCoreState } from '@/hooks/use-core-state'
 import type { LogEntry } from '@/hooks/use-logs'
@@ -85,10 +85,11 @@ function WailsEventsBridge() {
   const stopRef = useRef<(() => void) | null>(null)
   const logStreamToken = useAtomValue(logStreamTokenAtom)
   const router = useRouter()
-  const location = useRouterState({ select: state => state.location })
+  const pathname = useRouterState({ select: state => state.location.pathname })
   const logQueueRef = useRef<LogEntry[]>([])
   const logFlushTimerRef = useRef<number | null>(null)
   const lastTrackedPathRef = useRef<string | null>(null)
+  const lastUpdateVersionRef = useRef<string | null>(null)
 
   const flushLogQueue = useCallback(() => {
     if (logQueueRef.current.length === 0) return
@@ -138,13 +139,13 @@ function WailsEventsBridge() {
   }, [router])
 
   useEffect(() => {
-    const path = location.pathname
+    const path = pathname
     if (!path || lastTrackedPathRef.current === path) {
       return
     }
     lastTrackedPathRef.current = path
     trackPageView(path, document.title)
-  }, [location.pathname])
+  }, [pathname])
 
   // Listen for core:state events from backend
   useEffect(() => {
@@ -203,6 +204,68 @@ function WailsEventsBridge() {
     })
     return () => unbind()
   }, [mutate])
+
+  // Listen for update:available events from backend
+  useEffect(() => {
+    const unbind = Events.On('update:available', (event) => {
+      const data = event?.data as {
+        currentVersion?: string
+        latest?: {
+          version?: string
+          name?: string
+          url?: string
+          prerelease?: boolean
+          publishedAt?: string
+        }
+      } | undefined
+      const latest = data?.latest
+      if (!latest?.version || !latest?.url) {
+        return
+      }
+      if (lastUpdateVersionRef.current === latest.version) {
+        return
+      }
+      lastUpdateVersionRef.current = latest.version
+
+      const versionLabel = latest.version.startsWith('v')
+        ? latest.version
+        : `v${latest.version}`
+      const description = latest.prerelease
+        ? 'Pre-release is available.'
+        : `Current version ${data?.currentVersion ?? 'unknown'}`
+
+      toastManager.add({
+        type: 'info',
+        title: `Update available ${versionLabel}`,
+        description: latest.name || description,
+        actionProps: {
+          children: 'Download',
+          onClick: async () => {
+            const opened = window.open(latest.url, '_blank', 'noopener,noreferrer')
+            if (opened) {
+              return
+            }
+            try {
+              await navigator.clipboard.writeText(latest.url || '')
+              toastManager.add({
+                type: 'success',
+                title: 'Link copied',
+                description: 'Download link copied to clipboard',
+              })
+            }
+            catch {
+              toastManager.add({
+                type: 'error',
+                title: 'Open failed',
+                description: 'Unable to open the download link',
+              })
+            }
+          },
+        },
+      })
+    })
+    return () => unbind()
+  }, [])
 
   const level = (coreStatus === 'running' || coreStatus === 'starting') ? 'debug' : null
 

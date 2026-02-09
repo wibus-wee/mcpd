@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"mcpv/internal/infra/retry"
 	controlv1 "mcpv/pkg/api/control/v1"
 )
 
@@ -38,7 +39,10 @@ func newLogBridge(server *mcp.Server, clients *clientManager, caller string, tag
 }
 
 func (b *logBridge) Run(ctx context.Context) {
-	backoff := newBackoff(1*time.Second, 30*time.Second)
+	backoff := retry.NewBackoff(retry.Policy{
+		BaseDelay: time.Second,
+		MaxDelay:  30 * time.Second,
+	})
 
 	for {
 		if ctx.Err() != nil {

@@ -10,7 +10,7 @@ import (
 	"mcpv/internal/app/bootstrap"
 	"mcpv/internal/app/controlplane"
 	"mcpv/internal/domain"
-	"mcpv/internal/infra/plugin"
+	pluginmanager "mcpv/internal/infra/plugin/manager"
 	"mcpv/internal/infra/rpc"
 	"mcpv/internal/infra/telemetry"
 )
@@ -22,19 +22,18 @@ type Application struct {
 	onReady       func(controlplane.API)
 	observability *ObservabilityOptions
 
-	logger           *zap.Logger
-	registry         *prometheus.Registry
-	metrics          domain.Metrics
-	health           *telemetry.HealthTracker
-	summary          domain.CatalogSummary
-	state            *controlplane.State
-	scheduler        domain.Scheduler
-	initManager      *bootstrap.ServerInitializationManager
-	bootstrapManager *bootstrap.Manager
-	controlPlane     *controlplane.ControlPlane
-	rpcServer        *rpc.Server
-	reloadManager    *controlplane.ReloadManager
-	pluginManager    *plugin.Manager
+	logger        *zap.Logger
+	registry      *prometheus.Registry
+	metrics       domain.Metrics
+	health        *telemetry.HealthTracker
+	summary       domain.CatalogSummary
+	state         *controlplane.State
+	scheduler     domain.Scheduler
+	startup       *bootstrap.ServerStartupOrchestrator
+	controlPlane  *controlplane.ControlPlane
+	rpcServer     *rpc.Server
+	reloadManager *controlplane.ReloadManager
+	pluginManager *pluginmanager.Manager
 }
 
 // ApplicationOptions captures dependencies and settings for Application.
@@ -48,12 +47,11 @@ type ApplicationOptions struct {
 	CatalogState      *domain.CatalogState
 	ControlPlaneState *controlplane.State
 	Scheduler         domain.Scheduler
-	InitManager       *bootstrap.ServerInitializationManager
-	BootstrapManager  *bootstrap.Manager
+	Startup           *bootstrap.ServerStartupOrchestrator
 	ControlPlane      *controlplane.ControlPlane
 	RPCServer         *rpc.Server
 	ReloadManager     *controlplane.ReloadManager
-	PluginManager     *plugin.Manager
+	PluginManager     *pluginmanager.Manager
 }
 
 // NewApplication constructs the core application runtime.
@@ -67,23 +65,22 @@ func NewApplication(opts ApplicationOptions) *Application {
 		summary = opts.CatalogState.Summary
 	}
 	return &Application{
-		ctx:              ctx,
-		configPath:       opts.ServeConfig.ConfigPath,
-		onReady:          opts.ServeConfig.OnReady,
-		observability:    opts.ServeConfig.Observability,
-		logger:           opts.Logger,
-		registry:         opts.Registry,
-		metrics:          opts.Metrics,
-		health:           opts.Health,
-		summary:          summary,
-		state:            opts.ControlPlaneState,
-		scheduler:        opts.Scheduler,
-		initManager:      opts.InitManager,
-		bootstrapManager: opts.BootstrapManager,
-		controlPlane:     opts.ControlPlane,
-		rpcServer:        opts.RPCServer,
-		reloadManager:    opts.ReloadManager,
-		pluginManager:    opts.PluginManager,
+		ctx:           ctx,
+		configPath:    opts.ServeConfig.ConfigPath,
+		onReady:       opts.ServeConfig.OnReady,
+		observability: opts.ServeConfig.Observability,
+		logger:        opts.Logger,
+		registry:      opts.Registry,
+		metrics:       opts.Metrics,
+		health:        opts.Health,
+		summary:       summary,
+		state:         opts.ControlPlaneState,
+		scheduler:     opts.Scheduler,
+		startup:       opts.Startup,
+		controlPlane:  opts.ControlPlane,
+		rpcServer:     opts.RPCServer,
+		reloadManager: opts.ReloadManager,
+		pluginManager: opts.PluginManager,
 	}
 }
 
@@ -99,16 +96,16 @@ func (a *Application) Run() error {
 		a.onReady(a.controlPlane)
 	}
 
-	if a.bootstrapManager != nil {
-		a.bootstrapManager.Bootstrap(a.ctx)
+	if a.startup != nil {
+		a.startup.Bootstrap(a.ctx)
 	}
 	if a.state != nil {
 		if runtime := a.state.RuntimeState(); runtime != nil {
 			runtime.Activate(a.ctx)
 		}
 	}
-	if a.initManager != nil {
-		a.initManager.Start(a.ctx)
+	if a.startup != nil {
+		a.startup.StartInit(a.ctx)
 	}
 
 	if a.reloadManager != nil {
@@ -171,14 +168,12 @@ func (a *Application) Run() error {
 				runtime.Deactivate()
 			}
 		}
-		if a.bootstrapManager != nil {
+		if a.startup != nil {
 			// Wait for bootstrap to complete before shutdown
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_ = a.bootstrapManager.WaitForCompletion(ctx)
-		}
-		if a.initManager != nil {
-			a.initManager.Stop()
+			_ = a.startup.WaitForBootstrap(ctx)
+			a.startup.StopInit()
 		}
 		a.scheduler.StopPingManager()
 		a.scheduler.StopIdleManager()
@@ -189,7 +184,7 @@ func (a *Application) Run() error {
 }
 
 // GetPluginStatus returns the runtime status of all configured plugins.
-func (a *Application) GetPluginStatus() []plugin.Status {
+func (a *Application) GetPluginStatus() []pluginmanager.Status {
 	if a.pluginManager == nil {
 		return nil
 	}

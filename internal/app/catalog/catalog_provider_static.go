@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
-	infraCatalog "mcpv/internal/infra/catalog"
+	catalogloader "mcpv/internal/infra/catalog/loader"
 )
 
 // StaticCatalogProvider serves an immutable catalog snapshot.
@@ -23,7 +23,7 @@ func NewStaticCatalogProvider(ctx context.Context, configPath string, logger *za
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	loader := infraCatalog.NewLoader(logger)
+	loader := catalogloader.NewLoader(logger)
 	catalogData, err := loader.Load(ctx, configPath)
 	if err != nil {
 		return nil, err
