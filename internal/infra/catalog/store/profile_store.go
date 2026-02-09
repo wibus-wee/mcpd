@@ -1,4 +1,4 @@
-package catalog
+package store
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/catalog/loader"
 	"mcpv/internal/infra/fsutil"
 )
 
@@ -30,7 +31,7 @@ type ProfileStoreOptions struct {
 
 type ProfileStoreLoader struct {
 	logger *zap.Logger
-	loader *Loader
+	loader *loader.Loader
 }
 
 func NewProfileStoreLoader(logger *zap.Logger) *ProfileStoreLoader {
@@ -39,7 +40,7 @@ func NewProfileStoreLoader(logger *zap.Logger) *ProfileStoreLoader {
 	}
 	return &ProfileStoreLoader{
 		logger: logger.Named("profiles"),
-		loader: NewLoader(logger),
+		loader: loader.NewLoader(logger),
 	}
 }
 

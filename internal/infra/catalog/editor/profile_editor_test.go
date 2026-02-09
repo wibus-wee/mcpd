@@ -1,4 +1,4 @@
-package catalog
+package editor
 
 import (
 	"os"
@@ -11,38 +11,6 @@ import (
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/fsutil"
 )
-
-func TestResolveProfilePath(t *testing.T) {
-	root := t.TempDir()
-	profilesDir := filepath.Join(root, profilesDirName)
-	require.NoError(t, os.MkdirAll(profilesDir, fsutil.DefaultDirMode))
-
-	defaultPath := filepath.Join(profilesDir, "default.yaml")
-	require.NoError(t, os.WriteFile(defaultPath, []byte("servers: []\n"), fsutil.DefaultFileMode))
-
-	got, err := ResolveProfilePath(root, "default")
-	require.NoError(t, err)
-	require.Equal(t, defaultPath, got)
-
-	otherPath := filepath.Join(profilesDir, "other.yml")
-	require.NoError(t, os.WriteFile(otherPath, []byte("servers: []\n"), fsutil.DefaultFileMode))
-
-	got, err = ResolveProfilePath(root, "other")
-	require.NoError(t, err)
-	require.Equal(t, otherPath, got)
-}
-
-func TestResolveProfilePath_DuplicateExtensions(t *testing.T) {
-	root := t.TempDir()
-	profilesDir := filepath.Join(root, profilesDirName)
-	require.NoError(t, os.MkdirAll(profilesDir, fsutil.DefaultDirMode))
-
-	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "dup.yaml"), []byte("servers: []\n"), fsutil.DefaultFileMode))
-	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "dup.yml"), []byte("servers: []\n"), fsutil.DefaultFileMode))
-
-	_, err := ResolveProfilePath(root, "dup")
-	require.Error(t, err)
-}
 
 func TestBuildProfileUpdate_AppendsServers(t *testing.T) {
 	profilePath := filepath.Join(t.TempDir(), "default.yaml")

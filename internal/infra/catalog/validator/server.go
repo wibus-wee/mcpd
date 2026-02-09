@@ -1,4 +1,4 @@
-package catalog
+package validator
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"mcpv/internal/domain"
 )
 
-func validateServerSpec(spec domain.ServerSpec, index int) []string {
+func ValidateServerSpec(spec domain.ServerSpec, index int) []string {
 	var errs []string
 
 	if spec.Name == "" {

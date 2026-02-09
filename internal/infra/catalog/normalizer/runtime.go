@@ -1,4 +1,4 @@
-package catalog
+package normalizer
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 	"mcpv/internal/domain"
 )
 
-func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []string) {
+func NormalizeRuntimeConfig(cfg RawRuntimeConfig) (domain.RuntimeConfig, []string) {
 	var errs []string
 
 	routeTimeout := cfg.RouteTimeoutSeconds
@@ -105,7 +105,7 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 	rpcCfg, rpcErrs := normalizeRPCConfig(cfg.RPC)
 	errs = append(errs, rpcErrs...)
 
-	enabledTags := normalizeTags(cfg.SubAgent.EnabledTags)
+	enabledTags := NormalizeTags(cfg.SubAgent.EnabledTags)
 	return domain.RuntimeConfig{
 		RouteTimeoutSeconds:        routeTimeout,
 		PingIntervalSeconds:        pingInterval,
@@ -138,7 +138,7 @@ func normalizeRuntimeConfig(cfg rawRuntimeConfig) (domain.RuntimeConfig, []strin
 	}, errs
 }
 
-func normalizeObservabilityConfig(cfg rawObservabilityConfig) (domain.ObservabilityConfig, []string) {
+func normalizeObservabilityConfig(cfg RawObservabilityConfig) (domain.ObservabilityConfig, []string) {
 	addr := strings.TrimSpace(cfg.ListenAddress)
 	if addr == "" {
 		addr = domain.DefaultObservabilityListenAddress
@@ -148,7 +148,7 @@ func normalizeObservabilityConfig(cfg rawObservabilityConfig) (domain.Observabil
 	}, nil
 }
 
-func normalizeRPCConfig(cfg rawRPCConfig) (domain.RPCConfig, []string) {
+func normalizeRPCConfig(cfg RawRPCConfig) (domain.RPCConfig, []string) {
 	var errs []string
 
 	addr := strings.TrimSpace(cfg.ListenAddress)
@@ -173,7 +173,7 @@ func normalizeRPCConfig(cfg rawRPCConfig) (domain.RPCConfig, []string) {
 	if socketMode == "" {
 		socketMode = domain.DefaultRPCSocketMode
 	}
-	if _, err := parseSocketMode(socketMode); err != nil {
+	if _, err := domain.ParseSocketMode(socketMode); err != nil {
 		errs = append(errs, err.Error())
 	}
 

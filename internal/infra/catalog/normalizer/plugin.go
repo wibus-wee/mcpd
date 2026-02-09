@@ -1,4 +1,4 @@
-package catalog
+package normalizer
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"mcpv/internal/domain"
 )
 
-func normalizePluginSpecs(raw []rawPluginSpec) ([]domain.PluginSpec, []string) {
+func NormalizePluginSpecs(raw []RawPluginSpec) ([]domain.PluginSpec, []string) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -38,7 +38,7 @@ func normalizePluginSpecs(raw []rawPluginSpec) ([]domain.PluginSpec, []string) {
 	return plugins, nil
 }
 
-func normalizePluginSpec(raw rawPluginSpec, index int) (domain.PluginSpec, []string) {
+func normalizePluginSpec(raw RawPluginSpec, index int) (domain.PluginSpec, []string) {
 	var errs []string
 	name := strings.TrimSpace(raw.Name)
 	if name == "" {
@@ -99,7 +99,7 @@ func normalizePluginSpec(raw rawPluginSpec, index int) (domain.PluginSpec, []str
 		Category:           category,
 		Required:           required,
 		Cmd:                cmd,
-		Env:                normalizeImportEnv(raw.Env),
+		Env:                NormalizeEnvMap(raw.Env),
 		Cwd:                strings.TrimSpace(raw.Cwd),
 		CommitHash:         strings.TrimSpace(raw.CommitHash),
 		TimeoutMs:          timeoutMs,

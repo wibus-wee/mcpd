@@ -1,12 +1,12 @@
-package catalog
+package normalizer
 
-type rawCatalog struct {
-	Servers          []rawServerSpec `mapstructure:"servers"`
-	Plugins          []rawPluginSpec `mapstructure:"plugins"`
-	rawRuntimeConfig `mapstructure:",squash"`
+type RawCatalog struct {
+	Servers          []RawServerSpec `mapstructure:"servers"`
+	Plugins          []RawPluginSpec `mapstructure:"plugins"`
+	RawRuntimeConfig `mapstructure:",squash"`
 }
 
-type rawServerSpec struct {
+type RawServerSpec struct {
 	Name                string                  `mapstructure:"name"`
 	Transport           string                  `mapstructure:"transport"`
 	Cmd                 []string                `mapstructure:"cmd"`
@@ -23,10 +23,10 @@ type rawServerSpec struct {
 	DrainTimeoutSeconds int                     `mapstructure:"drainTimeoutSeconds"`
 	ProtocolVersion     string                  `mapstructure:"protocolVersion"`
 	ExposeTools         []string                `mapstructure:"exposeTools"`
-	HTTP                rawStreamableHTTPConfig `mapstructure:"http"`
+	HTTP                RawStreamableHTTPConfig `mapstructure:"http"`
 }
 
-type rawPluginSpec struct {
+type RawPluginSpec struct {
 	Name               string            `mapstructure:"name"`
 	Category           string            `mapstructure:"category"`
 	Required           *bool             `mapstructure:"required"`
@@ -40,13 +40,13 @@ type rawPluginSpec struct {
 	Flows              []string          `mapstructure:"flows"`
 }
 
-type rawStreamableHTTPConfig struct {
+type RawStreamableHTTPConfig struct {
 	Endpoint   string            `mapstructure:"endpoint"`
 	Headers    map[string]string `mapstructure:"headers"`
 	MaxRetries *int              `mapstructure:"maxRetries"`
 }
 
-type rawRuntimeConfig struct {
+type RawRuntimeConfig struct {
 	RouteTimeoutSeconds        int                    `mapstructure:"routeTimeoutSeconds"`
 	PingIntervalSeconds        int                    `mapstructure:"pingIntervalSeconds"`
 	ToolRefreshSeconds         int                    `mapstructure:"toolRefreshSeconds"`
@@ -63,12 +63,12 @@ type rawRuntimeConfig struct {
 	DefaultActivationMode      string                 `mapstructure:"defaultActivationMode"`
 	ExposeTools                bool                   `mapstructure:"exposeTools"`
 	ToolNamespaceStrategy      string                 `mapstructure:"toolNamespaceStrategy"`
-	Observability              rawObservabilityConfig `mapstructure:"observability"`
-	RPC                        rawRPCConfig           `mapstructure:"rpc"`
-	SubAgent                   rawSubAgentConfig      `mapstructure:"subAgent"`
+	Observability              RawObservabilityConfig `mapstructure:"observability"`
+	RPC                        RawRPCConfig           `mapstructure:"rpc"`
+	SubAgent                   RawSubAgentConfig      `mapstructure:"subAgent"`
 }
 
-type rawSubAgentConfig struct {
+type RawSubAgentConfig struct {
 	EnabledTags        []string `mapstructure:"enabledTags"`
 	Model              string   `mapstructure:"model"`
 	Provider           string   `mapstructure:"provider"`
@@ -79,21 +79,21 @@ type rawSubAgentConfig struct {
 	FilterPrompt       string   `mapstructure:"filterPrompt"`
 }
 
-type rawObservabilityConfig struct {
+type RawObservabilityConfig struct {
 	ListenAddress string `mapstructure:"listenAddress"`
 }
 
-type rawRPCConfig struct {
+type RawRPCConfig struct {
 	ListenAddress           string          `mapstructure:"listenAddress"`
 	MaxRecvMsgSize          int             `mapstructure:"maxRecvMsgSize"`
 	MaxSendMsgSize          int             `mapstructure:"maxSendMsgSize"`
 	KeepaliveTimeSeconds    int             `mapstructure:"keepaliveTimeSeconds"`
 	KeepaliveTimeoutSeconds int             `mapstructure:"keepaliveTimeoutSeconds"`
 	SocketMode              string          `mapstructure:"socketMode"`
-	TLS                     rawRPCTLSConfig `mapstructure:"tls"`
+	TLS                     RawRPCTLSConfig `mapstructure:"tls"`
 }
 
-type rawRPCTLSConfig struct {
+type RawRPCTLSConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	CertFile   string `mapstructure:"certFile"`
 	KeyFile    string `mapstructure:"keyFile"`

@@ -8,7 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
-	"mcpv/internal/infra/catalog"
+	catalogeditor "mcpv/internal/infra/catalog/editor"
+	catalogloader "mcpv/internal/infra/catalog/loader"
 	"mcpv/internal/ui/transfer"
 )
 
@@ -94,7 +95,7 @@ func (s *McpTransferService) Import(ctx context.Context, req McpTransferRequest)
 		importSpecs = append(importSpecs, mapImportToDomainSpec(server))
 	}
 
-	if err := editor.ImportServers(ctx, catalog.ImportRequest{Servers: importSpecs}); err != nil {
+	if err := editor.ImportServers(ctx, catalogeditor.ImportRequest{Servers: importSpecs}); err != nil {
 		return McpTransferImportResult{}, mapCatalogError(err)
 	}
 
@@ -112,7 +113,7 @@ func (s *McpTransferService) loadExistingServerNames(ctx context.Context) (map[s
 		return nil, NewError(ErrCodeInvalidConfig, "Configuration path is not available")
 	}
 
-	loader := catalog.NewLoader(s.logger)
+	loader := catalogloader.NewLoader(s.logger)
 	catalogState, err := loader.Load(ctx, path)
 	if err != nil {
 		return nil, NewErrorWithDetails(ErrCodeInvalidConfig, "Failed to load config", err.Error())

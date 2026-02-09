@@ -306,7 +306,7 @@ func TestChain_NilHandling(t *testing.T) {
 		chain := NewChain(policy)
 		req := domain.GovernanceRequest{Method: "test"}
 
-		_, err := chain.Request(nil, req)
+		_, err := chain.Request(context.Background(), req)
 		require.NoError(t, err)
 	})
 }

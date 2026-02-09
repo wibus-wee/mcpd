@@ -1,4 +1,4 @@
-package catalog
+package normalizer
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"mcpv/internal/domain"
 )
 
-func normalizeServerSpec(raw rawServerSpec) (domain.ServerSpec, bool) {
+func NormalizeServerSpec(raw RawServerSpec) (domain.ServerSpec, bool) {
 	strategy := domain.InstanceStrategy(raw.Strategy)
 	if strategy == "" {
 		strategy = domain.DefaultStrategy
@@ -30,7 +30,7 @@ func normalizeServerSpec(raw rawServerSpec) (domain.ServerSpec, bool) {
 		Cmd:                 raw.Cmd,
 		Env:                 raw.Env,
 		Cwd:                 raw.Cwd,
-		Tags:                normalizeTags(raw.Tags),
+		Tags:                NormalizeTags(raw.Tags),
 		IdleSeconds:         raw.IdleSeconds,
 		MaxConcurrent:       raw.MaxConcurrent,
 		Strategy:            strategy,
@@ -64,7 +64,7 @@ func normalizeServerSpec(raw rawServerSpec) (domain.ServerSpec, bool) {
 	return spec, implicitHTTP
 }
 
-func normalizeStreamableHTTPConfig(raw rawStreamableHTTPConfig, transport domain.TransportKind) *domain.StreamableHTTPConfig {
+func normalizeStreamableHTTPConfig(raw RawStreamableHTTPConfig, transport domain.TransportKind) *domain.StreamableHTTPConfig {
 	if domain.NormalizeTransport(transport) != domain.TransportStreamableHTTP {
 		return nil
 	}
@@ -110,7 +110,7 @@ func normalizeHTTPHeaders(headers map[string]string) map[string]string {
 	return normalized
 }
 
-func normalizeTags(tags []string) []string {
+func NormalizeTags(tags []string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -134,4 +134,22 @@ func normalizeTags(tags []string) []string {
 	}
 	sort.Strings(normalized)
 	return normalized
+}
+
+func NormalizeEnvMap(env map[string]string) map[string]string {
+	if len(env) == 0 {
+		return nil
+	}
+	cleaned := make(map[string]string, len(env))
+	for key, value := range env {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		cleaned[key] = value
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	return cleaned
 }

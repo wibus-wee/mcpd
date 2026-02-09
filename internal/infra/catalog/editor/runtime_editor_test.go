@@ -1,4 +1,4 @@
-package catalog
+package editor
 
 import (
 	"os"
@@ -11,32 +11,8 @@ import (
 	"mcpv/internal/infra/fsutil"
 )
 
-func TestResolveRuntimePath(t *testing.T) {
-	root := t.TempDir()
-
-	path, err := ResolveRuntimePath(root, true)
-	require.NoError(t, err)
-	require.Equal(t, filepath.Join(root, runtimeFileName), path)
-
-	altPath := filepath.Join(root, runtimeFileAlt)
-	require.NoError(t, os.WriteFile(altPath, []byte("routeTimeoutSeconds: 10\n"), fsutil.DefaultFileMode))
-
-	path, err = ResolveRuntimePath(root, false)
-	require.NoError(t, err)
-	require.Equal(t, altPath, path)
-}
-
-func TestResolveRuntimePath_DuplicateExtensions(t *testing.T) {
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, runtimeFileName), []byte("routeTimeoutSeconds: 10\n"), fsutil.DefaultFileMode))
-	require.NoError(t, os.WriteFile(filepath.Join(root, runtimeFileAlt), []byte("routeTimeoutSeconds: 10\n"), fsutil.DefaultFileMode))
-
-	_, err := ResolveRuntimePath(root, false)
-	require.Error(t, err)
-}
-
 func TestUpdateRuntimeConfig_PreservesOtherFields(t *testing.T) {
-	path := filepath.Join(t.TempDir(), runtimeFileName)
+	path := filepath.Join(t.TempDir(), "runtime.yaml")
 	content := `routeTimeoutSeconds: 10
 subAgent:
   model: "gpt-4o"
@@ -80,7 +56,7 @@ rpc:
 }
 
 func TestUpdateSubAgentConfig_PreservesOtherFields(t *testing.T) {
-	path := filepath.Join(t.TempDir(), runtimeFileName)
+	path := filepath.Join(t.TempDir(), "runtime.yaml")
 	content := `routeTimeoutSeconds: 10
 subAgent:
   model: "gpt-4o"

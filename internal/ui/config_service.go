@@ -10,7 +10,8 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
-	"mcpv/internal/infra/catalog"
+	catalogeditor "mcpv/internal/infra/catalog/editor"
+	catalogloader "mcpv/internal/infra/catalog/loader"
 )
 
 // ConfigService exposes configuration management APIs.
@@ -47,7 +48,7 @@ func (s *ConfigService) GetConfigMode() ConfigModeResponse {
 		return ConfigModeResponse{Mode: "unknown", Path: ""}
 	}
 
-	editor := catalog.NewEditor(path, s.logger)
+	editor := catalogeditor.NewEditor(path, s.logger)
 	info, err := editor.Inspect(context.Background())
 	if err != nil {
 		return ConfigModeResponse{Mode: "unknown", Path: path}
@@ -70,7 +71,7 @@ func (s *ConfigService) GetRuntimeConfig(ctx context.Context) (RuntimeConfigDeta
 		return RuntimeConfigDetail{}, NewError(ErrCodeInvalidConfig, "Configuration path is not available")
 	}
 
-	loader := catalog.NewLoader(s.logger)
+	loader := catalogloader.NewLoader(s.logger)
 	runtime, err := loader.LoadRuntimeConfig(ctx, path)
 	if err != nil {
 		return RuntimeConfigDetail{}, NewErrorWithDetails(
@@ -130,7 +131,7 @@ func (s *ConfigService) UpdateRuntimeConfig(ctx context.Context, req UpdateRunti
 	if err != nil {
 		return err
 	}
-	update := catalog.RuntimeConfigUpdate{
+	update := catalogeditor.RuntimeConfigUpdate{
 		RouteTimeoutSeconds:        req.RouteTimeoutSeconds,
 		PingIntervalSeconds:        req.PingIntervalSeconds,
 		ToolRefreshSeconds:         req.ToolRefreshSeconds,
@@ -161,7 +162,7 @@ func (s *ConfigService) ImportMcpServers(ctx context.Context, req ImportMcpServe
 		return err
 	}
 
-	importReq := catalog.ImportRequest{
+	importReq := catalogeditor.ImportRequest{
 		Servers: make([]domain.ServerSpec, 0, len(req.Servers)),
 	}
 	for _, server := range req.Servers {

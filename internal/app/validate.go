@@ -6,7 +6,7 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
-	"mcpv/internal/infra/catalog"
+	"mcpv/internal/infra/catalog/loader"
 )
 
 // ValidateConfig validates the configuration at the provided path.
@@ -17,8 +17,8 @@ func (a *App) ValidateConfig(ctx context.Context, cfg ValidateConfig) error {
 	})
 	logger := logging.Logger
 
-	loader := catalog.NewLoader(logger)
-	catalogData, err := loader.Load(ctx, cfg.ConfigPath)
+	catalogLoader := loader.NewLoader(logger)
+	catalogData, err := catalogLoader.Load(ctx, cfg.ConfigPath)
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,7 @@ import (
 
 	"mcpv/internal/app"
 	"mcpv/internal/app/controlplane"
-	"mcpv/internal/infra/catalog"
+	catalogeditor "mcpv/internal/infra/catalog/editor"
 )
 
 // ServiceDeps holds shared dependencies for Wails services.
@@ -86,7 +86,7 @@ func (d *ServiceDeps) getControlPlane() (controlplane.API, error) {
 	return manager.GetControlPlane()
 }
 
-func (d *ServiceDeps) catalogEditor() (*catalog.Editor, error) {
+func (d *ServiceDeps) catalogEditor() (*catalogeditor.Editor, error) {
 	manager := d.manager()
 	if manager == nil {
 		return nil, NewError(ErrCodeInternal, "Manager not initialized")
@@ -95,7 +95,7 @@ func (d *ServiceDeps) catalogEditor() (*catalog.Editor, error) {
 	if path == "" {
 		return nil, NewError(ErrCodeInvalidConfig, "Configuration path is not available")
 	}
-	return catalog.NewEditor(path, d.loggerNamed("catalog-editor")), nil
+	return catalogeditor.NewEditor(path, d.loggerNamed("catalog-editor")), nil
 }
 
 func (d *ServiceDeps) getCoreApp() (*app.App, error) {

@@ -1,4 +1,4 @@
-package catalog
+package store
 
 import (
 	"context"
@@ -169,4 +169,13 @@ func writeProfile(t *testing.T, path string, name string) {
 `
 
 	require.NoError(t, os.WriteFile(path, []byte(content), fsutil.DefaultFileMode))
+}
+
+func writeTempConfig(t *testing.T, content string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "catalog.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(content), fsutil.DefaultFileMode))
+	return path
 }

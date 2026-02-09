@@ -1,4 +1,4 @@
-package catalog
+package store
 
 import (
 	"errors"
@@ -12,6 +12,11 @@ import (
 	"mcpv/internal/domain"
 	"mcpv/internal/infra/fsutil"
 )
+
+type Update struct {
+	Path string
+	Data []byte
+}
 
 func CreateProfile(storePath string, name string) (string, error) {
 	storePath = strings.TrimSpace(storePath)
@@ -77,83 +82,83 @@ func DeleteProfile(storePath string, name string) error {
 	return nil
 }
 
-func SetCallerMapping(storePath string, caller string, profile string, profiles map[string]domain.Profile) (ProfileUpdate, error) {
+func SetCallerMapping(storePath string, caller string, profile string, profiles map[string]domain.Profile) (Update, error) {
 	storePath = strings.TrimSpace(storePath)
 	if storePath == "" {
-		return ProfileUpdate{}, errors.New("profile store path is required")
+		return Update{}, errors.New("profile store path is required")
 	}
 	caller = strings.TrimSpace(caller)
 	if caller == "" {
-		return ProfileUpdate{}, errors.New("caller is required")
+		return Update{}, errors.New("caller is required")
 	}
 	profile = strings.TrimSpace(profile)
 	if profile == "" {
-		return ProfileUpdate{}, errors.New("profile is required")
+		return Update{}, errors.New("profile is required")
 	}
 	if _, ok := profiles[profile]; !ok {
-		return ProfileUpdate{}, fmt.Errorf("profile %q not found", profile)
+		return Update{}, fmt.Errorf("profile %q not found", profile)
 	}
 
 	callersPath := filepath.Join(storePath, callersFileName)
 	if err := ensureCallersFile(callersPath, true); err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	callers, err := loadCallers(callersPath)
 	if err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	callers[caller] = profile
 	if err := validateCallers(callers, profiles); err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 
 	update, err := writeCallersFile(callersPath, callers)
 	if err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	return update, nil
 }
 
-func RemoveCallerMapping(storePath string, caller string, profiles map[string]domain.Profile) (ProfileUpdate, error) {
+func RemoveCallerMapping(storePath string, caller string, profiles map[string]domain.Profile) (Update, error) {
 	storePath = strings.TrimSpace(storePath)
 	if storePath == "" {
-		return ProfileUpdate{}, errors.New("profile store path is required")
+		return Update{}, errors.New("profile store path is required")
 	}
 	caller = strings.TrimSpace(caller)
 	if caller == "" {
-		return ProfileUpdate{}, errors.New("caller is required")
+		return Update{}, errors.New("caller is required")
 	}
 
 	callersPath := filepath.Join(storePath, callersFileName)
 	if err := ensureCallersFile(callersPath, true); err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	callers, err := loadCallers(callersPath)
 	if err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	if _, ok := callers[caller]; !ok {
-		return ProfileUpdate{}, fmt.Errorf("caller %q not found", caller)
+		return Update{}, fmt.Errorf("caller %q not found", caller)
 	}
 	delete(callers, caller)
 	if err := validateCallers(callers, profiles); err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 
 	update, err := writeCallersFile(callersPath, callers)
 	if err != nil {
-		return ProfileUpdate{}, err
+		return Update{}, err
 	}
 	return update, nil
 }
 
-func writeCallersFile(path string, callers map[string]string) (ProfileUpdate, error) {
+func writeCallersFile(path string, callers map[string]string) (Update, error) {
 	payload := rawCallers{Callers: callers}
 	data, err := yaml.Marshal(payload)
 	if err != nil {
-		return ProfileUpdate{}, fmt.Errorf("render callers file: %w", err)
+		return Update{}, fmt.Errorf("render callers file: %w", err)
 	}
-	return ProfileUpdate{
+	return Update{
 		Path: path,
 		Data: data,
 	}, nil

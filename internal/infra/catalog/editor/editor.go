@@ -1,4 +1,4 @@
-package catalog
+package editor
 
 import (
 	"context"
@@ -11,32 +11,34 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/catalog/normalizer"
+	"mcpv/internal/infra/catalog/validator"
 	"mcpv/internal/infra/fsutil"
 )
 
-// EditorErrorKind classifies catalog editor errors.
-type EditorErrorKind string
+// ErrorKind classifies catalog editor errors.
+type ErrorKind string
 
 const (
-	EditorErrorInvalidRequest EditorErrorKind = "invalid_request"
-	EditorErrorInvalidConfig  EditorErrorKind = "invalid_config"
+	ErrorInvalidRequest ErrorKind = "invalid_request"
+	ErrorInvalidConfig  ErrorKind = "invalid_config"
 )
 
-// EditorError wraps catalog editor failures with a kind and message.
-type EditorError struct {
-	Kind    EditorErrorKind
+// Error wraps catalog editor failures with a kind and message.
+type Error struct {
+	Kind    ErrorKind
 	Message string
 	Err     error
 }
 
-func (e *EditorError) Error() string {
+func (e *Error) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.Err)
 	}
 	return e.Message
 }
 
-func (e *EditorError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.Err
 }
 
@@ -93,10 +95,10 @@ func (e *Editor) ImportServers(ctx context.Context, req ImportRequest) error {
 
 	update, err := BuildProfileUpdate(configPath, normalized.Servers)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update config", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to update config", Err: err}
 	}
 	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
 }
@@ -111,10 +113,10 @@ func (e *Editor) UpdateRuntimeConfig(ctx context.Context, update RuntimeConfigUp
 
 	runtimeUpdate, err := UpdateRuntimeConfig(configPath, update)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update runtime config", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to update runtime config", Err: err}
 	}
 	if err := writeRuntimeUpdate(runtimeUpdate); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write runtime config", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write runtime config", Err: err}
 	}
 	return nil
 }
@@ -128,10 +130,10 @@ func (e *Editor) UpdateSubAgentConfig(ctx context.Context, update SubAgentConfig
 
 	runtimeUpdate, err := UpdateSubAgentConfig(configPath, update)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update SubAgent config", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to update SubAgent config", Err: err}
 	}
 	if err := writeRuntimeUpdate(runtimeUpdate); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write runtime config", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write runtime config", Err: err}
 	}
 	return nil
 }
@@ -140,10 +142,10 @@ func (e *Editor) CreateServer(ctx context.Context, spec domain.ServerSpec) error
 	_ = ctx
 	normalized, err := normalizeEditorServerSpec(spec)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+		return &Error{Kind: ErrorInvalidRequest, Message: err.Error()}
 	}
-	if errs := validateServerSpec(normalized, 0); len(errs) > 0 {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: strings.Join(errs, "; ")}
+	if errs := validator.ValidateServerSpec(normalized, 0); len(errs) > 0 {
+		return &Error{Kind: ErrorInvalidRequest, Message: strings.Join(errs, "; ")}
 	}
 
 	configPath, err := e.configPath(false)
@@ -153,12 +155,12 @@ func (e *Editor) CreateServer(ctx context.Context, spec domain.ServerSpec) error
 	update, err := CreateServer(configPath, normalized)
 	if err != nil {
 		if errors.Is(err, ErrServerExists) {
-			return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+			return &Error{Kind: ErrorInvalidRequest, Message: err.Error()}
 		}
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to create server", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to create server", Err: err}
 	}
 	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
 }
@@ -167,10 +169,10 @@ func (e *Editor) UpdateServer(ctx context.Context, spec domain.ServerSpec) error
 	_ = ctx
 	normalized, err := normalizeEditorServerSpec(spec)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+		return &Error{Kind: ErrorInvalidRequest, Message: err.Error()}
 	}
-	if errs := validateServerSpec(normalized, 0); len(errs) > 0 {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: strings.Join(errs, "; ")}
+	if errs := validator.ValidateServerSpec(normalized, 0); len(errs) > 0 {
+		return &Error{Kind: ErrorInvalidRequest, Message: strings.Join(errs, "; ")}
 	}
 
 	configPath, err := e.configPath(false)
@@ -180,12 +182,12 @@ func (e *Editor) UpdateServer(ctx context.Context, spec domain.ServerSpec) error
 	update, err := UpdateServer(configPath, normalized)
 	if err != nil {
 		if errors.Is(err, ErrServerNotFound) {
-			return &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+			return &Error{Kind: ErrorInvalidRequest, Message: err.Error()}
 		}
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update server", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to update server", Err: err}
 	}
 	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
 }
@@ -194,7 +196,7 @@ func (e *Editor) SetServerDisabled(ctx context.Context, serverName string, disab
 	_ = ctx
 	serverName = strings.TrimSpace(serverName)
 	if serverName == "" {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: "Server name is required"}
+		return &Error{Kind: ErrorInvalidRequest, Message: "Server name is required"}
 	}
 
 	configPath, err := e.configPath(false)
@@ -203,10 +205,10 @@ func (e *Editor) SetServerDisabled(ctx context.Context, serverName string, disab
 	}
 	update, err := SetServerDisabled(configPath, serverName, disabled)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to update server", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to update server", Err: err}
 	}
 	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
 }
@@ -215,7 +217,7 @@ func (e *Editor) DeleteServer(ctx context.Context, serverName string) error {
 	_ = ctx
 	serverName = strings.TrimSpace(serverName)
 	if serverName == "" {
-		return &EditorError{Kind: EditorErrorInvalidRequest, Message: "Server name is required"}
+		return &Error{Kind: ErrorInvalidRequest, Message: "Server name is required"}
 	}
 
 	configPath, err := e.configPath(false)
@@ -224,10 +226,10 @@ func (e *Editor) DeleteServer(ctx context.Context, serverName string) error {
 	}
 	update, err := DeleteServer(configPath, serverName)
 	if err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to delete server", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to delete server", Err: err}
 	}
 	if err := os.WriteFile(update.Path, update.Data, fsutil.DefaultFileMode); err != nil {
-		return &EditorError{Kind: EditorErrorInvalidConfig, Message: "Failed to write config file", Err: err}
+		return &Error{Kind: ErrorInvalidConfig, Message: "Failed to write config file", Err: err}
 	}
 	return nil
 }
@@ -241,9 +243,9 @@ func normalizeEditorServerSpec(spec domain.ServerSpec) (domain.ServerSpec, error
 	transport := domain.NormalizeTransport(spec.Transport)
 	spec.Name = name
 	spec.Transport = transport
-	spec.Env = normalizeImportEnv(spec.Env)
+	spec.Env = normalizer.NormalizeEnvMap(spec.Env)
 	spec.Cwd = strings.TrimSpace(spec.Cwd)
-	spec.Tags = normalizeTags(spec.Tags)
+	spec.Tags = normalizer.NormalizeTags(spec.Tags)
 
 	if spec.Strategy == "" {
 		spec.Strategy = domain.DefaultStrategy
@@ -314,7 +316,7 @@ func normalizeEditorServerSpec(spec domain.ServerSpec) (domain.ServerSpec, error
 
 func NormalizeImportRequest(req ImportRequest) (ImportRequest, error) {
 	if len(req.Servers) == 0 {
-		return ImportRequest{}, &EditorError{Kind: EditorErrorInvalidRequest, Message: "At least one server is required"}
+		return ImportRequest{}, &Error{Kind: ErrorInvalidRequest, Message: "At least one server is required"}
 	}
 
 	servers := make([]domain.ServerSpec, 0, len(req.Servers))
@@ -322,19 +324,19 @@ func NormalizeImportRequest(req ImportRequest) (ImportRequest, error) {
 	for index, server := range req.Servers {
 		name := strings.TrimSpace(server.Name)
 		if name == "" {
-			return ImportRequest{}, &EditorError{Kind: EditorErrorInvalidRequest, Message: "Server name is required"}
+			return ImportRequest{}, &Error{Kind: ErrorInvalidRequest, Message: "Server name is required"}
 		}
 		if _, exists := seenServers[name]; exists {
-			return ImportRequest{}, &EditorError{Kind: EditorErrorInvalidRequest, Message: fmt.Sprintf("Duplicate server name %q", name)}
+			return ImportRequest{}, &Error{Kind: ErrorInvalidRequest, Message: fmt.Sprintf("Duplicate server name %q", name)}
 		}
 		seenServers[name] = struct{}{}
 
 		spec, err := normalizeImportServerSpec(name, server)
 		if err != nil {
-			return ImportRequest{}, &EditorError{Kind: EditorErrorInvalidRequest, Message: err.Error()}
+			return ImportRequest{}, &Error{Kind: ErrorInvalidRequest, Message: err.Error()}
 		}
-		if errs := validateServerSpec(spec, index); len(errs) > 0 {
-			return ImportRequest{}, &EditorError{Kind: EditorErrorInvalidRequest, Message: strings.Join(errs, "; ")}
+		if errs := validator.ValidateServerSpec(spec, index); len(errs) > 0 {
+			return ImportRequest{}, &Error{Kind: ErrorInvalidRequest, Message: strings.Join(errs, "; ")}
 		}
 		servers = append(servers, spec)
 	}
@@ -369,9 +371,9 @@ func normalizeImportServerSpec(name string, server domain.ServerSpec) (domain.Se
 		Name:                name,
 		Transport:           transport,
 		Cmd:                 append([]string{}, server.Cmd...),
-		Env:                 normalizeImportEnv(server.Env),
+		Env:                 normalizer.NormalizeEnvMap(server.Env),
 		Cwd:                 strings.TrimSpace(server.Cwd),
-		Tags:                normalizeTags(server.Tags),
+		Tags:                normalizer.NormalizeTags(server.Tags),
 		IdleSeconds:         60,
 		MaxConcurrent:       domain.DefaultMaxConcurrent,
 		Strategy:            domain.DefaultStrategy,
@@ -397,37 +399,19 @@ func normalizeImportServerSpec(name string, server domain.ServerSpec) (domain.Se
 	return spec, nil
 }
 
-func normalizeImportEnv(env map[string]string) map[string]string {
-	if len(env) == 0 {
-		return nil
-	}
-	cleaned := make(map[string]string, len(env))
-	for key, value := range env {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		cleaned[key] = value
-	}
-	if len(cleaned) == 0 {
-		return nil
-	}
-	return cleaned
-}
-
 func (e *Editor) configPath(allowCreate bool) (string, error) {
 	if e.path == "" {
-		return "", &EditorError{Kind: EditorErrorInvalidConfig, Message: "Config path is required"}
+		return "", &Error{Kind: ErrorInvalidConfig, Message: "Config path is required"}
 	}
 	info, err := os.Stat(e.path)
 	if err != nil {
 		if os.IsNotExist(err) && allowCreate {
 			return e.path, nil
 		}
-		return "", &EditorError{Kind: EditorErrorInvalidConfig, Message: "Config path is not available", Err: err}
+		return "", &Error{Kind: ErrorInvalidConfig, Message: "Config path is not available", Err: err}
 	}
 	if info.IsDir() {
-		return "", &EditorError{Kind: EditorErrorInvalidConfig, Message: fmt.Sprintf("Config path must be a file: %s", e.path)}
+		return "", &Error{Kind: ErrorInvalidConfig, Message: fmt.Sprintf("Config path must be a file: %s", e.path)}
 	}
 	return e.path, nil
 }

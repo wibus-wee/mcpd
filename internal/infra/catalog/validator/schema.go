@@ -1,4 +1,4 @@
-package catalog
+package validator
 
 import (
 	_ "embed"
@@ -19,7 +19,7 @@ var (
 	catalogSchemaErr      error
 )
 
-func validateCatalogSchema(raw string) error {
+func ValidateCatalogSchema(raw string) error {
 	resolved, err := loadCatalogSchema()
 	if err != nil {
 		return err

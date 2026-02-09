@@ -1,4 +1,4 @@
-package catalog
+package loader
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"go.uber.org/zap"
 
 	"mcpv/internal/domain"
+	"mcpv/internal/infra/catalog/normalizer"
+	"mcpv/internal/infra/catalog/validator"
 )
 
 type Loader struct {
@@ -48,7 +50,7 @@ func (l *Loader) LoadRuntimeConfig(_ context.Context, path string) (domain.Runti
 		return domain.RuntimeConfig{}, err
 	}
 
-	runtime, errs := normalizeRuntimeConfig(rawCfg)
+	runtime, errs := normalizer.NormalizeRuntimeConfig(rawCfg)
 	if len(errs) > 0 {
 		return domain.RuntimeConfig{}, errors.New(strings.Join(errs, "; "))
 	}
@@ -73,7 +75,7 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 		l.logger.Warn("missing environment variables in config", zap.String("path", path), zap.Strings("missing", missing))
 	}
 
-	if err := validateCatalogSchema(expanded); err != nil {
+	if err := validator.ValidateCatalogSchema(expanded); err != nil {
 		return domain.Catalog{}, err
 	}
 
@@ -89,13 +91,13 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 	specs := make(map[string]domain.ServerSpec, len(cfg.Servers))
 	var validationErrors []string
 	nameSeen := make(map[string]struct{})
-	runtime, runtimeErrs := normalizeRuntimeConfig(cfg.rawRuntimeConfig)
+	runtime, runtimeErrs := normalizer.NormalizeRuntimeConfig(cfg.RawRuntimeConfig)
 	validationErrors = append(validationErrors, runtimeErrs...)
-	plugins, pluginErrs := normalizePluginSpecs(cfg.Plugins)
+	plugins, pluginErrs := normalizer.NormalizePluginSpecs(cfg.Plugins)
 	validationErrors = append(validationErrors, pluginErrs...)
 
 	for i, spec := range cfg.Servers {
-		normalized, implicitHTTP := normalizeServerSpec(spec)
+		normalized, implicitHTTP := normalizer.NormalizeServerSpec(spec)
 		if implicitHTTP {
 			l.logger.Warn("server transport inferred from http config; consider setting transport explicitly",
 				zap.String("server", normalized.Name),
@@ -108,7 +110,7 @@ func (l *Loader) Load(ctx context.Context, path string) (domain.Catalog, error) 
 			nameSeen[normalized.Name] = struct{}{}
 		}
 
-		if errs := validateServerSpec(normalized, i); len(errs) > 0 {
+		if errs := validator.ValidateServerSpec(normalized, i); len(errs) > 0 {
 			validationErrors = append(validationErrors, errs...)
 			continue
 		}

@@ -1,4 +1,4 @@
-package catalog
+package editor
 
 import (
 	"errors"
@@ -48,39 +48,6 @@ type SubAgentConfigUpdate struct {
 	BaseURL            *string
 	MaxToolsPerRequest *int
 	FilterPrompt       *string
-}
-
-// ResolveRuntimePath returns the runtime config path inside a profile store.
-func ResolveRuntimePath(storePath string, allowCreate bool) (string, error) {
-	if storePath == "" {
-		return "", errors.New("profile store path is required")
-	}
-
-	runtimePath := filepath.Join(storePath, runtimeFileName)
-	altPath := filepath.Join(storePath, runtimeFileAlt)
-
-	yamlExists, err := fileExists(runtimePath)
-	if err != nil {
-		return "", err
-	}
-	ymlExists, err := fileExists(altPath)
-	if err != nil {
-		return "", err
-	}
-
-	if yamlExists && ymlExists {
-		return "", fmt.Errorf("runtime config has both %s and %s", runtimeFileName, runtimeFileAlt)
-	}
-	if yamlExists {
-		return runtimePath, nil
-	}
-	if ymlExists {
-		return altPath, nil
-	}
-	if allowCreate {
-		return runtimePath, nil
-	}
-	return "", fmt.Errorf("runtime config not found in %s", storePath)
 }
 
 // UpdateRuntimeConfig overwrites all runtime settings; zero values are treated as explicit values.

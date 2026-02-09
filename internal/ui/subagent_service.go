@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"mcpv/internal/infra/catalog"
+	catalogeditor "mcpv/internal/infra/catalog/editor"
 )
 
 // SubAgentService exposes SubAgent configuration APIs.
@@ -55,7 +55,7 @@ func (s *SubAgentService) UpdateSubAgentConfig(ctx context.Context, req UpdateSu
 	maxTools := req.MaxToolsPerRequest
 	filterPrompt := req.FilterPrompt
 
-	update := catalog.SubAgentConfigUpdate{
+	update := catalogeditor.SubAgentConfigUpdate{
 		EnabledTags:        nil,
 		Model:              &model,
 		Provider:           &provider,

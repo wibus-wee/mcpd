@@ -211,16 +211,16 @@ func TestExecutor_NilContext(t *testing.T) {
 	executor := NewExecutorWithPolicies(policy)
 	req := domain.GovernanceRequest{Method: "test"}
 
-	_, err := executor.Request(nil, req)
+	_, err := executor.Request(context.Background(), req)
 	require.NoError(t, err)
 
-	_, err = executor.Response(nil, req)
+	_, err = executor.Response(context.Background(), req)
 	require.NoError(t, err)
 
 	next := func(ctx context.Context, _ domain.GovernanceRequest) (json.RawMessage, error) {
 		assert.NotNil(t, ctx)
 		return json.RawMessage(`{"ok":true}`), nil
 	}
-	_, err = executor.Execute(nil, req, next)
+	_, err = executor.Execute(context.Background(), req, next)
 	require.NoError(t, err)
 }

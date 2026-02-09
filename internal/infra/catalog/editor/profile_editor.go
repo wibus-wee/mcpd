@@ -1,10 +1,9 @@
-package catalog
+package editor
 
 import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -44,40 +43,6 @@ type streamableHTTPYAML struct {
 	Endpoint   string            `yaml:"endpoint"`
 	Headers    map[string]string `yaml:"headers,omitempty"`
 	MaxRetries int               `yaml:"maxRetries,omitempty"`
-}
-
-func ResolveProfilePath(storePath string, profileName string) (string, error) {
-	if storePath == "" {
-		return "", errors.New("profile store path is required")
-	}
-	if profileName == "" {
-		return "", errors.New("profile name is required")
-	}
-
-	profilesDir := filepath.Join(storePath, profilesDirName)
-	candidateYAML := filepath.Join(profilesDir, profileName+".yaml")
-	candidateYML := filepath.Join(profilesDir, profileName+".yml")
-
-	yamlExists, err := fileExists(candidateYAML)
-	if err != nil {
-		return "", err
-	}
-	ymlExists, err := fileExists(candidateYML)
-	if err != nil {
-		return "", err
-	}
-
-	if yamlExists && ymlExists {
-		return "", fmt.Errorf("profile %q has both .yaml and .yml files", profileName)
-	}
-	if yamlExists {
-		return candidateYAML, nil
-	}
-	if ymlExists {
-		return candidateYML, nil
-	}
-
-	return "", fmt.Errorf("profile %q not found in %s", profileName, profilesDir)
 }
 
 func BuildProfileUpdate(path string, servers []domain.ServerSpec) (ProfileUpdate, error) {
@@ -359,17 +324,6 @@ func toServerSpecYAML(spec domain.ServerSpec) serverSpecYAML {
 		ExposeTools:         exposeTools,
 		HTTP:                httpCfg,
 	}
-}
-
-func fileExists(path string) (bool, error) {
-	info, err := os.Stat(path)
-	if err == nil {
-		return !info.IsDir(), nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, fmt.Errorf("stat %s: %w", path, err)
 }
 
 func loadProfileDocument(path string) (map[string]any, error) {

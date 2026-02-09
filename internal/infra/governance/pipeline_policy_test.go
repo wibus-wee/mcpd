@@ -42,7 +42,7 @@ func TestPipelinePolicy_NilHandling(t *testing.T) {
 		policy := &PipelinePolicy{}
 		req := domain.GovernanceRequest{Method: "test"}
 
-		_, err := policy.Request(nil, req)
+		_, err := policy.Request(context.Background(), req)
 		require.NoError(t, err)
 
 		_, err = policy.Response(context.Background(), req)
