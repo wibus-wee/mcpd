@@ -4,6 +4,7 @@ import { AlertCircleIcon, ChevronDownIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
@@ -32,6 +33,15 @@ type JsonServerListProps = {
 }
 
 const JsonServerList = memo(({ servers, onNameChange }: JsonServerListProps) => {
+  const resolveSourceLabel = (source?: ImportServerDraft['source']) => {
+    if (!source) return null
+    if (source === 'mcpServers') return 'From mcpServers'
+    if (source === 'command') return 'From command'
+    if (source === 'url') return 'From URL'
+    if (source === 'httpJson') return 'From JSON'
+    return null
+  }
+
   return (
     <ScrollArea className="flex-1 -mx-1 px-1">
       <div className="space-y-2 pb-2">
@@ -40,16 +50,32 @@ const JsonServerList = memo(({ servers, onNameChange }: JsonServerListProps) => 
             key={server.id}
             className="rounded-lg border bg-card/50 p-3 space-y-2"
           >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground">Server name</span>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary" size="sm">
+                  {server.transport === 'streamable_http' ? 'Streamable HTTP' : 'Stdio'}
+                </Badge>
+                {resolveSourceLabel(server.source) && (
+                  <Badge variant="outline" size="sm">
+                    {resolveSourceLabel(server.source)}
+                  </Badge>
+                )}
+              </div>
+            </div>
             <Input
               value={server.name}
               onChange={event => onNameChange(server.id, event.target.value)}
-              placeholder="Server name"
+              placeholder="Unique server name"
               className="font-mono text-xs h-8"
             />
+            <span className="text-[10px] text-muted-foreground">
+              Required. Used as the config key.
+            </span>
             <div className="text-[11px] text-muted-foreground font-mono truncate">
               {server.transport === 'streamable_http'
-                ? server.http?.endpoint ?? ''
-                : server.cmd.join(' ')}
+                ? `Endpoint: ${server.http?.endpoint ?? ''}`
+                : `Command: ${server.cmd.join(' ')}`}
             </div>
             {(server.cwd || Object.keys(server.env).length > 0) && (
               <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
@@ -224,7 +250,7 @@ export function JsonImportTab({
         <Textarea
           value={rawInput}
           onChange={event => setRawInput(event.target.value)}
-          placeholder={`Paste mcpServers JSON or a command line:\nnpx -y @example/mcp-server --api-key YOUR_KEY`}
+          placeholder={`Paste mcpServers JSON, a streamable HTTP endpoint, or a command line:\n\n{"mcpServers":{"example":{"command":"npx","args":["-y","@example/mcp-server"]}}}\nhttps://mcp.context7.com/mcp\nnpx -y @example/mcp-server --api-key YOUR_KEY`}
           className="min-h-28 font-mono text-xs resize-none"
         />
         <div className="flex items-center gap-2">

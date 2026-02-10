@@ -30,21 +30,34 @@ export type BuildOptions = {
   rpcTLSKeyFile?: string
   rpcTLSCAFile?: string
 
-  // HTTP Settings (for streamable-http transport)
-  httpAddr?: string
-  httpPath?: string
-  httpToken?: string
-  httpAllowedOrigins?: string[]
-  httpJSONResponse?: boolean
-  httpSessionTimeout?: number
-  httpTLSEnabled?: boolean
-  httpTLSCertFile?: string
-  httpTLSKeyFile?: string
-  httpEventStore?: boolean
-  httpEventStoreBytes?: number
+  // Streamable HTTP settings (for http transport)
+  httpUrl?: string
+  httpHeaders?: Record<string, string>
 }
 
-const buildArgs = (selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) => {
+const resolveServerName = (selector: SelectorConfig) =>
+  selector.mode === 'server'
+    ? selector.value
+    : `mcpv-${selector.value}`
+
+const quoteCliArg = (value: string) => {
+  if (!/[\s"]/.test(value)) {
+    return value
+  }
+  return `"${value.replaceAll('"', '\\"')}"`
+}
+
+const escapeTomlString = (value: string) =>
+  value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+
+const formatTomlInlineTable = (values: Record<string, string>) => {
+  const entries = Object.entries(values)
+    .map(([key, value]) => `"${escapeTomlString(key)}" = "${escapeTomlString(value)}"`)
+    .join(', ')
+  return `{ ${entries} }`
+}
+
+const buildStdioArgs = (selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) => {
   const args = selector.mode === 'tag'
     ? ['--tag', selector.value]
     : [selector.value]
@@ -94,50 +107,19 @@ const buildArgs = (selector: SelectorConfig, rpc = defaultRpcAddress, options: B
     args.push('--transport', options.transport)
   }
 
-  // HTTP settings (for streamable-http transport)
-  if (options.transport === 'streamable-http') {
-    if (options.httpAddr) {
-      args.push('--http-addr', options.httpAddr)
-    }
-    if (options.httpPath) {
-      args.push('--http-path', options.httpPath)
-    }
-    if (options.httpToken) {
-      args.push('--http-token', options.httpToken)
-    }
-    if (options.httpAllowedOrigins && options.httpAllowedOrigins.length > 0) {
-      options.httpAllowedOrigins.forEach((origin) => {
-        args.push('--http-allowed-origin', origin)
-      })
-    }
-    if (options.httpJSONResponse) {
-      args.push('--http-json-response')
-    }
-    if (options.httpSessionTimeout) {
-      args.push('--http-session-timeout', String(options.httpSessionTimeout))
-    }
-    if (options.httpTLSEnabled) {
-      args.push('--http-tls')
-      if (options.httpTLSCertFile) {
-        args.push('--http-tls-cert', options.httpTLSCertFile)
-      }
-      if (options.httpTLSKeyFile) {
-        args.push('--http-tls-key', options.httpTLSKeyFile)
-      }
-    }
-    if (options.httpEventStore) {
-      args.push('--http-event-store')
-      if (options.httpEventStoreBytes) {
-        args.push('--http-event-store-bytes', String(options.httpEventStoreBytes))
-      }
-    }
-  }
-
   return args
 }
 
+const buildHttpServerEntry = (options: BuildOptions) => {
+  const url = options.httpUrl ?? ''
+  const headers = options.httpHeaders && Object.keys(options.httpHeaders).length > 0
+    ? options.httpHeaders
+    : undefined
+  return headers ? { url, headers } : { url }
+}
+
 export function buildMcpCommand(path: string, selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) {
-  const args = buildArgs(selector, rpc, options)
+  const args = buildStdioArgs(selector, rpc, options)
   return [path, ...args].join(' ')
 }
 
@@ -148,22 +130,24 @@ export function buildClientConfig(
   rpc = defaultRpcAddress,
   options: BuildOptions = {},
 ) {
-  const base = {
-    command: path,
-    args: buildArgs(selector, rpc, options),
+  const serverName = resolveServerName(selector)
+
+  if (options.transport === 'streamable-http') {
+    return JSON.stringify({
+      mcpServers: {
+        [serverName]: buildHttpServerEntry(options),
+      },
+    }, null, 2)
   }
 
-  const serverName = selector.mode === 'server'
-    ? selector.value
-    : `mcpv-${selector.value}`
-
-  const payload = {
+  return JSON.stringify({
     mcpServers: {
-      [serverName]: base,
+      [serverName]: {
+        command: path,
+        args: buildStdioArgs(selector, rpc, options),
+      },
     },
-  }
-
-  return JSON.stringify(payload, null, 2)
+  }, null, 2)
 }
 
 export function buildCliSnippet(
@@ -173,7 +157,20 @@ export function buildCliSnippet(
   tool: 'claude' | 'codex',
   options: BuildOptions = {},
 ) {
-  const args = buildArgs(selector, rpc, options).map(arg => (arg.includes(' ') ? `"${arg}"` : arg)).join(' ')
+  const serverName = resolveServerName(selector)
+
+  if (options.transport === 'streamable-http') {
+    const url = options.httpUrl ?? ''
+    const headerArgs = options.httpHeaders
+      ? Object.entries(options.httpHeaders)
+        .map(([key, value]) => `--header ${quoteCliArg(`${key}: ${value}`)}`)
+        .join(' ')
+      : ''
+    const headerSuffix = headerArgs ? ` ${headerArgs}` : ''
+    return `${tool} mcp add --transport http ${serverName} ${quoteCliArg(url)}${headerSuffix}`
+  }
+
+  const args = buildStdioArgs(selector, rpc, options).map(quoteCliArg).join(' ')
   if (tool === 'claude') {
     return `claude mcp add --transport stdio mcpv -- ${path} ${args}`
   }
@@ -181,11 +178,22 @@ export function buildCliSnippet(
 }
 
 export function buildTomlConfig(path: string, selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) {
-  const args = buildArgs(selector, rpc, options)
+  const serverName = resolveServerName(selector)
+
+  if (options.transport === 'streamable-http') {
+    const url = options.httpUrl ?? ''
+    const lines = [
+      `[mcp_servers.${serverName}]`,
+      `url = "${escapeTomlString(url)}"`,
+    ]
+    if (options.httpHeaders && Object.keys(options.httpHeaders).length > 0) {
+      lines.push(`http_headers = ${formatTomlInlineTable(options.httpHeaders)}`)
+    }
+    return lines.join('\n')
+  }
+
+  const args = buildStdioArgs(selector, rpc, options)
   const argsArray = `args = ${JSON.stringify(args)}`
-  const serverName = selector.mode === 'server'
-    ? selector.value
-    : `mcpv-${selector.value}`
   return [
     `[mcp_servers.${serverName}]`,
     `command = "${path}"`,

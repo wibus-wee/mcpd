@@ -59,6 +59,7 @@ type IdeImportTabProps = {
   mutateServers: () => Promise<unknown>
   onFooterChange: (content: ReactNode | null) => void
   onCountChange: (count: number) => void
+  onRequestAutoSwitch: () => void
 }
 
 type TransferStatusRowProps = {
@@ -173,6 +174,7 @@ export function IdeImportTab({
   mutateServers,
   onFooterChange,
   onCountChange,
+  onRequestAutoSwitch,
 }: IdeImportTabProps) {
   const [transferState, setTransferState] = useState(buildInitialTransferState)
   const [mergedServers, setMergedServers] = useState<MergedServer[]>([])
@@ -182,6 +184,9 @@ export function IdeImportTab({
 
   const transferPreviewing = useMemo(() =>
     transferSources.some(source => transferState[source].status === 'loading'), [transferState])
+
+  const hasPreviewed = useMemo(() =>
+    transferSources.some(source => transferState[source].status !== 'idle'), [transferState])
 
   const allIssues = useMemo(() => {
     const collected: Array<McpTransferIssue & { source: TransferSource }> = []
@@ -330,6 +335,26 @@ export function IdeImportTab({
     }
     void refreshTransferPreviews()
   }, [open, refreshTransferPreviews])
+
+  useEffect(() => {
+    if (!open || !isActive) {
+      return
+    }
+    if (transferPreviewing || !hasPreviewed) {
+      return
+    }
+    if (mergedServers.length > 0) {
+      return
+    }
+    onRequestAutoSwitch()
+  }, [
+    hasPreviewed,
+    isActive,
+    mergedServers.length,
+    onRequestAutoSwitch,
+    open,
+    transferPreviewing,
+  ])
 
   useEffect(() => {
     onCountChange(mergedServers.length)

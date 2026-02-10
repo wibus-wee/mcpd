@@ -35,6 +35,9 @@ export function useServers() {
     () => ServerService.ListServers(),
     {
       refreshInterval: 5000,
+      revalidateOnMount: true,
+      revalidateOnFocus: true,
+      revalidateIfStale: true,
     },
   )
 }

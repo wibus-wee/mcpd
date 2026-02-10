@@ -6,6 +6,7 @@ export type ImportServerDraft = {
   env: Record<string, string>
   cwd: string
   http?: StreamableHTTPDraft
+  source?: 'mcpServers' | 'command' | 'url' | 'httpJson'
 }
 
 export type StreamableHTTPDraft = {
@@ -38,7 +39,11 @@ type ParseResult = {
 export function parseMcpServersJson(input: string): ParseResult {
   const trimmed = input.trim()
   if (!trimmed) {
-    return { servers: [], errors: ['Paste JSON or command line to continue.'] }
+    return { servers: [], errors: ['Paste JSON, a streamable HTTP endpoint, or a command line to continue.'] }
+  }
+
+  if (looksLikeUrl(trimmed)) {
+    return parseUrlInput(trimmed)
   }
 
   // 尝试检测是否为 JSON
@@ -72,11 +77,15 @@ function parseJsonPayload(input: string): ParseResult {
   }
 
   if (!isRecord(payload)) {
-    return { servers: [], errors: ['JSON must be an object with mcpServers.'] }
+    return { servers: [], errors: ['JSON must be an object with mcpServers or an endpoint.'] }
   }
 
   const rawServers = payload.mcpServers
   if (!isRecord(rawServers)) {
+    const singleHttp = parseSingleHttpPayload(payload)
+    if (singleHttp) {
+      return singleHttp
+    }
     return { servers: [], errors: ['mcpServers must be an object map.'] }
   }
 
@@ -95,7 +104,10 @@ function parseJsonPayload(input: string): ParseResult {
     }
 
     const entry = raw as McpServerEntry
-    const transport = parseTransport(entry.transport ?? entry.type, prefix, errors)
+    const transportRaw = entry.transport ?? entry.type
+    const transport = transportRaw === undefined
+      ? (hasStreamableHttpFields(entry) ? 'streamable_http' : 'stdio')
+      : parseTransport(transportRaw, prefix, errors)
     if (!transport) {
       return
     }
@@ -113,6 +125,7 @@ function parseJsonPayload(input: string): ParseResult {
         env: {},
         cwd: '',
         http,
+        source: 'mcpServers',
       })
       return
     }
@@ -145,6 +158,7 @@ function parseJsonPayload(input: string): ParseResult {
       cmd: [command, ...args],
       env,
       cwd,
+      source: 'mcpServers',
     })
   })
 
@@ -321,6 +335,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function looksLikeUrl(input: string): boolean {
+  return /^https?:\/\//i.test(input)
+}
+
+function hasStreamableHttpFields(entry: McpServerEntry): boolean {
+  return typeof entry.endpoint === 'string' || typeof entry.url === 'string'
+}
+
+function parseSingleHttpPayload(payload: Record<string, unknown>): ParseResult | null {
+  const entry = payload as McpServerEntry
+  if (!hasStreamableHttpFields(entry)) {
+    return null
+  }
+  const errors: string[] = []
+  const http = parseStreamableHTTP(entry, 'payload', errors)
+  if (!http || errors.length > 0) {
+    return { servers: [], errors }
+  }
+
+  const name = inferServerNameFromUrl(http.endpoint)
+  const server: ImportServerDraft = {
+    id: `http-${Date.now()}`,
+    name,
+    transport: 'streamable_http',
+    cmd: [],
+    env: {},
+    cwd: '',
+    http,
+    source: 'httpJson',
+  }
+  return { servers: [server], errors: [] }
+}
+
 /**
  * 解析命令行格式:
  * npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
@@ -356,8 +403,36 @@ function parseCommandLine(input: string): ParseResult {
     cmd: [command, ...args],
     env: {},
     cwd: '',
+    source: 'command',
   }
 
+  return { servers: [server], errors: [] }
+}
+
+function parseUrlInput(input: string): ParseResult {
+  let endpoint: string
+  try {
+    endpoint = new URL(input).toString()
+  }
+  catch {
+    return { servers: [], errors: ['Invalid URL format.'] }
+  }
+
+  const name = inferServerNameFromUrl(endpoint)
+  const server: ImportServerDraft = {
+    id: `url-${Date.now()}`,
+    name,
+    transport: 'streamable_http',
+    cmd: [],
+    env: {},
+    cwd: '',
+    http: {
+      endpoint,
+      headers: {},
+      maxRetries: 0,
+    },
+    source: 'url',
+  }
   return { servers: [server], errors: [] }
 }
 
@@ -448,4 +523,16 @@ function normalizeServerName(name: string): string {
   cleaned = cleaned.replaceAll(/^[-_]+|[-_]+$/g, '')
 
   return cleaned || 'imported-server'
+}
+
+function inferServerNameFromUrl(input: string): string {
+  try {
+    const url = new URL(input)
+    const hostname = url.hostname.replace(/^www\./, '')
+    const candidate = hostname.split('.')[0] || hostname
+    return normalizeServerName(candidate || 'http-server')
+  }
+  catch {
+    return normalizeServerName(input)
+  }
 }

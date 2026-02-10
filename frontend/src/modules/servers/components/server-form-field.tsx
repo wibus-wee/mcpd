@@ -32,7 +32,7 @@ export function ServerFormField({
   className,
 }: ServerFormFieldProps) {
   return (
-    <Field className={cn('space-y-2', className)}>
+    <Field className={cn(className)}>
       <div className="flex items-center gap-2">
         <Label htmlFor={id}>
           {label}

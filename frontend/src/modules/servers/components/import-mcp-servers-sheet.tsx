@@ -38,6 +38,7 @@ export const ImportMcpServersSheet = () => {
   const [ideCount, setIdeCount] = useState(0)
 
   const wasOpenRef = useRef(false)
+  const autoSwitchedRef = useRef(false)
 
   const isWritable = configMode?.isWritable ?? false
 
@@ -57,6 +58,17 @@ export const ImportMcpServersSheet = () => {
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value as ImportTab)
   }, [])
+
+  const handleAutoSwitchToJson = useCallback(() => {
+    if (autoSwitchedRef.current) {
+      return
+    }
+    if (activeTab !== 'ide') {
+      return
+    }
+    autoSwitchedRef.current = true
+    setActiveTab('json')
+  }, [activeTab])
 
   const handleFooterChange = useCallback((content: ReactNode | null) => {
     setFooterContent(content)
@@ -80,6 +92,7 @@ export const ImportMcpServersSheet = () => {
       setFooterContent(null)
       setJsonCount(0)
       setIdeCount(0)
+      autoSwitchedRef.current = false
     }
   }, [open])
 
@@ -149,6 +162,7 @@ export const ImportMcpServersSheet = () => {
               mutateServers={mutateServers}
               onFooterChange={handleFooterChange}
               onCountChange={handleIdeCountChange}
+              onRequestAutoSwitch={handleAutoSwitchToJson}
             />
           </Tabs>
         </SheetPanel>

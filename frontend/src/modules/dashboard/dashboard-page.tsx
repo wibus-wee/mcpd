@@ -326,51 +326,51 @@ function DashboardHeader() {
       <div className="flex items-center gap-2">
         {coreStatus === 'stopped'
           ? (
-            <Button onClick={() => void handleStartCore()} size="sm">
-              <PlayIcon className="size-4" />
-              Start Core
-            </Button>
-          )
-          : coreStatus === 'starting'
-            ? (
-              <Button onClick={() => void handleStopCore()} variant="outline" size="sm">
-                <SquareIcon className="size-4" />
-                Cancel
+              <Button onClick={() => void handleStartCore()} size="sm">
+                <PlayIcon className="size-4" />
+                Start Core
               </Button>
             )
-            : coreStatus === 'stopping'
-              ? (
-                <Button variant="outline" size="sm" disabled>
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Stopping...
+          : coreStatus === 'starting'
+            ? (
+                <Button onClick={() => void handleStopCore()} variant="outline" size="sm">
+                  <SquareIcon className="size-4" />
+                  Cancel
                 </Button>
               )
+            : coreStatus === 'stopping'
+              ? (
+                  <Button variant="outline" size="sm" disabled>
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Stopping...
+                  </Button>
+                )
               : coreStatus === 'running'
                 ? (
-                  <>
-                    <Button onClick={() => void handleStopCore()} variant="outline" size="sm">
-                      <SquareIcon className="size-4" />
-                      Stop
-                    </Button>
-                    <Button onClick={() => void handleRestartCore()} variant="outline" size="sm">
-                      <RefreshCwIcon className="size-4" />
-                      Restart
-                    </Button>
-                  </>
-                )
-                : coreStatus === 'error'
-                  ? (
                     <>
-                      <Button onClick={() => void handleRestartCore()} size="sm">
-                        <RefreshCwIcon className="size-4" />
-                        Retry
-                      </Button>
                       <Button onClick={() => void handleStopCore()} variant="outline" size="sm">
                         <SquareIcon className="size-4" />
                         Stop
                       </Button>
+                      <Button onClick={() => void handleRestartCore()} variant="outline" size="sm">
+                        <RefreshCwIcon className="size-4" />
+                        Restart
+                      </Button>
                     </>
                   )
+                : coreStatus === 'error'
+                  ? (
+                      <>
+                        <Button onClick={() => void handleRestartCore()} size="sm">
+                          <RefreshCwIcon className="size-4" />
+                          Retry
+                        </Button>
+                        <Button onClick={() => void handleStopCore()} variant="outline" size="sm">
+                          <SquareIcon className="size-4" />
+                          Stop
+                        </Button>
+                      </>
+                    )
                   : null}
 
         <Menu>
@@ -453,7 +453,7 @@ function DashboardHeader() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
-                        <Label htmlFor="diagnostics-mode">Redaction mode</Label>
+                      <Label htmlFor="diagnostics-mode">Redaction mode</Label>
                       <Select
                         value={diagnosticsOptions.mode ?? 'safe'}
                         onValueChange={value => updateDiagnosticsOption('mode', value ?? undefined)}
@@ -582,14 +582,14 @@ function DashboardHeader() {
 
                 {diagnosticsOptions.mode === 'deep'
                   ? (
-                    <Alert variant="warning">
-                      <AlertCircleIcon className="size-4" />
-                      <AlertTitle>Deep export may include secrets</AlertTitle>
-                      <AlertDescription>
-                        Use deep mode only when needed. Review the bundle before sharing.
-                      </AlertDescription>
-                    </Alert>
-                  )
+                      <Alert variant="warning">
+                        <AlertCircleIcon className="size-4" />
+                        <AlertTitle>Deep export may include secrets</AlertTitle>
+                        <AlertDescription>
+                          Use deep mode only when needed. Review the bundle before sharing.
+                        </AlertDescription>
+                      </Alert>
+                    )
                   : null}
               </div>
 
@@ -606,15 +606,15 @@ function DashboardHeader() {
                 <div className="flex-1 overflow-hidden max-w-80 max-h-115">
                   {diagnosticsData
                     ? (
-                      <pre className="h-full rounded-lg bg-muted/40 p-3 text-[11px] leading-relaxed overflow-auto">
-                        <code>{diagnosticsData}</code>
-                      </pre>
-                    )
+                        <pre className="h-full rounded-lg bg-muted/40 p-3 text-[11px] leading-relaxed overflow-auto">
+                          <code>{diagnosticsData}</code>
+                        </pre>
+                      )
                     : (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 text-xs text-muted-foreground">
-                        Run export to preview the report.
-                      </div>
-                    )}
+                        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 text-xs text-muted-foreground">
+                          Run export to preview the report.
+                        </div>
+                      )}
                 </div>
               </div>
             </div>
@@ -625,27 +625,27 @@ function DashboardHeader() {
             </DialogClose>
             {diagnosticsData
               ? (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleExportDiagnostics()}
-                    disabled={isDiagnosticsExporting}
-                  >
-                    {isDiagnosticsExporting ? 'Exporting...' : 'Export Again'}
-                  </Button>
-                  <Button variant="outline" onClick={handleCopyDiagnostics}>
-                    Copy to Clipboard
-                  </Button>
-                  <Button onClick={handleDownloadDiagnostics}>
-                    Download JSON
-                  </Button>
-                </>
-              )
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleExportDiagnostics()}
+                      disabled={isDiagnosticsExporting}
+                    >
+                      {isDiagnosticsExporting ? 'Exporting...' : 'Export Again'}
+                    </Button>
+                    <Button variant="outline" onClick={handleCopyDiagnostics}>
+                      Copy to Clipboard
+                    </Button>
+                    <Button onClick={handleDownloadDiagnostics}>
+                      Download JSON
+                    </Button>
+                  </>
+                )
               : (
-                <Button onClick={() => void handleExportDiagnostics()} disabled={isDiagnosticsExporting}>
-                  {isDiagnosticsExporting ? 'Exporting...' : 'Export Diagnostics'}
-                </Button>
-              )}
+                  <Button onClick={() => void handleExportDiagnostics()} disabled={isDiagnosticsExporting}>
+                    {isDiagnosticsExporting ? 'Exporting...' : 'Export Diagnostics'}
+                  </Button>
+                )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
