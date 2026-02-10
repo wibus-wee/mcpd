@@ -163,8 +163,8 @@ export function buildCliSnippet(
     const url = options.httpUrl ?? ''
     const headerArgs = options.httpHeaders
       ? Object.entries(options.httpHeaders)
-        .map(([key, value]) => `--header ${quoteCliArg(`${key}: ${value}`)}`)
-        .join(' ')
+          .map(([key, value]) => `--header ${quoteCliArg(`${key}: ${value}`)}`)
+          .join(' ')
       : ''
     const headerSuffix = headerArgs ? ` ${headerArgs}` : ''
     return `${tool} mcp add --transport http ${serverName} ${quoteCliArg(url)}${headerSuffix}`

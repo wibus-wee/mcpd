@@ -11,13 +11,13 @@ describe('parseMcpServersJson', () => {
     it('returns error for empty string', () => {
       const result = parseMcpServersJson('')
       expect(result.servers).toEqual([])
-      expect(result.errors).toContain('Paste JSON or command line to continue.')
+      expect(result.errors).toContain('Paste JSON, a streamable HTTP endpoint, or a command line to continue.')
     })
 
     it('returns error for whitespace-only string', () => {
       const result = parseMcpServersJson('   \n\t  ')
       expect(result.servers).toEqual([])
-      expect(result.errors).toContain('Paste JSON or command line to continue.')
+      expect(result.errors).toContain('Paste JSON, a streamable HTTP endpoint, or a command line to continue.')
     })
 
     it('returns error for invalid JSON', () => {
@@ -36,7 +36,7 @@ describe('parseMcpServersJson', () => {
     it('returns error for array JSON', () => {
       const result = parseMcpServersJson('[]')
       expect(result.servers).toEqual([])
-      expect(result.errors).toContain('JSON must be an object with mcpServers.')
+      expect(result.errors).toContain('JSON must be an object with mcpServers or an endpoint.')
     })
   })
 
@@ -231,6 +231,7 @@ describe('parseMcpServersJson', () => {
         cmd: ['node'],
         env: {},
         cwd: '',
+        source: 'mcpServers',
       })
     })
 
@@ -255,6 +256,7 @@ describe('parseMcpServersJson', () => {
         cmd: ['npx', '-y', '@mcp/server'],
         env: { API_KEY: 'secret' },
         cwd: '/home/user/project',
+        source: 'mcpServers',
       })
     })
 

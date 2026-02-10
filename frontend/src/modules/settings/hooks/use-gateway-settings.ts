@@ -10,6 +10,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { toastManager } from '@/components/ui/toast'
 import { useUISettings } from '@/hooks/use-ui-settings'
 
+import type { GatewayFormState } from '../lib/gateway-config'
 import {
   buildEndpointPreview,
   buildGatewayPayload,
@@ -18,7 +19,6 @@ import {
   isLocalHost,
   toGatewayFormState,
 } from '../lib/gateway-config'
-import type { GatewayFormState } from '../lib/gateway-config'
 
 type UseGatewaySettingsOptions = {
   canEdit: boolean

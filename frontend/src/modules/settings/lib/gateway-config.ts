@@ -77,7 +77,7 @@ export function toGatewayFormState(section: unknown): GatewayFormState {
   const httpPath = normalizeHTTPPath(toStringOrDefault(payload.httpPath, defaultHTTPPath))
   const tags = Array.isArray(payload.tags) ? payload.tags.filter(Boolean) : []
   const serverName = toStringOrDefault(payload.server, '')
-  const allowAll = typeof payload.allowAll === 'boolean' ? payload.allowAll : true
+  // const allowAll = typeof payload.allowAll === 'boolean' ? payload.allowAll : true
 
   const visibilityMode: GatewayVisibilityMode = serverName
     ? 'server'
@@ -201,6 +201,6 @@ function extractHost(addr: string) {
     }
   }
   const lastColon = trimmed.lastIndexOf(':')
-  const host = lastColon > -1 ? trimmed.slice(0, lastColon) : trimmed
+  const host = lastColon !== -1 ? trimmed.slice(0, lastColon) : trimmed
   return host.toLowerCase()
 }
