@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, BookOpen, Github } from 'lucide-react'
+import { ArrowRight, Code2, Github } from 'lucide-react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
 
@@ -54,11 +54,13 @@ export function CTA() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
-                href="/docs"
+                href="https://github.com/wibus-wee/mcpv"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-fd-border bg-fd-background/80 px-7 text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                <BookOpen className="h-4 w-4" />
-                Read Documentation
+                <Code2 className="h-4 w-4" />
+                View Source Code
               </Link>
             </motion.div>
 

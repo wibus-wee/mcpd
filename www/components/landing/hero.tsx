@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, BookOpen, Download } from 'lucide-react'
+import { ArrowRight, Download, Github } from 'lucide-react'
 import type { Easing } from 'motion/react'
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'motion/react'
 import Image from 'next/image'
@@ -245,7 +245,7 @@ export function Hero() {
               initial="hidden"
               animate="visible"
               custom={4}
-              className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
+              className="mt-10 mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
             >
               <Link
                 href="https://github.com/wibus-wee/mcpv/releases"
@@ -260,13 +260,24 @@ export function Hero() {
                 </span>
               </Link>
               <Link
-                href="/docs"
+                href="https://github.com/wibus-wee/mcpv"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-fd-border/60 bg-fd-background/80 px-6 text-sm font-medium text-fd-muted-foreground backdrop-blur-sm transition-[border-color,color] duration-200 hover:border-fd-border hover:text-fd-foreground"
               >
-                <BookOpen className="h-4 w-4" />
-                Documentation
+                <Github className="h-4 w-4" />
+                Source Code
               </Link>
             </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.6, ease }}
+              className="text-xs text-fd-muted-foreground/60"
+            >
+              Available for macOS · Linux and Windows coming soon
+            </motion.p>
           </div>
 
           {/* screenshot showcase */}
