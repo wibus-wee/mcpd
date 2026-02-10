@@ -4,7 +4,7 @@ This file provides guidance to code when working with code in this repository.
 
 ## ExecPlans
 
-When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation. If you write an ExecPlan, save the file into the `docs/EXEC_PLANS` directory.
+When writing complex features or significant refactors, use an ExecPlan (as described in .agents/PLANS.md) from design to implementation. If you write an ExecPlan, save the file into the `docs/EXEC_PLANS` directory.
 
 ## Additional AGENTS.md Files
 

@@ -93,6 +93,7 @@ func (s *UISettingsService) UpdateUISettings(ctx context.Context, req UpdateUISe
 	if err != nil {
 		return UISettingsSnapshot{}, err
 	}
+	s.applyTraySettings(snapshot, hasTrayChange(req.Updates, req.Removes))
 	return mapSnapshot(snapshot), nil
 }
 
@@ -118,6 +119,7 @@ func (s *UISettingsService) ResetUISettings(ctx context.Context, req ResetUISett
 	if err != nil {
 		return UISettingsSnapshot{}, err
 	}
+	s.applyTraySettings(snapshot, true)
 	return mapSnapshot(snapshot), nil
 }
 
@@ -183,5 +185,32 @@ func mapSnapshot(snapshot uiconfig.Snapshot) UISettingsSnapshot {
 		Version:     snapshot.Version,
 		UpdatedAt:   snapshot.UpdatedAt,
 		Sections:    sections,
+	}
+}
+
+func hasTrayChange(updates map[string]json.RawMessage, removes []string) bool {
+	if len(updates) > 0 {
+		if _, ok := updates[ui.TraySectionKey]; ok {
+			return true
+		}
+	}
+	for _, key := range removes {
+		if key == ui.TraySectionKey {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *UISettingsService) applyTraySettings(snapshot uiconfig.Snapshot, changed bool) {
+	if !changed || snapshot.Scope != uiconfig.ScopeGlobal {
+		return
+	}
+	controller := s.deps.trayController()
+	if controller == nil {
+		return
+	}
+	if err := controller.ApplyFromSnapshot(snapshot); err != nil {
+		s.logger.Warn("failed to apply tray settings", zap.Error(err))
 	}
 }

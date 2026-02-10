@@ -55,6 +55,9 @@ type Manager struct {
 	// Update checker
 	updateChecker *UpdateChecker
 
+	// Tray controller
+	trayController *TrayController
+
 	// UI settings store
 	uiSettings *uiconfig.Store
 }
@@ -394,6 +397,7 @@ func (m *Manager) Restart(ctx context.Context) error {
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
 	updateChecker := m.updateChecker
+	trayController := m.trayController
 	uiSettings := m.uiSettings
 	m.uiSettings = nil
 
@@ -410,6 +414,9 @@ func (m *Manager) Shutdown() {
 	}
 	m.mu.Unlock()
 
+	if trayController != nil {
+		trayController.Shutdown()
+	}
 	if uiSettings != nil {
 		_ = uiSettings.Close()
 	}
@@ -510,6 +517,20 @@ func (m *Manager) UpdateChecker() *UpdateChecker {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.updateChecker
+}
+
+// SetTrayController wires the tray controller into the manager.
+func (m *Manager) SetTrayController(controller *TrayController) {
+	m.mu.Lock()
+	m.trayController = controller
+	m.mu.Unlock()
+}
+
+// TrayController returns the tray controller if configured.
+func (m *Manager) TrayController() *TrayController {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.trayController
 }
 
 // UISettingsStore returns the UI settings store, initializing it on demand.

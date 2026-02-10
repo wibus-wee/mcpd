@@ -80,7 +80,9 @@ type RawSubAgentConfig struct {
 }
 
 type RawObservabilityConfig struct {
-	ListenAddress string `mapstructure:"listenAddress"`
+	ListenAddress  string `mapstructure:"listenAddress"`
+	MetricsEnabled *bool  `mapstructure:"metricsEnabled"`
+	HealthzEnabled *bool  `mapstructure:"healthzEnabled"`
 }
 
 type RawRPCConfig struct {

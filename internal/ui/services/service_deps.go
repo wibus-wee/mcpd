@@ -135,3 +135,11 @@ func (d *ServiceDeps) uiSettingsStore() (*uiconfig.Store, error) {
 	}
 	return store, nil
 }
+
+func (d *ServiceDeps) trayController() *ui.TrayController {
+	manager := d.manager()
+	if manager == nil {
+		return nil
+	}
+	return manager.TrayController()
+}

@@ -118,7 +118,9 @@ type RuntimeConfig struct {
 
 // ObservabilityConfig controls runtime observability endpoints.
 type ObservabilityConfig struct {
-	ListenAddress string `json:"listenAddress"`
+	ListenAddress  string `json:"listenAddress"`
+	MetricsEnabled *bool  `json:"metricsEnabled,omitempty"`
+	HealthzEnabled *bool  `json:"healthzEnabled,omitempty"`
 }
 
 // RPCConfig configures the RPC server.

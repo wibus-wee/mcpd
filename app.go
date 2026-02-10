@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 
@@ -74,6 +75,15 @@ func main() {
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
+	})
+
+	trayController := ui.NewTrayController(wailsApp, window, manager, uiLogger)
+	manager.SetTrayController(trayController)
+	if err := trayController.ApplyFromStore(context.Background()); err != nil {
+		uiLogger.Warn("failed to apply tray settings", zap.Error(err))
+	}
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(_ *application.ApplicationEvent) {
+		trayController.MarkStarted()
 	})
 
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {

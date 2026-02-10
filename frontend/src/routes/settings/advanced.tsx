@@ -23,6 +23,7 @@ import {
   toggleAnalytics,
   useAnalyticsEnabledValue,
 } from '@/lib/analytics'
+import { useTraySettings } from '@/modules/settings/hooks/use-tray-settings'
 
 export const Route = createFileRoute('/settings/advanced')({
   component: AdvancedSettingsPage,
@@ -45,6 +46,18 @@ function AdvancedSettingsPage() {
     () => updateOptions ?? { intervalHours: 24, includePrerelease: false },
     [updateOptions],
   )
+
+  const {
+    settings: traySettings,
+    error: trayError,
+    isLoading: trayLoading,
+    updateSettings: updateTraySettings,
+  } = useTraySettings()
+
+  const isMac = useMemo(() => {
+    if (typeof navigator === 'undefined') return false
+    return /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+  }, [])
 
   const handlePrereleaseToggle = useCallback(async (checked: boolean) => {
     try {
@@ -69,6 +82,45 @@ function AdvancedSettingsPage() {
       })
     }
   }, [effectiveUpdateOptions, mutateUpdateOptions])
+
+  const handleTrayUpdate = useCallback(async (next: typeof traySettings) => {
+    try {
+      await updateTraySettings(next)
+      toastManager.add({
+        type: 'success',
+        title: 'Tray preferences saved',
+        description: 'Tray settings are now applied.',
+      })
+    }
+    catch (err) {
+      toastManager.add({
+        type: 'error',
+        title: 'Tray preference failed',
+        description: err instanceof Error ? err.message : 'Unable to update tray settings',
+      })
+    }
+  }, [updateTraySettings])
+
+  const handleTrayToggle = useCallback((checked: boolean) => {
+    handleTrayUpdate({
+      ...traySettings,
+      enabled: checked,
+    })
+  }, [handleTrayUpdate, traySettings])
+
+  const handleHideDockToggle = useCallback((checked: boolean) => {
+    handleTrayUpdate({
+      ...traySettings,
+      hideDock: checked,
+    })
+  }, [handleTrayUpdate, traySettings])
+
+  const handleStartHiddenToggle = useCallback((checked: boolean) => {
+    handleTrayUpdate({
+      ...traySettings,
+      startHidden: checked,
+    })
+  }, [handleTrayUpdate, traySettings])
 
   const updateDescription = useMemo(() => {
     const intervalHours = effectiveUpdateOptions.intervalHours || 24
@@ -135,6 +187,78 @@ function AdvancedSettingsPage() {
           {import.meta.env.DEV && (
             <p className="text-xs text-muted-foreground">
               Update checks are disabled in development builds.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Menu Bar & Tray</CardTitle>
+          <CardDescription className="text-xs">
+            Enable the menu bar tray for quick access to mcpv.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="tray-enabled" className="text-sm font-medium">
+                Enable tray icon
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Show a tray icon and keep the app running in the background.
+              </p>
+            </div>
+            <Switch
+              checked={traySettings.enabled}
+              disabled={trayLoading}
+              id="tray-enabled"
+              onCheckedChange={handleTrayToggle}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="tray-hide-dock" className="text-sm font-medium">
+                Hide Dock icon when tray is enabled
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Keep mcpv out of the Dock while the tray icon is active.
+              </p>
+            </div>
+            <Switch
+              checked={traySettings.hideDock}
+              disabled={!traySettings.enabled || trayLoading || !isMac}
+              id="tray-hide-dock"
+              onCheckedChange={handleHideDockToggle}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="tray-start-hidden" className="text-sm font-medium">
+                Start hidden
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Launch directly to the tray without showing the main window.
+              </p>
+            </div>
+            <Switch
+              checked={traySettings.startHidden}
+              disabled={!traySettings.enabled || trayLoading}
+              id="tray-start-hidden"
+              onCheckedChange={handleStartHiddenToggle}
+            />
+          </div>
+
+          {!isMac && (
+            <p className="text-xs text-muted-foreground">
+              Dock visibility controls are only available on macOS.
+            </p>
+          )}
+          {trayError && (
+            <p className="text-xs text-destructive">
+              Unable to load tray settings.
             </p>
           )}
         </CardContent>

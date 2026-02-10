@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend SWR + UI Settings Guardrails"
+  short_description: "Enforce centralized SWR and UI settings usage"
+  default_prompt: "Use $frontend-swr-ui-guardrails to keep SWR keys/config and UI settings centralized."
