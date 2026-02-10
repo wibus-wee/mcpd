@@ -20,6 +20,8 @@ export type FieldHelpContent = {
   summary: string
   details?: string
   tips?: string[]
+  docUrl?: string
+  docLabel?: string
 }
 
 interface FieldHelpProps {
@@ -57,6 +59,16 @@ export function FieldHelp({ content, className }: FieldHelpProps) {
                 <li key={tip}>{tip}</li>
               ))}
             </ul>
+          ) : null}
+          {content.docUrl ? (
+            <a
+              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+              href={content.docUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {content.docLabel ?? 'Documentation'}
+            </a>
           ) : null}
         </div>
       </PopoverContent>

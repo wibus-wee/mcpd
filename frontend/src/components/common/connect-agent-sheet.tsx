@@ -1,10 +1,11 @@
-// Input: motion/react, lucide-react icons, UI components, server hooks, analytics, mcpvmcp config helpers
+// Input: motion/react, lucide-react icons, UI components, server hooks, core state, UI settings, analytics, mcpvmcp config helpers
 // Output: ConnectIdeSheet component for IDE connection presets with comprehensive configuration options
 // Position: Shared UI component for configuring IDE connections in the app
 
 import {
   CheckIcon,
   ChevronDownIcon,
+  ClipboardCopyIcon,
   ClipboardIcon,
   Code2Icon,
   CogIcon,
@@ -40,13 +41,16 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useCoreState } from '@/hooks/use-core-state'
 import { useMcpvmcpPath } from '@/hooks/use-mcpvmcp-path'
 import { useRpcAddress } from '@/hooks/use-rpc-address'
+import { useUISettings } from '@/hooks/use-ui-settings'
 import { AnalyticsEvents, track } from '@/lib/analytics'
 import type { BuildOptions, SelectorMode, TransportType } from '@/lib/mcpvmcp'
 import { buildClientConfig, buildCliSnippet, buildTomlConfig } from '@/lib/mcpvmcp'
 import { parseEnvironmentVariables } from '@/lib/parsers'
 import { useServers } from '@/modules/servers/hooks'
+import { buildEndpointPreview, toGatewayFormState } from '@/modules/settings/lib/gateway-config'
 
 import { useSidebar } from '../ui/sidebar'
 
@@ -122,6 +126,33 @@ function CopyButton({
   )
 }
 
+function InlineCopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+    catch (error) {
+      console.error('[ConnectIde] Failed to copy value', error)
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="shrink-0"
+      onClick={handleCopy}
+      aria-label="Copy"
+    >
+      {copied ? <CheckIcon className="size-4 text-emerald-500" /> : <ClipboardCopyIcon className="size-4" />}
+    </Button>
+  )
+}
+
 function InstallInCursorButton({
   serverName,
   config,
@@ -182,9 +213,11 @@ export function ConnectIdeSheet() {
   const [transport, setTransport] = useState<TransportType>('stdio')
   const [launchUIOnFail, setLaunchUIOnFail] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [showHttpAdvanced, setShowHttpAdvanced] = useState(false)
+  const [httpSettingsTouched, setHttpSettingsTouched] = useState(false)
 
   // Streamable HTTP settings
-  const [httpUrl, setHttpUrl] = useState('http://127.0.0.1:8090/mcp')
+  const [httpUrl, setHttpUrl] = useState('')
   const [httpHeaders, setHttpHeaders] = useState('')
 
   // RPC settings
@@ -199,11 +232,68 @@ export function ConnectIdeSheet() {
 
   const { path } = useMcpvmcpPath()
   const { rpcAddress } = useRpcAddress()
+  const { coreStatus } = useCoreState()
+  const { sections: uiSections } = useUISettings({ scope: 'global' })
   const { data: servers } = useServers()
   const sidebar = useSidebar()
   const wasOpenRef = useRef(false)
   const lastTrackedSelectorRef = useRef<{ mode: SelectorMode, value: string } | null>(null)
   const transportLabel = transport === 'streamable-http' ? 'http' : 'stdio'
+
+  const gatewaySection = uiSections?.gateway
+  const gatewaySettings = useMemo(() => toGatewayFormState(gatewaySection), [gatewaySection])
+  const gatewayEndpoint = useMemo(
+    () => buildEndpointPreview(gatewaySettings.httpAddr, gatewaySettings.httpPath),
+    [gatewaySettings.httpAddr, gatewaySettings.httpPath],
+  )
+  const gatewayHeaderValue = useMemo(
+    () => (gatewaySettings.httpToken ? `X-Mcp-Token=${gatewaySettings.httpToken}` : ''),
+    [gatewaySettings.httpToken],
+  )
+  const isGatewayEnabled = gatewaySettings.enabled
+  const isGatewayRunning = isGatewayEnabled && coreStatus === 'running'
+  const gatewaySummary = useMemo(() => {
+    if (isGatewayRunning) {
+      return {
+        title: 'App-managed gateway is running',
+        description: 'This app launches mcpvmcp for you. Clients will connect using Settings > Gateway.',
+      }
+    }
+    if (isGatewayEnabled) {
+      if (coreStatus === 'starting') {
+        return {
+          title: 'Gateway is starting',
+          description: 'Core is starting. The app will launch mcpvmcp when ready.',
+        }
+      }
+      if (coreStatus === 'stopping') {
+        return {
+          title: 'Gateway is stopping',
+          description: 'Core is stopping. Start it again to let the app launch mcpvmcp.',
+        }
+      }
+      if (coreStatus === 'error') {
+        return {
+          title: 'Gateway not running',
+          description: 'Core is in an error state. Restart it to let the app launch mcpvmcp.',
+        }
+      }
+      return {
+        title: 'Gateway configured but not running',
+        description: 'Core is stopped. Start the core to let the app launch mcpvmcp.',
+      }
+    }
+    return {
+      title: 'Gateway not managed by the app',
+      description: 'Enable the gateway in Settings > Gateway to let the app host mcpvmcp, or customize HTTP settings here.',
+    }
+  }, [coreStatus, isGatewayEnabled, isGatewayRunning])
+
+  useEffect(() => {
+    if (transport !== 'streamable-http' || httpSettingsTouched) return
+    setHttpUrl(gatewayEndpoint)
+    setHttpHeaders(gatewayHeaderValue)
+  }, [gatewayEndpoint, gatewayHeaderValue, httpSettingsTouched, transport])
 
   const serverOptions = useMemo(
     () => (servers ?? []).map(server => server.name).sort((a, b) => a.localeCompare(b)),
@@ -212,8 +302,8 @@ export function ConnectIdeSheet() {
   const tagOptions = useMemo(() => {
     const set = new Set<string>()
       ; (servers ?? []).forEach((server) => {
-      server.tags?.forEach(tag => set.add(tag))
-    })
+        server.tags?.forEach(tag => set.add(tag))
+      })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [servers])
 
@@ -243,7 +333,8 @@ export function ConnectIdeSheet() {
 
     // Streamable HTTP settings
     if (transport === 'streamable-http') {
-      if (httpUrl) options.httpUrl = httpUrl
+      const resolvedUrl = httpUrl.trim() || gatewayEndpoint
+      if (resolvedUrl) options.httpUrl = resolvedUrl
       const parsedHeaders = parseEnvironmentVariables(httpHeaders)
       if (Object.keys(parsedHeaders).length > 0) {
         options.httpHeaders = parsedHeaders
@@ -268,6 +359,7 @@ export function ConnectIdeSheet() {
     launchUIOnFail,
     httpUrl,
     httpHeaders,
+    gatewayEndpoint,
     rpcMaxRecvMsgSize,
     rpcMaxSendMsgSize,
     rpcKeepaliveTime,
@@ -455,40 +547,94 @@ export function ConnectIdeSheet() {
           </div>
 
           {transport === 'streamable-http' && (
-            <m.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
+            <div
               className="space-y-3"
             >
-              <div className="space-y-2">
-                <Label htmlFor="http-url" className="text-sm">
-                  HTTP URL
-                </Label>
-                <Input
-                  id="http-url"
-                  value={httpUrl}
-                  onChange={e => setHttpUrl(e.target.value)}
-                  placeholder="https://mcp.context7.com/mcp"
-                  className="font-mono text-xs"
-                />
+              <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{gatewaySummary.title}</p>
+                  <p className="text-xs text-muted-foreground">{gatewaySummary.description}</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-background/70 px-3 py-2">
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Endpoint</p>
+                      <p className="font-mono text-xs">{gatewayEndpoint}</p>
+                    </div>
+                    <InlineCopyButton text={gatewayEndpoint} />
+                  </div>
+                  {gatewayHeaderValue ? (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-background/70 px-3 py-2">
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">Token header</p>
+                        <p className="font-mono text-xs">{gatewayHeaderValue}</p>
+                      </div>
+                      <InlineCopyButton text={gatewayHeaderValue} />
+                    </div>
+                  ) : null}
+                </div>
+                <Button
+                  variant="link"
+                  size="xs"
+                  className="h-auto px-0 text-xs"
+                  onClick={() => {
+                    if (showHttpAdvanced) {
+                      setHttpSettingsTouched(false)
+                      setHttpUrl(gatewayEndpoint)
+                      setHttpHeaders(gatewayHeaderValue)
+                    }
+                    setShowHttpAdvanced(prev => !prev)
+                  }}
+                >
+                  {showHttpAdvanced ? 'Use app-managed settings' : 'Customize HTTP settings'}
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="http-headers" className="text-sm">
-                  HTTP Headers (optional)
-                  <span className="text-xs text-muted-foreground ml-2">(one per line, KEY=VALUE)</span>
-                </Label>
-                <Textarea
-                  id="http-headers"
-                  value={httpHeaders}
-                  onChange={e => setHttpHeaders(e.target.value)}
-                  placeholder="CONTEXT7_API_KEY=YOUR_API_KEY"
-                  className="font-mono text-xs resize-none"
-                  rows={3}
-                />
-              </div>
-            </m.div>
+              {showHttpAdvanced && (
+                <m.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    Custom HTTP settings override the app-managed gateway defaults.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="http-url" className="text-sm">
+                      HTTP URL
+                    </Label>
+                    <Input
+                      id="http-url"
+                      value={httpUrl}
+                      onChange={(event) => {
+                        setHttpSettingsTouched(true)
+                        setHttpUrl(event.target.value)
+                      }}
+                      placeholder="https://mcp.context7.com/mcp"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="http-headers" className="text-sm">
+                      HTTP Headers (optional)
+                      <span className="text-xs text-muted-foreground ml-2">(one per line, KEY=VALUE)</span>
+                    </Label>
+                    <Textarea
+                      id="http-headers"
+                      value={httpHeaders}
+                      onChange={(event) => {
+                        setHttpSettingsTouched(true)
+                        setHttpHeaders(event.target.value)
+                      }}
+                      placeholder="CONTEXT7_API_KEY=YOUR_API_KEY"
+                      className="font-mono text-xs resize-none"
+                      rows={3}
+                    />
+                  </div>
+                </m.div>
+              )}
+            </div>
           )}
 
           {transport === 'stdio' && (

@@ -34,6 +34,7 @@ func main() {
 	uiLogger := logger.With(zap.String(telemetry.FieldLogSource, telemetry.LogSourceUI))
 	serviceRegistry := services.NewServiceRegistry(coreApp, uiLogger)
 	manager := ui.NewManager(nil, coreApp, configPath)
+	manager.SetLogger(uiLogger)
 	serviceRegistry.SetManager(manager)
 
 	wailsApp := application.New(application.Options{

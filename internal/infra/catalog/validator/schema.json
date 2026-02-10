@@ -31,6 +31,13 @@
     "serverInitMaxRetries": {
       "type": "integer"
     },
+    "reloadMode": {
+      "type": "string",
+      "enum": [
+        "strict",
+        "lenient"
+      ]
+    },
     "bootstrapMode": {
       "type": "string"
     },

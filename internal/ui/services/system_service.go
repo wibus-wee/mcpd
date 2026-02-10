@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"go.uber.org/zap"
 
 	"mcpv/internal/buildinfo"
+	"mcpv/internal/ui"
 )
 
 // SystemService exposes system-level utility APIs.
@@ -105,22 +102,5 @@ func (s *SystemService) CheckForUpdates(ctx context.Context) (UpdateCheckResult,
 
 // ResolvemcpvmcpPath resolves the mcpvmcp executable path.
 func (s *SystemService) ResolvemcpvmcpPath() string {
-	name := "mcpvmcp"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-
-	if path, err := exec.LookPath(name); err == nil {
-		return path
-	}
-
-	if execPath, err := os.Executable(); err == nil {
-		dir := filepath.Dir(execPath)
-		candidate := filepath.Join(dir, name)
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			return candidate
-		}
-	}
-
-	return name
+	return ui.ResolveMcpvmcpPath()
 }

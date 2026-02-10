@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"go.uber.org/zap"
 
 	"mcpv/internal/app"
 	"mcpv/internal/app/controlplane"
@@ -35,6 +36,9 @@ type Manager struct {
 	// Wails application reference
 	wails *application.App
 
+	// Logger
+	logger *zap.Logger
+
 	// Core application and control plane
 	coreApp           *app.App
 	controlPlane      controlplane.API
@@ -58,18 +62,25 @@ type Manager struct {
 	// Tray controller
 	trayController *TrayController
 
+	// Gateway process
+	gateway *GatewayProcess
+
 	// UI settings store
 	uiSettings *uiconfig.Store
 }
 
 // NewManager creates a new Manager instance.
 func NewManager(wails *application.App, coreApp *app.App, configPath string) *Manager {
+	logger := zap.NewNop()
+	defaultCfg := BuildGatewayProcessConfig(DefaultGatewaySettings())
 	return &Manager{
 		wails:      wails,
 		coreApp:    coreApp,
 		configPath: configPath,
 		state:      NewSharedState(),
 		coreState:  CoreStateStopped,
+		logger:     logger,
+		gateway:    NewGatewayProcess(logger.Named("gateway-process"), defaultCfg),
 	}
 }
 
@@ -239,6 +250,8 @@ func (m *Manager) runCore(cfg app.ServeConfig) {
 	} else {
 		events.EmitCoreState(wails, string(CoreStateStopped), nil)
 	}
+
+	m.stopGateway()
 }
 
 func (m *Manager) handleControlPlaneReady(cp controlplane.API) {
@@ -274,6 +287,7 @@ func (m *Manager) onCoreReady() {
 
 	// Auto-start Watch subscriptions
 	m.startWatchers()
+	m.startGateway()
 }
 
 // startWatchers automatically starts all Watch subscriptions.
@@ -345,6 +359,8 @@ func (m *Manager) Stop() error {
 	m.watchersCancel = nil
 	m.mu.Unlock()
 
+	m.stopGateway()
+
 	events.EmitCoreState(wails, string(CoreStateStopping), nil)
 
 	// Cancel all active watchers
@@ -399,6 +415,7 @@ func (m *Manager) Shutdown() {
 	updateChecker := m.updateChecker
 	trayController := m.trayController
 	uiSettings := m.uiSettings
+	gateway := m.gateway
 	m.uiSettings = nil
 
 	// Cancel all watchers
@@ -414,6 +431,9 @@ func (m *Manager) Shutdown() {
 	}
 	m.mu.Unlock()
 
+	if gateway != nil {
+		_ = gateway.Stop(context.Background())
+	}
 	if trayController != nil {
 		trayController.Shutdown()
 	}
@@ -500,6 +520,20 @@ func (m *Manager) GetCoreApp() *app.App {
 	return m.coreApp
 }
 
+// SetLogger updates the manager logger and dependent components.
+func (m *Manager) SetLogger(logger *zap.Logger) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	m.mu.Lock()
+	m.logger = logger
+	gateway := m.gateway
+	m.mu.Unlock()
+	if gateway != nil {
+		gateway.SetLogger(logger.Named("gateway-process"))
+	}
+}
+
 // SetUpdateChecker wires the update checker into the manager.
 func (m *Manager) SetUpdateChecker(checker *UpdateChecker) {
 	m.mu.Lock()
@@ -531,6 +565,126 @@ func (m *Manager) TrayController() *TrayController {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.trayController
+}
+
+func (m *Manager) startGateway() {
+	m.mu.RLock()
+	gateway := m.gateway
+	logger := m.logger
+	wails := m.wails
+	m.mu.RUnlock()
+
+	if gateway == nil {
+		return
+	}
+	settings := m.loadGatewaySettings()
+	if err := m.applyGatewaySettings(context.Background(), settings); err != nil {
+		if logger != nil {
+			logger.Warn("gateway start failed", zap.Error(err))
+		}
+		events.EmitError(wails, ErrCodeInternal, "Gateway failed to start", err.Error())
+	}
+}
+
+func (m *Manager) stopGateway() {
+	m.mu.RLock()
+	gateway := m.gateway
+	logger := m.logger
+	m.mu.RUnlock()
+
+	if gateway == nil {
+		return
+	}
+	if err := gateway.Stop(context.Background()); err != nil && logger != nil {
+		logger.Warn("gateway stop failed", zap.Error(err))
+	}
+}
+
+func (m *Manager) ApplyGatewaySettings(settings GatewaySettings) error {
+	return m.applyGatewaySettings(context.Background(), settings)
+}
+
+func (m *Manager) applyGatewaySettings(ctx context.Context, settings GatewaySettings) error {
+	m.mu.RLock()
+	gateway := m.gateway
+	logger := m.logger
+	coreState := m.coreState
+	m.mu.RUnlock()
+	if gateway == nil {
+		return nil
+	}
+
+	cfg := BuildGatewayProcessConfig(settings)
+	prev := gateway.Config()
+	gateway.UpdateConfig(cfg)
+
+	if coreState != CoreStateRunning {
+		return gateway.Stop(ctx)
+	}
+	if !cfg.Enabled {
+		return gateway.Stop(ctx)
+	}
+	if !gatewayConfigEqual(prev, cfg) {
+		if err := gateway.Stop(ctx); err != nil && logger != nil {
+			logger.Warn("gateway restart stop failed", zap.Error(err))
+		}
+	}
+	return gateway.Start(ctx)
+}
+
+func (m *Manager) loadGatewaySettings() GatewaySettings {
+	store, err := m.UISettingsStore()
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to open ui settings store", zap.Error(err))
+		}
+		return DefaultGatewaySettings()
+	}
+	snapshot, err := store.Get(uiconfig.ScopeGlobal, "")
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to read ui settings", zap.Error(err))
+		}
+		return DefaultGatewaySettings()
+	}
+	raw := snapshot.Sections[GatewaySectionKey]
+	settings, err := ParseGatewaySettings(raw)
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to parse gateway settings", zap.Error(err))
+		}
+		return DefaultGatewaySettings()
+	}
+	return settings
+}
+
+func gatewayConfigEqual(a, b GatewayProcessConfig) bool {
+	if a.Enabled != b.Enabled ||
+		a.BinaryPath != b.BinaryPath ||
+		a.HealthURL != b.HealthURL ||
+		a.HealthTimeout != b.HealthTimeout ||
+		a.StopTimeout != b.StopTimeout {
+		return false
+	}
+	if !stringSliceEqual(a.Args, b.Args) {
+		return false
+	}
+	if !stringSliceEqual(a.Env, b.Env) {
+		return false
+	}
+	return true
+}
+
+func stringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // UISettingsStore returns the UI settings store, initializing it on demand.

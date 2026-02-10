@@ -19,6 +19,14 @@ description: "Frontend development guardrails for this repo. Use when editing or
 - When reading or writing UI settings, use `frontend/src/hooks/use-ui-settings.ts`
 - When adding a UI setting, extend the hook's types, defaults, and persistence logic; do not add a new store or access storage directly
 
+# Settings
+
+You should use `help` prop of the form components to provide users with information about what a setting does. If the setting is not self-explanatory, you should also provide a link to the documentation.
+
+The content of the `help` you provide should be stored in a split file.
+
+- example: `frontend/src/modules/servers/lib/server-form-content.ts`
+
 # Example
 
 ```ts

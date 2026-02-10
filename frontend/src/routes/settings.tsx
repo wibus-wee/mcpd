@@ -3,7 +3,7 @@
 // Position: /settings layout route for nested settings pages
 
 import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { BugIcon, PaletteIcon, ServerIcon, SettingsIcon } from 'lucide-react'
+import { BugIcon, NetworkIcon, PaletteIcon, ServerIcon, SettingsIcon } from 'lucide-react'
 
 import { NavItem } from '@/components/common/nav-item'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -33,6 +33,12 @@ const navItems: NavItem[] = [
     label: 'Appearance',
     icon: PaletteIcon,
     description: 'Theme and UI preferences',
+  },
+  {
+    path: '/settings/gateway',
+    label: 'Gateway',
+    icon: NetworkIcon,
+    description: 'Streamable HTTP entry managed by the app',
   },
   {
     path: '/settings/advanced',

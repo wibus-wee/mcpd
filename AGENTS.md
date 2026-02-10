@@ -10,6 +10,7 @@ When writing complex features or significant refactors, use an ExecPlan (as desc
 
 - Plan Mode: You need to first understand the source code and identify which Skills you need to utilize.
 - Code Mode: You should actively call various Skills to accomplish the task.
+- After Code Mode: You should run `make lint-fix` to fix linting issues and `make test` to run tests before submitting.
 
 ## Additional AGENTS.md Files
 

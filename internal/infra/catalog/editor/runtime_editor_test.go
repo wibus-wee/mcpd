@@ -22,22 +22,25 @@ rpc:
 	require.NoError(t, os.WriteFile(path, []byte(content), fsutil.DefaultFileMode))
 
 	update, err := UpdateRuntimeConfig(path, RuntimeConfigUpdate{
-		RouteTimeoutSeconds:        15,
-		PingIntervalSeconds:        20,
-		ToolRefreshSeconds:         30,
-		ToolRefreshConcurrency:     4,
-		ClientCheckSeconds:         5,
-		ClientInactiveSeconds:      60,
-		ServerInitRetryBaseSeconds: 1,
-		ServerInitRetryMaxSeconds:  5,
-		ServerInitMaxRetries:       2,
-		ReloadMode:                 "strict",
-		BootstrapMode:              "metadata",
-		BootstrapConcurrency:       3,
-		BootstrapTimeoutSeconds:    15,
-		DefaultActivationMode:      "on-demand",
-		ExposeTools:                true,
-		ToolNamespaceStrategy:      "flat",
+		RouteTimeoutSeconds:         15,
+		PingIntervalSeconds:         20,
+		ToolRefreshSeconds:          30,
+		ToolRefreshConcurrency:      4,
+		ClientCheckSeconds:          5,
+		ClientInactiveSeconds:       60,
+		ServerInitRetryBaseSeconds:  1,
+		ServerInitRetryMaxSeconds:   5,
+		ServerInitMaxRetries:        2,
+		ReloadMode:                  "strict",
+		BootstrapMode:               "metadata",
+		BootstrapConcurrency:        3,
+		BootstrapTimeoutSeconds:     15,
+		DefaultActivationMode:       "on-demand",
+		ExposeTools:                 true,
+		ToolNamespaceStrategy:       "flat",
+		ObservabilityListenAddress:  "0.0.0.0:9191",
+		ObservabilityMetricsEnabled: true,
+		ObservabilityHealthzEnabled: false,
 	})
 	require.NoError(t, err)
 
@@ -53,6 +56,12 @@ rpc:
 	rpc, ok := doc["rpc"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "unix:///tmp/test.sock", rpc["listenAddress"])
+
+	observability, ok := doc["observability"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "0.0.0.0:9191", observability["listenAddress"])
+	require.Equal(t, true, observability["metricsEnabled"])
+	require.Equal(t, false, observability["healthzEnabled"])
 }
 
 func TestUpdateSubAgentConfig_PreservesOtherFields(t *testing.T) {

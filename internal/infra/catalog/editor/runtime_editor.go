@@ -20,22 +20,25 @@ type RuntimeUpdate struct {
 
 // RuntimeConfigUpdate holds full runtime settings for updates.
 type RuntimeConfigUpdate struct {
-	RouteTimeoutSeconds        int
-	PingIntervalSeconds        int
-	ToolRefreshSeconds         int
-	ToolRefreshConcurrency     int
-	ClientCheckSeconds         int
-	ClientInactiveSeconds      int
-	ServerInitRetryBaseSeconds int
-	ServerInitRetryMaxSeconds  int
-	ServerInitMaxRetries       int
-	ReloadMode                 string
-	BootstrapMode              string
-	BootstrapConcurrency       int
-	BootstrapTimeoutSeconds    int
-	DefaultActivationMode      string
-	ExposeTools                bool
-	ToolNamespaceStrategy      string
+	RouteTimeoutSeconds         int
+	PingIntervalSeconds         int
+	ToolRefreshSeconds          int
+	ToolRefreshConcurrency      int
+	ClientCheckSeconds          int
+	ClientInactiveSeconds       int
+	ServerInitRetryBaseSeconds  int
+	ServerInitRetryMaxSeconds   int
+	ServerInitMaxRetries        int
+	ReloadMode                  string
+	BootstrapMode               string
+	BootstrapConcurrency        int
+	BootstrapTimeoutSeconds     int
+	DefaultActivationMode       string
+	ExposeTools                 bool
+	ToolNamespaceStrategy       string
+	ObservabilityListenAddress  string
+	ObservabilityMetricsEnabled bool
+	ObservabilityHealthzEnabled bool
 }
 
 // SubAgentConfigUpdate holds partial SubAgent configuration updates.
@@ -77,6 +80,15 @@ func UpdateRuntimeConfig(path string, update RuntimeConfigUpdate) (RuntimeUpdate
 	doc["defaultActivationMode"] = strings.TrimSpace(update.DefaultActivationMode)
 	doc["exposeTools"] = update.ExposeTools
 	doc["toolNamespaceStrategy"] = strings.TrimSpace(update.ToolNamespaceStrategy)
+
+	observability, ok := doc["observability"].(map[string]any)
+	if !ok || observability == nil {
+		observability = make(map[string]any)
+	}
+	observability["listenAddress"] = strings.TrimSpace(update.ObservabilityListenAddress)
+	observability["metricsEnabled"] = update.ObservabilityMetricsEnabled
+	observability["healthzEnabled"] = update.ObservabilityHealthzEnabled
+	doc["observability"] = observability
 
 	merged, err := yaml.Marshal(doc)
 	if err != nil {

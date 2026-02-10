@@ -33,11 +33,13 @@ function ClientAvatar({ name }: { name: string }) {
 
 function ClientRow({
   client,
+  pid,
   tags,
   lastHeartbeat,
   index,
 }: {
   client: string
+  pid: number
   tags: string[]
   lastHeartbeat: string
   index: number
@@ -68,6 +70,9 @@ function ClientRow({
               {isRecent ? 'Active' : 'Idle'}
             </TooltipContent>
           </Tooltip>
+          <Badge variant="secondary" size="sm">
+            PID {pid}
+          </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {tags.map(tag => (
@@ -141,6 +146,7 @@ export function ActiveClientsPanel() {
                 <ClientRow
                   key={`${client.client}-${client.pid}`}
                   client={client.client}
+                  pid={client.pid}
                   tags={client.tags ?? []}
                   lastHeartbeat={client.lastHeartbeat}
                   index={i}

@@ -347,22 +347,25 @@ type UpdateServerRequest struct {
 
 // UpdateRuntimeConfigRequest updates runtime.yaml configuration.
 type UpdateRuntimeConfigRequest struct {
-	RouteTimeoutSeconds        int    `json:"routeTimeoutSeconds"`
-	PingIntervalSeconds        int    `json:"pingIntervalSeconds"`
-	ToolRefreshSeconds         int    `json:"toolRefreshSeconds"`
-	ToolRefreshConcurrency     int    `json:"toolRefreshConcurrency"`
-	ClientCheckSeconds         int    `json:"clientCheckSeconds"`
-	ClientInactiveSeconds      int    `json:"clientInactiveSeconds"`
-	ServerInitRetryBaseSeconds int    `json:"serverInitRetryBaseSeconds"`
-	ServerInitRetryMaxSeconds  int    `json:"serverInitRetryMaxSeconds"`
-	ServerInitMaxRetries       int    `json:"serverInitMaxRetries"`
-	ReloadMode                 string `json:"reloadMode"`
-	BootstrapMode              string `json:"bootstrapMode"`
-	BootstrapConcurrency       int    `json:"bootstrapConcurrency"`
-	BootstrapTimeoutSeconds    int    `json:"bootstrapTimeoutSeconds"`
-	DefaultActivationMode      string `json:"defaultActivationMode"`
-	ExposeTools                bool   `json:"exposeTools"`
-	ToolNamespaceStrategy      string `json:"toolNamespaceStrategy"`
+	RouteTimeoutSeconds         int    `json:"routeTimeoutSeconds"`
+	PingIntervalSeconds         int    `json:"pingIntervalSeconds"`
+	ToolRefreshSeconds          int    `json:"toolRefreshSeconds"`
+	ToolRefreshConcurrency      int    `json:"toolRefreshConcurrency"`
+	ClientCheckSeconds          int    `json:"clientCheckSeconds"`
+	ClientInactiveSeconds       int    `json:"clientInactiveSeconds"`
+	ServerInitRetryBaseSeconds  int    `json:"serverInitRetryBaseSeconds"`
+	ServerInitRetryMaxSeconds   int    `json:"serverInitRetryMaxSeconds"`
+	ServerInitMaxRetries        int    `json:"serverInitMaxRetries"`
+	ReloadMode                  string `json:"reloadMode"`
+	BootstrapMode               string `json:"bootstrapMode"`
+	BootstrapConcurrency        int    `json:"bootstrapConcurrency"`
+	BootstrapTimeoutSeconds     int    `json:"bootstrapTimeoutSeconds"`
+	DefaultActivationMode       string `json:"defaultActivationMode"`
+	ExposeTools                 bool   `json:"exposeTools"`
+	ToolNamespaceStrategy       string `json:"toolNamespaceStrategy"`
+	ObservabilityListenAddress  string `json:"observabilityListenAddress"`
+	ObservabilityMetricsEnabled bool   `json:"observabilityMetricsEnabled"`
+	ObservabilityHealthzEnabled bool   `json:"observabilityHealthzEnabled"`
 }
 
 // =============================================================================

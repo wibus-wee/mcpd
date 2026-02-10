@@ -48,6 +48,7 @@ type gatewayOptions struct {
 	httpTLSKeyFile      string
 	httpEventStore      bool
 	httpEventStoreBytes int
+	allowAll            bool
 	logger              *zap.Logger
 }
 
@@ -94,8 +95,8 @@ func main() {
 			if opts.server != "" && len(opts.tags) > 0 {
 				return errors.New("cannot use --server and --tag together")
 			}
-			if opts.server == "" && len(opts.tags) == 0 {
-				return errors.New("server or --tag is required")
+			if opts.server == "" && len(opts.tags) == 0 && !opts.allowAll {
+				return errors.New("server or --tag is required (or use --allow-all)")
 			}
 			if opts.caller == "" {
 				opts.caller = deriveCallerName(opts.server, opts.tags)
@@ -180,6 +181,7 @@ func main() {
 	root.PersistentFlags().StringVar(&opts.httpTLSKeyFile, "http-tls-key", "", "TLS key file for streamable HTTP")
 	root.PersistentFlags().BoolVar(&opts.httpEventStore, "http-event-store", false, "enable in-memory event store for streamable HTTP replay")
 	root.PersistentFlags().IntVar(&opts.httpEventStoreBytes, "http-event-store-bytes", opts.httpEventStoreBytes, "max bytes for in-memory event store (0 uses default)")
+	root.PersistentFlags().BoolVar(&opts.allowAll, "allow-all", false, "allow empty selector (expose all servers)")
 
 	if err := root.Execute(); err != nil {
 		opts.logger.Fatal("command failed", zap.Error(err))
@@ -241,6 +243,8 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.httpEventStore, _ = flags.GetBool("http-event-store")
 		case "http-event-store-bytes":
 			opts.httpEventStoreBytes, _ = flags.GetInt("http-event-store-bytes")
+		case "allow-all":
+			opts.allowAll, _ = flags.GetBool("allow-all")
 		}
 	})
 }

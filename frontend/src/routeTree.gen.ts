@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsSubagentRouteImport } from './routes/settings/subagent'
 import { Route as SettingsRuntimeRouteImport } from './routes/settings/runtime'
+import { Route as SettingsGatewayRouteImport } from './routes/settings/gateway'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
 
@@ -72,6 +73,11 @@ const SettingsRuntimeRoute = SettingsRuntimeRouteImport.update({
   path: '/runtime',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsGatewayRoute = SettingsGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/gateway': typeof SettingsGatewayRoute
   '/settings/runtime': typeof SettingsRuntimeRoute
   '/settings/subagent': typeof SettingsSubagentRoute
   '/settings/': typeof SettingsIndexRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/gateway': typeof SettingsGatewayRoute
   '/settings/runtime': typeof SettingsRuntimeRoute
   '/settings/subagent': typeof SettingsSubagentRoute
   '/settings': typeof SettingsIndexRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/topology': typeof TopologyRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/gateway': typeof SettingsGatewayRoute
   '/settings/runtime': typeof SettingsRuntimeRoute
   '/settings/subagent': typeof SettingsSubagentRoute
   '/settings/': typeof SettingsIndexRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/gateway'
     | '/settings/runtime'
     | '/settings/subagent'
     | '/settings/'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/gateway'
     | '/settings/runtime'
     | '/settings/subagent'
     | '/settings'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/topology'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/gateway'
     | '/settings/runtime'
     | '/settings/subagent'
     | '/settings/'
@@ -251,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRuntimeRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/gateway': {
+      id: '/settings/gateway'
+      path: '/gateway'
+      fullPath: '/settings/gateway'
+      preLoaderRoute: typeof SettingsGatewayRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -271,6 +290,7 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsGatewayRoute: typeof SettingsGatewayRoute
   SettingsRuntimeRoute: typeof SettingsRuntimeRoute
   SettingsSubagentRoute: typeof SettingsSubagentRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -279,6 +299,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsGatewayRoute: SettingsGatewayRoute,
   SettingsRuntimeRoute: SettingsRuntimeRoute,
   SettingsSubagentRoute: SettingsSubagentRoute,
   SettingsIndexRoute: SettingsIndexRoute,
