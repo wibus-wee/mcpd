@@ -373,7 +373,7 @@ export function ServersDataTable({
                   />
                 </Button>
               )}
-              {!canExpand && <div className="w-7" />}
+              {!canExpand && <div className="w-5" />}
               <ServerIcon className="size-3.5 text-muted-foreground shrink-0" />
               <span className="font-medium text-sm">{row.original.name}</span>
               {row.original.tags && row.original.tags.length > 0 && (
@@ -494,9 +494,9 @@ export function ServersDataTable({
                   {header.isPlaceholder
                     ? null
                     : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
                 </TableHead>
               ))}
             </TableRow>

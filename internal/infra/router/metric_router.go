@@ -56,7 +56,7 @@ func classifyRouteResult(err error) (domain.RouteStatus, domain.RouteReason) {
 		return domain.RouteStatusSuccess, domain.RouteReasonSuccess
 	}
 	if errors.Is(err, domain.ErrMethodNotAllowed) {
-		return domain.RouteStatusError, domain.RouteReasonMethodNotAllowed
+		return domain.RouteStatusSuccess, domain.RouteReasonMethodNotAllowed
 	}
 	if errors.Is(err, domain.ErrInvalidRequest) {
 		return domain.RouteStatusError, domain.RouteReasonInvalidRequest

@@ -59,12 +59,8 @@ func (p *PingProbe) Ping(ctx context.Context, conn domain.Conn) error {
 		return fmt.Errorf("decode ping response: %w", err)
 	}
 
-	resp, ok := respMsg.(*jsonrpc.Response)
-	if !ok {
+	if _, ok := respMsg.(*jsonrpc.Response); !ok {
 		return errors.New("ping response is not a response message")
-	}
-	if resp.Error != nil {
-		return fmt.Errorf("ping error: %w", resp.Error)
 	}
 
 	return nil

@@ -57,6 +57,16 @@ func TestPingProbe_SuccessfulPing(t *testing.T) {
 				Result: json.RawMessage(`null`),
 			}),
 		},
+		{
+			name: "valid response with error",
+			response: mustEncodeResponse(t, &jsonrpc.Response{
+				ID: mustMakeID(t, "ping-1"),
+				Error: &jsonrpc.Error{
+					Code:    -32601,
+					Message: "Method not found",
+				},
+			}),
+		},
 	}
 
 	for _, tt := range tests {
@@ -165,23 +175,6 @@ func TestPingProbe_ErrorResponses(t *testing.T) {
 				}
 			},
 			expectError: "decode ping response",
-		},
-		{
-			name: "response error",
-			setupConn: func() *mockConn {
-				return &mockConn{
-					callFunc: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
-						return mustEncodeResponse(t, &jsonrpc.Response{
-							ID: mustMakeID(t, "ping-1"),
-							Error: &jsonrpc.Error{
-								Code:    -32600,
-								Message: "Invalid Request",
-							},
-						}), nil
-					},
-				}
-			},
-			expectError: "ping error",
 		},
 		{
 			name: "wrong message type (notification)",

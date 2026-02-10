@@ -96,7 +96,6 @@ func (r *BasicRouter) RouteWithOptions(ctx context.Context, serverType, specKey,
 
 	if !domain.MethodAllowed(inst.Capabilities(), method) {
 		routeErr := domain.NewRouteError(domain.RouteStageValidate, domain.ErrMethodNotAllowed)
-		r.logRouteError(serverType, method, inst, start, routeErr)
 		return nil, routeErr
 	}
 
