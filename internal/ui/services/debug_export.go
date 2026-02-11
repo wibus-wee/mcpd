@@ -231,10 +231,17 @@ func mapEvents(events []diagnostics.Event, mode string) map[string][]diagnostics
 }
 
 func formatAttributes(attrs map[string]string, sensitive map[string]string, mode string) map[string]string {
+	out := map[string]string(nil)
 	if mode == "deep" {
-		return mergeStringMaps(attrs, sensitive)
+		out = mergeStringMaps(attrs, sensitive)
+	} else {
+		out = diagnostics.RedactMap(attrs)
 	}
-	return diagnostics.RedactMap(attrs)
+	out = applyForcedRedactions(out, attrs, sensitive)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func mergeStringMaps(primary map[string]string, secondary map[string]string) map[string]string {
@@ -247,6 +254,33 @@ func mergeStringMaps(primary map[string]string, secondary map[string]string) map
 	}
 	for key, value := range secondary {
 		out[key] = value
+	}
+	return out
+}
+
+const forcedRedactionValue = "***"
+
+var forcedRedactionKeys = map[string]struct{}{
+	"cmd":      {},
+	"endpoint": {},
+	"headers":  {},
+}
+
+func applyForcedRedactions(out map[string]string, attrs map[string]string, sensitive map[string]string) map[string]string {
+	if len(forcedRedactionKeys) == 0 {
+		return out
+	}
+	if out == nil {
+		out = make(map[string]string)
+	}
+	for key := range forcedRedactionKeys {
+		if _, ok := sensitive[key]; ok {
+			out[key] = forcedRedactionValue
+			continue
+		}
+		if _, ok := attrs[key]; ok {
+			out[key] = forcedRedactionValue
+		}
 	}
 	return out
 }
