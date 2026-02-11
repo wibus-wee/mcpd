@@ -60,10 +60,15 @@ func (o *ServerStartupOrchestrator) StopInit() {
 
 // ApplyCatalogState updates the init manager with a new catalog state.
 func (o *ServerStartupOrchestrator) ApplyCatalogState(state *domain.CatalogState) {
-	if o == nil || o.initManager == nil {
+	if o == nil {
 		return
 	}
-	o.initManager.ApplyCatalogState(state)
+	if o.initManager != nil {
+		o.initManager.ApplyCatalogState(state)
+	}
+	if o.bootstrapManager != nil {
+		o.bootstrapManager.ApplyCatalogState(state)
+	}
 }
 
 // SetMinReady updates min-ready settings for a spec via init manager.
@@ -80,6 +85,14 @@ func (o *ServerStartupOrchestrator) RetryInit(specKey string) error {
 		return errors.New("server initialization manager not configured")
 	}
 	return o.initManager.RetrySpec(specKey)
+}
+
+// BootstrapSpecKeys triggers incremental bootstrap for provided spec keys.
+func (o *ServerStartupOrchestrator) BootstrapSpecKeys(ctx context.Context, specKeys []string) error {
+	if o == nil || o.bootstrapManager == nil {
+		return nil
+	}
+	return o.bootstrapManager.BootstrapSpecKeys(ctx, specKeys)
 }
 
 // InitStatuses returns the current init status snapshot.

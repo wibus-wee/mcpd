@@ -32,13 +32,12 @@ export const ImportMcpServersSheet = () => {
   const { data: serversList, mutate: mutateServers } = useServers()
 
   const [open, setOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<ImportTab>('ide')
+  const [activeTab, setActiveTab] = useState<ImportTab>('json')
   const [footerContent, setFooterContent] = useState<ReactNode | null>(null)
   const [jsonCount, setJsonCount] = useState(0)
   const [ideCount, setIdeCount] = useState(0)
 
   const wasOpenRef = useRef(false)
-  const autoSwitchedRef = useRef(false)
 
   const isWritable = configMode?.isWritable ?? false
 
@@ -59,17 +58,6 @@ export const ImportMcpServersSheet = () => {
     setActiveTab(value as ImportTab)
   }, [])
 
-  const handleAutoSwitchToJson = useCallback(() => {
-    if (autoSwitchedRef.current) {
-      return
-    }
-    if (activeTab !== 'ide') {
-      return
-    }
-    autoSwitchedRef.current = true
-    setActiveTab('json')
-  }, [activeTab])
-
   const handleFooterChange = useCallback((content: ReactNode | null) => {
     setFooterContent(content)
   }, [])
@@ -88,11 +76,10 @@ export const ImportMcpServersSheet = () => {
 
   useEffect(() => {
     if (!open) {
-      setActiveTab('ide')
+      setActiveTab('json')
       setFooterContent(null)
       setJsonCount(0)
       setIdeCount(0)
-      autoSwitchedRef.current = false
     }
   }, [open])
 
@@ -162,7 +149,6 @@ export const ImportMcpServersSheet = () => {
               mutateServers={mutateServers}
               onFooterChange={handleFooterChange}
               onCountChange={handleIdeCountChange}
-              onRequestAutoSwitch={handleAutoSwitchToJson}
             />
           </Tabs>
         </SheetPanel>

@@ -208,6 +208,7 @@ func (m *ReloadManager) applyUpdate(ctx context.Context, update domain.CatalogUp
 		return err
 	}
 
+	m.bootstrapIncremental(ctx, update.Diff)
 	m.refreshRuntime(ctx, update, m.state.RuntimeState())
 
 	m.observer.RecordReloadSuccess(update.Source, domain.ReloadActionEntry)
@@ -446,6 +447,57 @@ func (m *ReloadManager) refreshRuntime(ctx context.Context, update domain.Catalo
 			m.logger.Warn("prompt refresh after reload failed", zap.Error(err))
 		}
 	}
+}
+
+func (m *ReloadManager) bootstrapIncremental(ctx context.Context, diff domain.CatalogDiff) {
+	if m.startup == nil {
+		return
+	}
+	specKeys := incrementalBootstrapSpecKeys(diff)
+	if len(specKeys) == 0 {
+		return
+	}
+	if err := m.startup.BootstrapSpecKeys(ctx, specKeys); err != nil {
+		m.logger.Warn("bootstrap incremental failed", zap.Error(err), zap.Int("specs", len(specKeys)))
+	}
+}
+
+func incrementalBootstrapSpecKeys(diff domain.CatalogDiff) []string {
+	if len(diff.AddedSpecKeys) == 0 && len(diff.UpdatedSpecKeys) == 0 {
+		return nil
+	}
+	skip := make(map[string]struct{}, len(diff.RuntimeBehaviorSpecKeys))
+	for _, key := range diff.RuntimeBehaviorSpecKeys {
+		if key == "" {
+			continue
+		}
+		skip[key] = struct{}{}
+	}
+	uniq := make(map[string]struct{}, len(diff.AddedSpecKeys)+len(diff.UpdatedSpecKeys))
+	for _, key := range diff.AddedSpecKeys {
+		if key == "" {
+			continue
+		}
+		uniq[key] = struct{}{}
+	}
+	for _, key := range diff.UpdatedSpecKeys {
+		if key == "" {
+			continue
+		}
+		if _, ok := skip[key]; ok {
+			continue
+		}
+		uniq[key] = struct{}{}
+	}
+	if len(uniq) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(uniq))
+	for key := range uniq {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (m *ReloadManager) waitForRevision(ctx context.Context, revision uint64) error {

@@ -134,6 +134,174 @@ func (m *Manager) Bootstrap(ctx context.Context) {
 	go m.run(ctx, targets)
 }
 
+// ApplyCatalogState updates the manager with a new catalog state.
+func (m *Manager) ApplyCatalogState(state *domain.CatalogState) {
+	if m == nil || state == nil {
+		return
+	}
+
+	summary := state.Summary
+	if summary.SpecRegistry == nil {
+		return
+	}
+
+	mode := summary.Runtime.BootstrapMode
+	if mode == "" {
+		mode = domain.DefaultBootstrapMode
+	}
+	concurrency := summary.Runtime.BootstrapConcurrency
+	if concurrency <= 0 {
+		concurrency = domain.DefaultBootstrapConcurrency
+	}
+	timeout := summary.Runtime.BootstrapTimeout()
+
+	m.mu.Lock()
+	m.specs = summary.SpecRegistry
+	m.specKeys = summary.ServerSpecKeys
+	m.runtime = summary.Runtime
+	m.mode = mode
+	m.concurrency = concurrency
+	m.timeout = timeout
+	m.mu.Unlock()
+}
+
+// BootstrapSpecKeys runs bootstrap for the provided spec keys.
+// This is intended for incremental bootstrap after catalog reloads.
+func (m *Manager) BootstrapSpecKeys(ctx context.Context, specKeys []string) error {
+	if m == nil {
+		return nil
+	}
+	if m.mode == domain.BootstrapModeDisabled {
+		return nil
+	}
+	if len(specKeys) == 0 {
+		return nil
+	}
+
+	m.mu.RLock()
+	if len(m.specs) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	// Copy current specs/specKeys/runtime under lock.
+	currentSpecs := m.specs
+	currentSpecKeys := m.specKeys
+	m.mu.RUnlock()
+
+	uniq := make(map[string]struct{}, len(specKeys))
+	for _, key := range specKeys {
+		if key == "" {
+			continue
+		}
+		uniq[key] = struct{}{}
+	}
+	if len(uniq) == 0 {
+		return nil
+	}
+
+	targets := make([]bootstrapTarget, 0, len(uniq))
+	for specKey := range uniq {
+		spec, ok := currentSpecs[specKey]
+		if !ok {
+			continue
+		}
+		// If specKeys mapping exists, ensure the specKey is still registered.
+		if len(currentSpecKeys) > 0 {
+			found := false
+			for _, key := range currentSpecKeys {
+				if key == specKey {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		targets = append(targets, bootstrapTarget{specKey: specKey, spec: spec})
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	sort.Slice(targets, func(i, j int) bool { return targets[i].specKey < targets[j].specKey })
+
+	startTime := time.Now()
+	logger := m.logger
+	logger.Info("bootstrap incremental started",
+		zap.Int("total", len(targets)),
+		zap.String("mode", string(m.mode)),
+		zap.Int("concurrency", m.concurrency),
+	)
+
+	type bootstrapResult struct {
+		specKey    string
+		serverName string
+		err        error
+	}
+
+	semaphore := make(chan struct{}, m.concurrency)
+	results := make(chan bootstrapResult, len(targets))
+	var wg sync.WaitGroup
+
+	for _, target := range targets {
+		specKey := target.specKey
+		spec := target.spec
+
+		wg.Add(1)
+		go func(key string, sp domain.ServerSpec) {
+			defer wg.Done()
+
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				results <- bootstrapResult{specKey: key, serverName: sp.Name, err: ctx.Err()}
+				return
+			}
+			defer func() { <-semaphore }()
+
+			err := m.bootstrapOne(ctx, key, sp)
+			results <- bootstrapResult{specKey: key, serverName: sp.Name, err: err}
+		}(specKey, spec)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var completed int
+	var failed int
+	for result := range results {
+		if result.err != nil {
+			failed++
+			logger.Warn("bootstrap incremental server failed",
+				zap.String("specKey", result.specKey),
+				zap.String("server", result.serverName),
+				zap.Error(result.err),
+			)
+			continue
+		}
+		completed++
+		logger.Info("bootstrap incremental server ready",
+			zap.String("specKey", result.specKey),
+			zap.String("server", result.serverName),
+		)
+	}
+
+	logger.Info("bootstrap incremental completed",
+		zap.Int("total", len(targets)),
+		zap.Int("succeeded", completed),
+		zap.Int("failed", failed),
+		zap.Duration("elapsed", time.Since(startTime)),
+	)
+
+	if failed > 0 {
+		return errors.New("bootstrap incremental failed")
+	}
+	return nil
+}
+
 func (m *Manager) bootstrapTargets() []bootstrapTarget {
 	targets := make(map[string]domain.ServerSpec)
 	if len(m.specKeys) == 0 {

@@ -59,7 +59,6 @@ type IdeImportTabProps = {
   mutateServers: () => Promise<unknown>
   onFooterChange: (content: ReactNode | null) => void
   onCountChange: (count: number) => void
-  onRequestAutoSwitch: () => void
 }
 
 type TransferStatusRowProps = {
@@ -174,7 +173,6 @@ export function IdeImportTab({
   mutateServers,
   onFooterChange,
   onCountChange,
-  onRequestAutoSwitch,
 }: IdeImportTabProps) {
   const [transferState, setTransferState] = useState(buildInitialTransferState)
   const [mergedServers, setMergedServers] = useState<MergedServer[]>([])
@@ -346,12 +344,10 @@ export function IdeImportTab({
     if (mergedServers.length > 0) {
       return
     }
-    onRequestAutoSwitch()
   }, [
     hasPreviewed,
     isActive,
     mergedServers.length,
-    onRequestAutoSwitch,
     open,
     transferPreviewing,
   ])
@@ -376,17 +372,17 @@ export function IdeImportTab({
       >
         {isTransferImporting
           ? (
-              <>
-                <Spinner className="size-4" />
-                Importing...
-              </>
-            )
+            <>
+              <Spinner className="size-4" />
+              Importing...
+            </>
+          )
           : (
-              <>
-                <ArrowDownToLineIcon className="size-4" />
-                {importLabel}
-              </>
-            )}
+            <>
+              <ArrowDownToLineIcon className="size-4" />
+              {importLabel}
+            </>
+          )}
       </Button>
     )
   }, [canTransferImport, handleTransferImport, importLabel, isTransferImporting])
