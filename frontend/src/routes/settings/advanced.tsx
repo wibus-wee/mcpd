@@ -166,26 +166,6 @@ function AdvancedSettingsPage() {
     }
   }, [updateSettings, updateUpdateSettings])
 
-  const handleOpenRelease = useCallback(async (url: string) => {
-    const opened = window.open(url, '_blank', 'noopener,noreferrer')
-    if (opened) return
-    try {
-      await navigator.clipboard.writeText(url)
-      toastManager.add({
-        type: 'success',
-        title: 'Link copied',
-        description: 'Download link copied to clipboard',
-      })
-    }
-    catch {
-      toastManager.add({
-        type: 'error',
-        title: 'Open failed',
-        description: 'Unable to open the download link',
-      })
-    }
-  }, [])
-
   const handleCheckNow = useCallback(async () => {
     if (isChecking) return
     setIsChecking(true)
@@ -258,7 +238,7 @@ function AdvancedSettingsPage() {
 
   useEffect(() => {
     if (downloadProgress?.status !== 'completed') return
-    const filePath = downloadProgress.filePath
+    const { filePath } = downloadProgress
     if (!filePath) return
     if (installStartedRef.current === filePath) return
     installStartedRef.current = filePath
@@ -573,7 +553,7 @@ function AdvancedSettingsPage() {
           setDownloadProgress(progress)
         }
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -588,7 +568,7 @@ function AdvancedSettingsPage() {
           setInstallProgress(progress)
         }
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -605,8 +585,7 @@ function AdvancedSettingsPage() {
           setDownloadProgress(progress)
         }
       }
-      catch {
-      }
+      catch { /* empty */ }
     }
     poll()
     const intervalId = window.setInterval(poll, 1000)
@@ -627,8 +606,7 @@ function AdvancedSettingsPage() {
           setInstallProgress(progress)
         }
       }
-      catch {
-      }
+      catch { /* empty */ }
     }
     poll()
     const intervalId = window.setInterval(poll, 1000)
@@ -726,9 +704,9 @@ function AdvancedSettingsPage() {
                   ) : (
                     <DownloadIcon className="size-4" />
                   )}
-                    {isDownloadStarting || isDownloadActive ? 'Downloading...' : 'Download'}
-                  </Button>
-                )}
+                  {isDownloadStarting || isDownloadActive ? 'Downloading...' : 'Download'}
+                </Button>
+              )}
             </div>
           </div>
           {downloadStatus && (
