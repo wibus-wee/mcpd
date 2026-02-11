@@ -52,13 +52,35 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
 
-      - name: Build desktop app
+      - name: Build desktop app (universal + arm64 + amd64)
         run: |
+          set -euo pipefail
+          mkdir -p dist
           VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ./bin/wails3 task darwin:package:universal
+          mv ./bin/mcpvui.app ./bin/mcpvui-universal.app
+          VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ARCH=arm64 ./bin/wails3 task darwin:package
+          mv ./bin/mcpvui.app ./bin/mcpvui-arm64.app
+          VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ARCH=amd64 ./bin/wails3 task darwin:package
+          mv ./bin/mcpvui.app ./bin/mcpvui-amd64.app
+          ditto -c -k --sequesterRsrc --keepParent ./bin/mcpvui-universal.app ./dist/mcpvui-${{ env.VERSION }}-macos-universal.zip
+          ditto -c -k --sequesterRsrc --keepParent ./bin/mcpvui-arm64.app ./dist/mcpvui-${{ env.VERSION }}-macos-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent ./bin/mcpvui-amd64.app ./dist/mcpvui-${{ env.VERSION }}-macos-amd64.zip
         shell: bash
 
-      - name: Upload GUI artifacts
+      - name: Upload GUI artifacts (universal)
         uses: actions/upload-artifact@v4
         with:
           name: gui-macos-universal
-          path: ./bin/mcpvui.app
+          path: ./dist/mcpvui-${{ env.VERSION }}-macos-universal.zip
+
+      - name: Upload GUI artifacts (arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-macos-arm64
+          path: ./dist/mcpvui-${{ env.VERSION }}-macos-arm64.zip
+
+      - name: Upload GUI artifacts (amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-macos-amd64
+          path: ./dist/mcpvui-${{ env.VERSION }}-macos-amd64.zip

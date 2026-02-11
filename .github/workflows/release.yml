@@ -38,15 +38,23 @@ jobs:
       - name: Install toolchain
         run: make install-toolchain
 
-      - name: Build GUI (universal)
+      - name: Build GUI (universal + arm64 + amd64)
         run: |
+          set -euo pipefail
           VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ./bin/wails3 task darwin:package:universal
+          mv ./bin/mcpvui.app ./bin/mcpvui-universal.app
+          VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ARCH=arm64 ./bin/wails3 task darwin:package
+          mv ./bin/mcpvui.app ./bin/mcpvui-arm64.app
+          VERSION=${{ env.VERSION }} BUILD=${{ env.BUILD }} ARCH=amd64 ./bin/wails3 task darwin:package
+          mv ./bin/mcpvui.app ./bin/mcpvui-amd64.app
         shell: bash
 
-      - name: Package DMG
+      - name: Package DMG (universal + arm64 + amd64)
         run: |
           chmod +x scripts/release/make-dmg.sh
-          scripts/release/make-dmg.sh "bin/mcpvui.app" "dist/mcpvui-${{ env.VERSION }}-macos-universal.dmg" "mcpvui"
+          scripts/release/make-dmg.sh "bin/mcpvui-universal.app" "dist/mcpvui-${{ env.VERSION }}-macos-universal.dmg" "mcpvui"
+          scripts/release/make-dmg.sh "bin/mcpvui-arm64.app" "dist/mcpvui-${{ env.VERSION }}-macos-arm64.dmg" "mcpvui"
+          scripts/release/make-dmg.sh "bin/mcpvui-amd64.app" "dist/mcpvui-${{ env.VERSION }}-macos-amd64.dmg" "mcpvui"
         shell: bash
 
       - name: Publish Release

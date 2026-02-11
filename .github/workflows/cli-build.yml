@@ -33,34 +33,61 @@ jobs:
       - name: Install toolchain
         run: make install-toolchain
 
-      - name: Build CLI binaries (universal)
+      - name: Build CLI binaries (universal + arm64 + amd64)
         run: |
           set -euo pipefail
           mkdir -p dist
-          LDFLAGS="-X mcpv/internal/buildinfo.Version=${{ env.VERSION }} -X mcpv/internal/buildinfo.Build=${{ env.BUILD }}"
+          LDFLAGS="-s -w -X mcpv/internal/buildinfo.Version=${{ env.VERSION }} -X mcpv/internal/buildinfo.Build=${{ env.BUILD }}"
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/mcpv-amd64 ./cmd/mcpv
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/mcpv-arm64 ./cmd/mcpv
           lipo -create -output dist/mcpv dist/mcpv-amd64 dist/mcpv-arm64
-          rm dist/mcpv-amd64 dist/mcpv-arm64
+          mkdir -p dist/amd64 dist/arm64
+          cp dist/mcpv-amd64 dist/amd64/mcpv
+          cp dist/mcpv-arm64 dist/arm64/mcpv
 
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/mcpvmcp-amd64 ./cmd/mcpvmcp
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/mcpvmcp-arm64 ./cmd/mcpvmcp
           lipo -create -output dist/mcpvmcp dist/mcpvmcp-amd64 dist/mcpvmcp-arm64
-          rm dist/mcpvmcp-amd64 dist/mcpvmcp-arm64
+          cp dist/mcpvmcp-amd64 dist/amd64/mcpvmcp
+          cp dist/mcpvmcp-arm64 dist/arm64/mcpvmcp
 
           (cd dist && zip -9 -r "mcpv-${VERSION}-macos-universal.zip" mcpv)
           (cd dist && zip -9 -r "mcpvmcp-${VERSION}-macos-universal.zip" mcpvmcp)
           (cd dist && zip -9 -r "mcpv-cli-${VERSION}-macos-universal.zip" mcpv mcpvmcp)
+          (cd dist/amd64 && zip -9 -r "../mcpv-${VERSION}-macos-amd64.zip" mcpv)
+          (cd dist/amd64 && zip -9 -r "../mcpvmcp-${VERSION}-macos-amd64.zip" mcpvmcp)
+          (cd dist/amd64 && zip -9 -r "../mcpv-cli-${VERSION}-macos-amd64.zip" mcpv mcpvmcp)
+          (cd dist/arm64 && zip -9 -r "../mcpv-${VERSION}-macos-arm64.zip" mcpv)
+          (cd dist/arm64 && zip -9 -r "../mcpvmcp-${VERSION}-macos-arm64.zip" mcpvmcp)
+          (cd dist/arm64 && zip -9 -r "../mcpv-cli-${VERSION}-macos-arm64.zip" mcpv mcpvmcp)
         shell: bash
 
-      - name: Upload CLI artifacts
+      - name: Upload CLI artifacts (universal)
         uses: actions/upload-artifact@v4
         with:
           name: cli-macos-universal
           path: |
             dist/mcpv
             dist/mcpvmcp
-            dist/*.zip
+            dist/*-macos-universal.zip
+
+      - name: Upload CLI artifacts (arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-macos-arm64
+          path: |
+            dist/mcpv-arm64
+            dist/mcpvmcp-arm64
+            dist/*-macos-arm64.zip
+
+      - name: Upload CLI artifacts (amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-macos-amd64
+          path: |
+            dist/mcpv-amd64
+            dist/mcpvmcp-amd64
+            dist/*-macos-amd64.zip
 
   build-cli-linux:
     name: Build CLI (linux ${{ matrix.goarch }})
@@ -90,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          LDFLAGS="-X mcpv/internal/buildinfo.Version=${{ env.VERSION }} -X mcpv/internal/buildinfo.Build=${{ env.BUILD }}"
+          LDFLAGS="-s -w -X mcpv/internal/buildinfo.Version=${{ env.VERSION }} -X mcpv/internal/buildinfo.Build=${{ env.BUILD }}"
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpv ./cmd/mcpv
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpvmcp ./cmd/mcpvmcp
           (cd dist && zip -9 -r "mcpv-${VERSION}-linux-${{ matrix.goarch }}.zip" mcpv)

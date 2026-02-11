@@ -31,6 +31,10 @@ jobs:
         with:
           filters: |
             go:
+              - 'cli-build.yml'
+              - 'go-lint.yml'
+              - 'go-test.yml'
+              - 'ci.yml'
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
@@ -40,7 +44,12 @@ jobs:
               - 'pkg/**'
               - 'proto/**'
             web:
+              - 'ci.yml'
+              - 'web-lint.yml'
+              - 'web-test.yml'
+              - 'gui-build.yml'
               - 'frontend/**'
+
 
   lint:
     name: Lint
