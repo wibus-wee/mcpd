@@ -544,6 +544,10 @@ func (m *Manager) SetUpdateChecker(checker *UpdateChecker) {
 	if checker != nil && wails != nil {
 		checker.SetWailsApp(wails)
 	}
+	if checker != nil {
+		settings := m.loadUpdateSettings()
+		checker.SetOptions(settings.ToUpdateCheckOptions())
+	}
 }
 
 // UpdateChecker returns the update checker if configured.
@@ -654,6 +658,32 @@ func (m *Manager) loadGatewaySettings() GatewaySettings {
 			m.logger.Warn("failed to parse gateway settings", zap.Error(err))
 		}
 		return DefaultGatewaySettings()
+	}
+	return settings
+}
+
+func (m *Manager) loadUpdateSettings() UpdateSettings {
+	store, err := m.UISettingsStore()
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to open ui settings store", zap.Error(err))
+		}
+		return DefaultUpdateSettings()
+	}
+	snapshot, err := store.Get(uiconfig.ScopeGlobal, "")
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to read ui settings", zap.Error(err))
+		}
+		return DefaultUpdateSettings()
+	}
+	raw := snapshot.Sections[UpdateSectionKey]
+	settings, err := ParseUpdateSettings(raw)
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Warn("failed to parse update settings", zap.Error(err))
+		}
+		return DefaultUpdateSettings()
 	}
 	return settings
 }

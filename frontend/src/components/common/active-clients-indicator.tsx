@@ -43,7 +43,6 @@ export const ActiveClientsIndicator = ({ className }: { className?: string }) =>
             >
               <MousePointer2Icon className="size-3 text-info" />
               {entry.client}
-              <span className="text-muted-foreground">(PID: {entry.pid})</span>
             </span>
           ))}
           {extraCount > 0 && (

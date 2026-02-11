@@ -4,7 +4,6 @@
 
 import { CoreService } from '@bindings/mcpv/internal/ui/services'
 import { confetti } from '@tsparticles/confetti'
-import { HeartHandshakeIcon } from 'lucide-react'
 import { m } from 'motion/react'
 import { useCallback, useRef } from 'react'
 import useSWR from 'swr'
@@ -96,7 +95,7 @@ export function AboutPage() {
           transition={{ type: 'spring', duration: 0.4, bounce: 0, delay: 0.16 }}
           className="max-w-xs text-sm leading-relaxed text-muted-foreground"
         >
-          Lightweight Elastic Orchestrator for Model Context Protocol Servers (MCP Gateway)
+          Lightweight Elastic Orchestrator for Model Context Protocol Servers
 
         </m.p>
 
@@ -107,9 +106,7 @@ export function AboutPage() {
           transition={{ type: 'spring', duration: 0.4, bounce: 0, delay: 0.24 }}
           className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"
         >
-          <span>Made with</span>
-          <HeartHandshakeIcon className="size-4 text-pink-500" />
-          <span>by Wibus</span>
+          <span>Made with ❤️ by Wibus</span>
         </m.div>
       </div>
     </div>

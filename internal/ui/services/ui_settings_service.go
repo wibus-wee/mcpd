@@ -95,6 +95,7 @@ func (s *UISettingsService) UpdateUISettings(ctx context.Context, req UpdateUISe
 	}
 	s.applyTraySettings(snapshot, hasTrayChange(req.Updates, req.Removes))
 	s.applyGatewaySettings(snapshot, hasGatewayChange(req.Updates, req.Removes))
+	s.applyUpdateSettings(snapshot, hasUpdateChange(req.Updates, req.Removes))
 	return mapSnapshot(snapshot), nil
 }
 
@@ -122,6 +123,7 @@ func (s *UISettingsService) ResetUISettings(ctx context.Context, req ResetUISett
 	}
 	s.applyTraySettings(snapshot, true)
 	s.applyGatewaySettings(snapshot, true)
+	s.applyUpdateSettings(snapshot, true)
 	return mapSnapshot(snapshot), nil
 }
 
@@ -218,6 +220,20 @@ func hasGatewayChange(updates map[string]json.RawMessage, removes []string) bool
 	return false
 }
 
+func hasUpdateChange(updates map[string]json.RawMessage, removes []string) bool {
+	if len(updates) > 0 {
+		if _, ok := updates[ui.UpdateSectionKey]; ok {
+			return true
+		}
+	}
+	for _, key := range removes {
+		if key == ui.UpdateSectionKey {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *UISettingsService) applyTraySettings(snapshot uiconfig.Snapshot, changed bool) {
 	if !changed || snapshot.Scope != uiconfig.ScopeGlobal {
 		return
@@ -247,4 +263,21 @@ func (s *UISettingsService) applyGatewaySettings(snapshot uiconfig.Snapshot, cha
 	if err := manager.ApplyGatewaySettings(settings); err != nil {
 		s.logger.Warn("failed to apply gateway settings", zap.Error(err))
 	}
+}
+
+func (s *UISettingsService) applyUpdateSettings(snapshot uiconfig.Snapshot, changed bool) {
+	if !changed || snapshot.Scope != uiconfig.ScopeGlobal {
+		return
+	}
+	checker, err := s.deps.updateChecker()
+	if err != nil {
+		s.logger.Warn("update checker not initialized", zap.Error(err))
+		return
+	}
+	settings, err := ui.ParseUpdateSettings(snapshot.Sections[ui.UpdateSectionKey])
+	if err != nil {
+		s.logger.Warn("failed to parse update settings", zap.Error(err))
+		return
+	}
+	checker.SetOptions(settings.ToUpdateCheckOptions())
 }

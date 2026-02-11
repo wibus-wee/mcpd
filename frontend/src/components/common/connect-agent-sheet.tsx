@@ -210,7 +210,7 @@ export function ConnectIdeSheet() {
   const [open, setOpen] = useState(false)
   const [selectorMode, setSelectorMode] = useState<SelectorMode>('server')
   const [selectorValue, setSelectorValue] = useState('')
-  const [transport, setTransport] = useState<TransportType>('stdio')
+  const [transport, setTransport] = useState<TransportType>('streamable-http')
   const [launchUIOnFail, setLaunchUIOnFail] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [showHttpAdvanced, setShowHttpAdvanced] = useState(false)
@@ -302,8 +302,8 @@ export function ConnectIdeSheet() {
   const tagOptions = useMemo(() => {
     const set = new Set<string>()
       ; (servers ?? []).forEach((server) => {
-      server.tags?.forEach(tag => set.add(tag))
-    })
+        server.tags?.forEach(tag => set.add(tag))
+      })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [servers])
 
@@ -535,13 +535,13 @@ export function ConnectIdeSheet() {
               }}
               className="flex flex-wrap gap-2"
             >
-              <ToggleGroupItem value="stdio" size="sm" variant="outline">
-                <ZapIcon className="size-3" />
-                stdio
-              </ToggleGroupItem>
               <ToggleGroupItem value="streamable-http" size="sm" variant="outline">
                 <GlobeIcon className="size-3" />
                 HTTP
+              </ToggleGroupItem>
+              <ToggleGroupItem value="stdio" size="sm" variant="outline">
+                <ZapIcon className="size-3" />
+                stdio
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
