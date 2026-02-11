@@ -49,14 +49,15 @@ go run ./cmd/mcpv validate --config .
 go run ./cmd/mcpv serve --config .
 ```
 
-Start the gateway in one of two modes:
+Start the gateway (streamable HTTP):
 
 ```bash
-# Tag mode
-go run ./cmd/mcpvmcp --tag chat
-
-# Single-server mode
-go run ./cmd/mcpvmcp --server weather
+go run ./cmd/mcpvmcp --transport streamable-http
 ```
+
+Connect your MCP client using a selector path:
+
+- `http://127.0.0.1:8090/mcp/server/weather`
+- `http://127.0.0.1:8090/mcp/tags/chat,tools`
 
 If your client can list tools successfully, the system is wired correctly.

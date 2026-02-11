@@ -558,7 +558,7 @@ export function ConnectIdeSheet() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-background/70 px-3 py-2">
                     <div className="space-y-0.5">
-                      <p className="text-xs text-muted-foreground">Endpoint</p>
+                      <p className="text-xs text-muted-foreground">Base endpoint</p>
                       <p className="font-mono text-xs">{gatewayEndpoint}</p>
                     </div>
                     <InlineCopyButton text={gatewayEndpoint} />
@@ -602,7 +602,8 @@ export function ConnectIdeSheet() {
                   </p>
                   <div className="space-y-2">
                     <Label htmlFor="http-url" className="text-sm">
-                      HTTP URL
+                      HTTP base URL
+                      <span className="text-xs text-muted-foreground ml-2">(before /server or /tags)</span>
                     </Label>
                     <Input
                       id="http-url"

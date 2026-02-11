@@ -1,5 +1,5 @@
 // Input: None (pure utility functions)
-// Output: mcpvmcp command and config builders with support for server/tag modes and build options
+// Output: mcpvmcp command and config builders with selector routing and build options
 // Position: Utility library for generating IDE connection configs and CLI snippets
 
 export type ClientTarget = 'cursor' | 'claude' | 'vscode' | 'codex'
@@ -59,8 +59,8 @@ const formatTomlInlineTable = (values: Record<string, string>) => {
 
 const buildStdioArgs = (selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) => {
   const args = selector.mode === 'tag'
-    ? ['--tag', selector.value]
-    : [selector.value]
+    ? buildTagArgs(selector.value)
+    : ['--selector-server', selector.value]
 
   // RPC settings
   if (rpc && rpc !== defaultRpcAddress) {
@@ -103,7 +103,7 @@ const buildStdioArgs = (selector: SelectorConfig, rpc = defaultRpcAddress, optio
   }
 
   // Transport settings
-  if (options.transport && options.transport !== 'stdio') {
+  if (options.transport) {
     args.push('--transport', options.transport)
   }
 
@@ -116,6 +116,30 @@ const buildHttpServerEntry = (options: BuildOptions) => {
     ? options.httpHeaders
     : undefined
   return headers ? { url, headers } : { url }
+}
+
+const buildHttpUrl = (selector: SelectorConfig, options: BuildOptions) => {
+  const base = normalizeHttpBaseUrl(options.httpUrl ?? '')
+  if (!base) return ''
+  const value = selector.value.trim()
+  if (!value) return base
+  if (selector.mode === 'server') {
+    return `${base}/server/${value}`
+  }
+  return `${base}/tags/${value}`
+}
+
+const normalizeHttpBaseUrl = (url: string) => url.replace(/\/+$/, '')
+
+const buildTagArgs = (value: string) => {
+  const tags = value
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(Boolean)
+  if (tags.length === 0) {
+    return ['--selector-tag', value]
+  }
+  return tags.flatMap(tag => ['--selector-tag', tag])
 }
 
 export function buildMcpCommand(path: string, selector: SelectorConfig, rpc = defaultRpcAddress, options: BuildOptions = {}) {
@@ -135,7 +159,10 @@ export function buildClientConfig(
   if (options.transport === 'streamable-http') {
     return JSON.stringify({
       mcpServers: {
-        [serverName]: buildHttpServerEntry(options),
+        [serverName]: buildHttpServerEntry({
+          ...options,
+          httpUrl: buildHttpUrl(selector, options),
+        }),
       },
     }, null, 2)
   }
@@ -160,7 +187,7 @@ export function buildCliSnippet(
   const serverName = resolveServerName(selector)
 
   if (options.transport === 'streamable-http') {
-    const url = options.httpUrl ?? ''
+    const url = buildHttpUrl(selector, options)
     const headerArgs = options.httpHeaders
       ? Object.entries(options.httpHeaders)
           .map(([key, value]) => `--header ${quoteCliArg(`${key}: ${value}`)}`)
@@ -181,7 +208,7 @@ export function buildTomlConfig(path: string, selector: SelectorConfig, rpc = de
   const serverName = resolveServerName(selector)
 
   if (options.transport === 'streamable-http') {
-    const url = options.httpUrl ?? ''
+    const url = buildHttpUrl(selector, options)
     const lines = [
       `[mcp_servers.${serverName}]`,
       `url = "${escapeTomlString(url)}"`,

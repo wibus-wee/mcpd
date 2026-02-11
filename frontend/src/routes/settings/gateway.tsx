@@ -28,7 +28,6 @@ function GatewaySettingsPage() {
         gatewayError={gateway.gatewayError}
         validationError={gateway.validationError}
         endpointPreview={gateway.endpointPreview}
-        visibilityMode={gateway.visibilityMode}
         accessMode={gateway.accessMode}
         enabled={gateway.enabled}
         onSubmit={gateway.handleSave}

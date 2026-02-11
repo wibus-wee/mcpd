@@ -5,8 +5,16 @@ description: One MCP endpoint, many servers.
 
 The gateway is the only MCP endpoint your clients need. It looks like a single MCP server, but it routes requests to your real servers through the core. This keeps client configuration simple even when your catalog grows.
 
-## Two routing modes
-In single-server mode, the gateway always routes to one named server. In tag mode, the gateway exposes a filtered tool list based on client tags, which keeps clients focused and avoids accidental access to unrelated servers.
+## Routing by path or header
+Clients select a target server or tag group by appending a selector to the base path, or by sending a header. Path routing is the recommended default because most MCP clients expect a distinct endpoint per server.
+
+**Path selectors**
+- `/mcp/server/{name}`
+- `/mcp/tags/{tag1,tag2}`
+
+**Header selectors**
+- `X-Mcp-Server: name`
+- `X-Mcp-Tags: tag1,tag2`
 
 ## Why the gateway exists
 The gateway isolates clients from your internal topology. You can add or remove servers, change lifecycle settings, or adjust tags without touching client configuration.
@@ -14,11 +22,12 @@ The gateway isolates clients from your internal topology. You can add or remove 
 ## How to start it
 
 ```bash
-# Tag mode
-go run ./cmd/mcpvmcp --tag chat
-
-# Single-server mode
-go run ./cmd/mcpvmcp --server weather
+go run ./cmd/mcpvmcp --transport streamable-http
 ```
 
-If the gateway can list tools, routing is working.
+Then connect a client using a selector path like:
+
+- `http://127.0.0.1:8090/mcp/server/weather`
+- `http://127.0.0.1:8090/mcp/tags/chat,tools`
+
+If the gateway can list tools on those endpoints, routing is working.

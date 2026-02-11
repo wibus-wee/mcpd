@@ -12,7 +12,7 @@
 - **app-sidebar.tsx**: 应用主侧边栏与导航入口
 - **app-topbar.tsx**: 顶部栏，展示核心状态与主题切换
 - **client-chip-group.tsx**: 以标签形式展示客户端信息的组件
-- **connect-ide-sheet.tsx**: IDE 连接配置抽屉与预设输出
+- **connect-ide-sheet.tsx**: IDE 连接配置抽屉与预设输出（含 HTTP 路由选择）
 - **error-boundary.tsx**: 组件级错误边界与回退 UI
 - **field-help.tsx**: 表单字段帮助图标、说明与文档链接渲染
 - **main-content.tsx**: 主内容区域容器，负责布局与顶栏集成

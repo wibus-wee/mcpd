@@ -16,9 +16,6 @@ type GatewaySettings struct {
 	HTTPToken  string
 	Caller     string
 	RPC        string
-	Server     string
-	Tags       []string
-	AllowAll   bool
 	HealthURL  string
 }
 
@@ -31,9 +28,6 @@ type gatewaySettingsPayload struct {
 	HTTPToken  string   `json:"httpToken,omitempty"`
 	Caller     string   `json:"caller,omitempty"`
 	RPC        string   `json:"rpc,omitempty"`
-	Server     string   `json:"server,omitempty"`
-	Tags       []string `json:"tags,omitempty"`
-	AllowAll   *bool    `json:"allowAll,omitempty"`
 	HealthURL  string   `json:"healthUrl,omitempty"`
 }
 
@@ -43,7 +37,6 @@ func DefaultGatewaySettings() GatewaySettings {
 		HTTPAddr:  "127.0.0.1:8090",
 		HTTPPath:  "/mcp",
 		Caller:    "mcpvmcp-ui",
-		AllowAll:  true,
 		HealthURL: "",
 	}
 }
@@ -59,9 +52,6 @@ func ParseGatewaySettings(raw json.RawMessage) (GatewaySettings, error) {
 	}
 	if payload.Enabled != nil {
 		settings.Enabled = *payload.Enabled
-	}
-	if payload.AllowAll != nil {
-		settings.AllowAll = *payload.AllowAll
 	}
 	if payload.BinaryPath != "" {
 		settings.BinaryPath = payload.BinaryPath
@@ -83,12 +73,6 @@ func ParseGatewaySettings(raw json.RawMessage) (GatewaySettings, error) {
 	}
 	if payload.RPC != "" {
 		settings.RPC = payload.RPC
-	}
-	if payload.Server != "" {
-		settings.Server = payload.Server
-	}
-	if payload.Tags != nil {
-		settings.Tags = append([]string(nil), payload.Tags...)
 	}
 	if payload.HealthURL != "" {
 		settings.HealthURL = payload.HealthURL
@@ -134,19 +118,6 @@ func BuildGatewayProcessConfig(settings GatewaySettings) GatewayProcessConfig {
 	}
 	if rpcAddr := strings.TrimSpace(settings.RPC); rpcAddr != "" {
 		args = append(args, "--rpc", rpcAddr)
-	}
-	if server := strings.TrimSpace(settings.Server); server != "" {
-		args = append(args, "--server", server)
-	} else if len(settings.Tags) > 0 {
-		for _, tag := range settings.Tags {
-			tag = strings.TrimSpace(tag)
-			if tag == "" {
-				continue
-			}
-			args = append(args, "--tag", tag)
-		}
-	} else if settings.AllowAll {
-		args = append(args, "--allow-all")
 	}
 	if token := strings.TrimSpace(settings.HTTPToken); token != "" {
 		args = append(args, "--http-token", token)

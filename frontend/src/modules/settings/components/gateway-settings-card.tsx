@@ -14,10 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toastManager } from '@/components/ui/toast'
 
 import type { GatewayFormState } from '../lib/gateway-config'
-import {
-  GATEWAY_ACCESS_OPTIONS,
-  GATEWAY_VISIBILITY_OPTIONS,
-} from '../lib/gateway-config'
+import { GATEWAY_ACCESS_OPTIONS } from '../lib/gateway-config'
 import { GATEWAY_FIELD_HELP } from '../lib/gateway-help'
 import { SettingsCard } from './settings-card'
 
@@ -30,7 +27,6 @@ interface GatewaySettingsCardProps {
   gatewayError: unknown
   validationError?: string
   endpointPreview: string
-  visibilityMode: GatewayFormState['visibilityMode']
   accessMode: GatewayFormState['accessMode']
   enabled: boolean
   onSubmit: (event?: React.BaseSyntheticEvent) => void
@@ -45,7 +41,6 @@ export const GatewaySettingsCard = ({
   gatewayError,
   validationError,
   endpointPreview,
-  visibilityMode,
   accessMode,
   enabled,
   onSubmit,
@@ -86,6 +81,12 @@ export const GatewaySettingsCard = ({
     return 'Optional when bound to localhost.'
   }, [accessMode])
 
+  const baseEndpoint = useMemo(() => endpointPreview.replace(/\\/+$/, ''), [endpointPreview])
+  const routingExamples = useMemo(() => ({
+    server: `${baseEndpoint}/server/{name}`,
+    tags: `${baseEndpoint}/tags/{tag1,tag2}`,
+  }), [baseEndpoint])
+
   return (
     <SettingsCard form={form} canEdit={canEdit} onSubmit={onSubmit}>
       <SettingsCard.Header
@@ -121,8 +122,8 @@ export const GatewaySettingsCard = ({
                 </div>
               </SettingsCard.Field>
               <SettingsCard.Field
-                label="Endpoint"
-                description="Use this URL in your MCP client."
+                label="Base endpoint"
+                description="Use this base URL in your MCP client."
                 htmlFor="gateway-endpoint"
               >
                 <InputGroup>
@@ -144,6 +145,16 @@ export const GatewaySettingsCard = ({
                   </InputGroupAddon>
                 </InputGroup>
               </SettingsCard.Field>
+              <SettingsCard.Field
+                label="Routing examples"
+                description="Append a selector to reach a specific server or tag group."
+                htmlFor="gateway-routing"
+              >
+                <div id="gateway-routing" className="space-y-1 text-xs font-mono text-muted-foreground">
+                  <div>{routingExamples.server}</div>
+                  <div>{routingExamples.tags}</div>
+                </div>
+              </SettingsCard.Field>
             </SettingsCard.Section>
 
             <SettingsCard.Section title="Gateway behavior">
@@ -153,29 +164,6 @@ export const GatewaySettingsCard = ({
                 description="Start the gateway automatically when Core is running."
                 help={GATEWAY_FIELD_HELP.enabled}
               />
-              <SettingsCard.SelectField<GatewayFormState>
-                name="visibilityMode"
-                label="Visibility"
-                description="Control which servers are exposed to clients."
-                options={GATEWAY_VISIBILITY_OPTIONS}
-                help={GATEWAY_FIELD_HELP.visibilityMode}
-              />
-              {visibilityMode === 'tags' && (
-                <SettingsCard.TextField<GatewayFormState>
-                  name="tagsInput"
-                  label="Visible tags"
-                  description="Comma-separated tags to expose."
-                  help={GATEWAY_FIELD_HELP.tagsInput}
-                />
-              )}
-              {visibilityMode === 'server' && (
-                <SettingsCard.TextField<GatewayFormState>
-                  name="serverName"
-                  label="Server name"
-                  description="Expose exactly one server."
-                  help={GATEWAY_FIELD_HELP.serverName}
-                />
-              )}
             </SettingsCard.Section>
 
             <SettingsCard.Section title="Access">

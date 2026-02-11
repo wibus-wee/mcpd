@@ -16,26 +16,6 @@ export const GATEWAY_FIELD_HELP: Record<string, FieldHelpContent> = {
     details: 'Disable this if you want to manage mcpvmcp manually.',
     docUrl: GATEWAY_DOCS_URL,
   },
-  visibilityMode: {
-    id: 'gateway-visibility',
-    title: 'Visibility',
-    summary: 'Controls which servers are exposed to external MCP clients.',
-    details: 'Use tags for a filtered subset or choose a single server.',
-    docUrl: GATEWAY_DOCS_URL,
-  },
-  tagsInput: {
-    id: 'gateway-tags',
-    title: 'Visible tags',
-    summary: 'Only servers with at least one of these tags will be exposed.',
-    tips: ['Separate tags with commas.'],
-    docUrl: GATEWAY_DOCS_URL,
-  },
-  serverName: {
-    id: 'gateway-server',
-    title: 'Server name',
-    summary: 'Expose exactly one server by its catalog name.',
-    docUrl: GATEWAY_DOCS_URL,
-  },
   accessMode: {
     id: 'gateway-access',
     title: 'Access scope',
@@ -65,8 +45,8 @@ export const GATEWAY_FIELD_HELP: Record<string, FieldHelpContent> = {
   httpPath: {
     id: 'gateway-http-path',
     title: 'HTTP path',
-    summary: 'The gateway endpoint path used by clients.',
-    tips: ['Must start with /.'],
+    summary: 'Base path prefix for gateway routing.',
+    tips: ['Clients append /server/{name} or /tags/{tag1,tag2}.'],
     docUrl: MCP_DOCS_URL,
   },
   rpc: {

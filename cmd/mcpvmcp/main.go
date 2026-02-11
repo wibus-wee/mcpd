@@ -32,8 +32,8 @@ type gatewayOptions struct {
 	rpcTLSKeyFile       string
 	rpcTLSCAFile        string
 	caller              string
-	tags                []string
-	server              string
+	selectorTags        []string
+	selectorServer      string
 	launchUIOnFail      bool
 	urlScheme           string
 	transport           string
@@ -48,7 +48,6 @@ type gatewayOptions struct {
 	httpTLSKeyFile      string
 	httpEventStore      bool
 	httpEventStoreBytes int
-	allowAll            bool
 	logger              *zap.Logger
 }
 
@@ -60,7 +59,7 @@ func main() {
 		rpcKeepaliveTime:    domain.DefaultRPCKeepaliveTimeSeconds,
 		rpcKeepaliveTimeout: domain.DefaultRPCKeepaliveTimeoutSeconds,
 		logger:              zap.NewNop(),
-		transport:           "stdio",
+		transport:           "streamable-http",
 		httpAddr:            "127.0.0.1:8090",
 		httpPath:            "/mcp",
 		httpSessionTimeout:  0,
@@ -68,8 +67,8 @@ func main() {
 	}
 
 	root := &cobra.Command{
-		Use:   "mcpvmcp [server]",
-		Short: "MCP gateway entrypoint bound to a server or tags",
+		Use:   "mcpvmcp [caller]",
+		Short: "MCP gateway entrypoint for streamable HTTP and stdio transports",
 		Args:  cobra.MaximumNArgs(1),
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			cfg := zap.NewProductionConfig()
@@ -86,20 +85,27 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			applyGatewayFlagBindings(cmd.Flags(), &opts)
 			if len(args) > 0 {
-				if opts.server != "" {
-					return errors.New("server cannot be provided both as positional arg and --server")
+				if opts.caller != "" {
+					return errors.New("caller cannot be provided both as positional arg and --caller")
 				}
-				opts.server = args[0]
+				opts.caller = args[0]
 			}
 
-			if opts.server != "" && len(opts.tags) > 0 {
-				return errors.New("cannot use --server and --tag together")
+			if opts.transport == "streamable-http" {
+				if opts.selectorServer != "" || len(opts.selectorTags) > 0 {
+					return errors.New("selector flags are only valid for stdio transport")
+				}
 			}
-			if opts.server == "" && len(opts.tags) == 0 && !opts.allowAll {
-				return errors.New("server or --tag is required (or use --allow-all)")
+			if opts.transport == "stdio" {
+				if opts.selectorServer != "" && len(opts.selectorTags) > 0 {
+					return errors.New("cannot use --selector-server and --selector-tag together")
+				}
+				if opts.selectorServer == "" && len(opts.selectorTags) == 0 {
+					return errors.New("stdio transport requires --selector-server or --selector-tag")
+				}
 			}
 			if opts.caller == "" {
-				opts.caller = deriveCallerName(opts.server, opts.tags)
+				opts.caller = deriveCallerName()
 			}
 			ctx, cancel := signalAwareContext(cmd.Context())
 			defer cancel()
@@ -118,7 +124,14 @@ func main() {
 				},
 			}
 
-			gw := gateway.NewGateway(clientCfg, opts.caller, opts.tags, opts.server, opts.logger)
+			gatewayTags := append([]string(nil), opts.selectorTags...)
+			gatewayServer := strings.TrimSpace(opts.selectorServer)
+			if opts.transport == "streamable-http" {
+				gatewayTags = nil
+				gatewayServer = ""
+			}
+
+			gw := gateway.NewGateway(clientCfg, opts.caller, gatewayTags, gatewayServer, opts.logger)
 			var err error
 			switch opts.transport {
 			case "stdio":
@@ -165,8 +178,8 @@ func main() {
 	root.PersistentFlags().StringVar(&opts.rpcTLSKeyFile, "rpc-tls-key", "", "client TLS key file")
 	root.PersistentFlags().StringVar(&opts.rpcTLSCAFile, "rpc-tls-ca", "", "RPC CA file")
 	root.PersistentFlags().StringVar(&opts.caller, "caller", "", "explicit caller name (optional)")
-	root.PersistentFlags().StringVar(&opts.server, "server", "", "server name for single-server mode")
-	root.PersistentFlags().StringArrayVar(&opts.tags, "tag", nil, "tag for server visibility (repeatable)")
+	root.PersistentFlags().StringVar(&opts.selectorServer, "selector-server", "", "server selector for stdio transport")
+	root.PersistentFlags().StringArrayVar(&opts.selectorTags, "selector-tag", nil, "tag selector for stdio transport (repeatable)")
 	root.PersistentFlags().BoolVar(&opts.launchUIOnFail, "launch-ui-on-fail", false, "attempt to launch mcpv UI if connection fails")
 	root.PersistentFlags().StringVar(&opts.urlScheme, "url-scheme", "mcpv", "URL scheme to use for launching UI (mcpv or mcpvev)")
 	root.PersistentFlags().StringVar(&opts.transport, "transport", opts.transport, "gateway transport (stdio or streamable-http)")
@@ -181,7 +194,6 @@ func main() {
 	root.PersistentFlags().StringVar(&opts.httpTLSKeyFile, "http-tls-key", "", "TLS key file for streamable HTTP")
 	root.PersistentFlags().BoolVar(&opts.httpEventStore, "http-event-store", false, "enable in-memory event store for streamable HTTP replay")
 	root.PersistentFlags().IntVar(&opts.httpEventStoreBytes, "http-event-store-bytes", opts.httpEventStoreBytes, "max bytes for in-memory event store (0 uses default)")
-	root.PersistentFlags().BoolVar(&opts.allowAll, "allow-all", false, "allow empty selector (expose all servers)")
 
 	if err := root.Execute(); err != nil {
 		opts.logger.Fatal("command failed", zap.Error(err))
@@ -211,10 +223,10 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.rpcTLSCAFile, _ = flags.GetString("rpc-tls-ca")
 		case "caller":
 			opts.caller, _ = flags.GetString("caller")
-		case "server":
-			opts.server, _ = flags.GetString("server")
-		case "tag":
-			opts.tags, _ = flags.GetStringArray("tag")
+		case "selector-server":
+			opts.selectorServer, _ = flags.GetString("selector-server")
+		case "selector-tag":
+			opts.selectorTags, _ = flags.GetStringArray("selector-tag")
 		case "launch-ui-on-fail":
 			opts.launchUIOnFail, _ = flags.GetBool("launch-ui-on-fail")
 		case "url-scheme":
@@ -243,19 +255,12 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.httpEventStore, _ = flags.GetBool("http-event-store")
 		case "http-event-store-bytes":
 			opts.httpEventStoreBytes, _ = flags.GetInt("http-event-store-bytes")
-		case "allow-all":
-			opts.allowAll, _ = flags.GetBool("allow-all")
 		}
 	})
 }
 
-func deriveCallerName(server string, tags []string) string {
+func deriveCallerName() string {
 	base := "mcpvmcp"
-	if server != "" {
-		base = server
-	} else if len(tags) > 0 {
-		base = strings.Join(tags, "+")
-	}
 	pid := os.Getpid()
 	if pid > 0 {
 		return fmt.Sprintf("%s-%d", base, pid)

@@ -32,7 +32,6 @@ type UseGatewaySettingsResult = {
   saveDisabledReason?: string
   validationError?: string
   endpointPreview: string
-  visibilityMode: GatewayFormState['visibilityMode']
   accessMode: GatewayFormState['accessMode']
   enabled: boolean
   handleSave: (event?: BaseSyntheticEvent) => void
@@ -68,11 +67,6 @@ export const useGatewaySettings = ({ canEdit }: UseGatewaySettingsOptions): UseG
     }
   }, [isDirty, reset, sections])
 
-  const visibilityMode = useWatch({
-    control,
-    name: 'visibilityMode',
-    defaultValue: DEFAULT_GATEWAY_FORM.visibilityMode,
-  })
   const accessMode = useWatch({
     control,
     name: 'accessMode',
@@ -92,16 +86,6 @@ export const useGatewaySettings = ({ canEdit }: UseGatewaySettingsOptions): UseG
     control,
     name: 'httpToken',
     defaultValue: DEFAULT_GATEWAY_FORM.httpToken,
-  })
-  const tagsInput = useWatch({
-    control,
-    name: 'tagsInput',
-    defaultValue: DEFAULT_GATEWAY_FORM.tagsInput,
-  })
-  const serverName = useWatch({
-    control,
-    name: 'serverName',
-    defaultValue: DEFAULT_GATEWAY_FORM.serverName,
   })
   const enabled = useWatch({
     control,
@@ -133,16 +117,10 @@ export const useGatewaySettings = ({ canEdit }: UseGatewaySettingsOptions): UseG
     if (accessMode === 'local' && !isLocalHost(httpAddr)) {
       return 'Local access requires a localhost address'
     }
-    if (visibilityMode === 'tags' && !tagsInput.trim()) {
-      return 'At least one tag is required'
-    }
-    if (visibilityMode === 'server' && !serverName.trim()) {
-      return 'Server name is required'
-    }
     if (accessMode === 'network' && !httpToken.trim()) {
       return 'Token is required for network access'
     }
-  }, [accessMode, enabled, httpAddr, httpToken, serverName, tagsInput, visibilityMode])
+  }, [accessMode, enabled, httpAddr, httpToken])
 
   const statusLabel = useMemo(() => {
     if (gatewayLoading) {
@@ -220,7 +198,6 @@ export const useGatewaySettings = ({ canEdit }: UseGatewaySettingsOptions): UseG
     saveDisabledReason,
     validationError,
     endpointPreview,
-    visibilityMode,
     accessMode,
     enabled: Boolean(enabled),
     handleSave,

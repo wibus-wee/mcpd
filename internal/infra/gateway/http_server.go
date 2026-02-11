@@ -44,56 +44,63 @@ func (g *Gateway) RunStreamableHTTP(ctx context.Context, opts HTTPOptions) error
 	if err != nil {
 		return err
 	}
-	return g.run(ctx, func(runCtx context.Context) error {
-		handler := g.buildStreamableHTTPHandler(normalized)
-		mux := http.NewServeMux()
-		mux.Handle(normalized.Path, handler)
-		if normalized.Path != "/" && !strings.HasSuffix(normalized.Path, "/") {
-			mux.Handle(normalized.Path+"/", handler)
-		}
-		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})
+	if err := g.validateRuntimeConfig(); err != nil {
+		return err
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-		server := &http.Server{
-			Addr:              normalized.Addr,
-			Handler:           mux,
-			ReadHeaderTimeout: normalized.ReadHeaderTimeout,
-			ReadTimeout:       normalized.ReadTimeout,
-			IdleTimeout:       normalized.IdleTimeout,
-		}
-
-		errCh := make(chan error, 1)
-		go func() {
-			g.logger.Info("gateway starting (streamable http transport)",
-				zap.String("addr", normalized.Addr),
-				zap.String("path", normalized.Path),
-			)
-			var listenErr error
-			if normalized.TLSEnabled {
-				listenErr = server.ListenAndServeTLS(normalized.TLSCertFile, normalized.TLSKeyFile)
-			} else {
-				listenErr = server.ListenAndServe()
-			}
-			if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
-				errCh <- listenErr
-			}
-		}()
-
-		select {
-		case <-runCtx.Done():
-			shutdownTimeout := normalized.ShutdownTimeout
-			if shutdownTimeout <= 0 {
-				shutdownTimeout = defaultHTTPShutdownTimeout
-			}
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-			defer cancel()
-			_ = server.Shutdown(shutdownCtx)
-			return runCtx.Err()
-		case err := <-errCh:
-			return err
-		}
+	pool := newGatewayPool(runCtx, g.cfg, g.caller, g.logger, PoolOptions{})
+	handler := g.buildStreamableHTTPHandler(normalized, pool)
+	mux := http.NewServeMux()
+	mux.Handle(normalized.Path, handler)
+	if normalized.Path != "/" && !strings.HasSuffix(normalized.Path, "/") {
+		mux.Handle(normalized.Path+"/", handler)
+	}
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	})
+
+	server := &http.Server{
+		Addr:              normalized.Addr,
+		Handler:           mux,
+		ReadHeaderTimeout: normalized.ReadHeaderTimeout,
+		ReadTimeout:       normalized.ReadTimeout,
+		IdleTimeout:       normalized.IdleTimeout,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		g.logger.Info("gateway starting (streamable http transport)",
+			zap.String("addr", normalized.Addr),
+			zap.String("path", normalized.Path),
+		)
+		var listenErr error
+		if normalized.TLSEnabled {
+			listenErr = server.ListenAndServeTLS(normalized.TLSCertFile, normalized.TLSKeyFile)
+		} else {
+			listenErr = server.ListenAndServe()
+		}
+		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			errCh <- listenErr
+		}
+	}()
+
+	select {
+	case <-runCtx.Done():
+		shutdownTimeout := normalized.ShutdownTimeout
+		if shutdownTimeout <= 0 {
+			shutdownTimeout = defaultHTTPShutdownTimeout
+		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
+		_ = server.Shutdown(shutdownCtx)
+		_ = pool.Close(shutdownCtx)
+		return runCtx.Err()
+	case err := <-errCh:
+		_ = pool.Close(context.Background())
+		return err
+	}
 }
 
 func normalizeHTTPOptions(opts HTTPOptions) (HTTPOptions, error) {
@@ -106,6 +113,9 @@ func normalizeHTTPOptions(opts HTTPOptions) (HTTPOptions, error) {
 	}
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
+	}
+	if path != "/" {
+		path = strings.TrimRight(path, "/")
 	}
 	opts.Path = path
 
@@ -126,14 +136,46 @@ func normalizeHTTPOptions(opts HTTPOptions) (HTTPOptions, error) {
 	return opts, nil
 }
 
-func (g *Gateway) buildStreamableHTTPHandler(opts HTTPOptions) http.Handler {
-	handler := http.Handler(mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
-		return g.server
+type selectorServerKey struct{}
+
+func (g *Gateway) buildStreamableHTTPHandler(opts HTTPOptions, pool *gatewayPool) http.Handler {
+	streamable := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+		if r == nil {
+			return nil
+		}
+		if server, ok := r.Context().Value(selectorServerKey{}).(*mcp.Server); ok {
+			return server
+		}
+		return nil
 	}, &mcp.StreamableHTTPOptions{
 		JSONResponse:   opts.JSONResponse,
 		SessionTimeout: opts.SessionTimeout,
 		EventStore:     buildEventStore(opts),
-	}))
+	})
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		selector, err := ParseSelector(r, opts.Path)
+		if err != nil {
+			if errors.Is(err, ErrSelectorRequired) {
+				base := strings.TrimSuffix(opts.Path, "/")
+				message := "selector required: use " + base + "/server/{name} or " + base + "/tags/{tag1,tag2}"
+				if base == "" {
+					message = "selector required: use /server/{name} or /tags/{tag1,tag2}"
+				}
+				http.Error(w, message, http.StatusBadRequest)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		server, err := pool.Get(r.Context(), selector)
+		if err != nil {
+			http.Error(w, "gateway selector unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		ctx := context.WithValue(r.Context(), selectorServerKey{}, server)
+		streamable.ServeHTTP(w, r.WithContext(ctx))
+	})
 
 	if opts.Token != "" {
 		handler = withTokenHeader(handler)
@@ -225,6 +267,8 @@ func withOriginCheck(next http.Handler, allowed map[string]struct{}, allowAll bo
 			"Mcp-Session-Id",
 			"Last-Event-ID",
 			"X-Mcp-Token",
+			"X-Mcp-Server",
+			"X-Mcp-Tags",
 		}, ", "))
 
 		if r.Method == http.MethodOptions {

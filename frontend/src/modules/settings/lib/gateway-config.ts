@@ -2,14 +2,10 @@
 // Output: Gateway settings form types, defaults, and mappers
 // Position: Settings module config helpers for gateway settings UI
 
-export type GatewayVisibilityMode = 'all' | 'tags' | 'server'
 export type GatewayAccessMode = 'local' | 'network'
 
 export type GatewayFormState = {
   enabled: boolean
-  visibilityMode: GatewayVisibilityMode
-  tagsInput: string
-  serverName: string
   accessMode: GatewayAccessMode
   httpAddr: string
   httpPath: string
@@ -23,12 +19,6 @@ export type GatewayFormState = {
 
 export const GATEWAY_SECTION_KEY = 'gateway'
 
-export const GATEWAY_VISIBILITY_OPTIONS = [
-  { value: 'all', label: 'All servers' },
-  { value: 'tags', label: 'By tags' },
-  { value: 'server', label: 'Single server' },
-] as const
-
 export const GATEWAY_ACCESS_OPTIONS = [
   { value: 'local', label: 'Local only' },
   { value: 'network', label: 'Network (requires token)' },
@@ -40,9 +30,6 @@ const defaultCaller = 'mcpvmcp-ui'
 
 export const DEFAULT_GATEWAY_FORM: GatewayFormState = {
   enabled: true,
-  visibilityMode: 'all',
-  tagsInput: '',
-  serverName: '',
   accessMode: 'local',
   httpAddr: defaultHTTPAddr,
   httpPath: defaultHTTPPath,
@@ -63,9 +50,6 @@ type GatewaySectionPayload = {
   httpToken?: string
   caller?: string
   rpc?: string
-  server?: string
-  tags?: string[]
-  allowAll?: boolean
   healthUrl?: string
 }
 
@@ -75,23 +59,11 @@ export function toGatewayFormState(section: unknown): GatewayFormState {
 
   const httpAddr = toStringOrDefault(payload.httpAddr, defaultHTTPAddr)
   const httpPath = normalizeHTTPPath(toStringOrDefault(payload.httpPath, defaultHTTPPath))
-  const tags = Array.isArray(payload.tags) ? payload.tags.filter(Boolean) : []
-  const serverName = toStringOrDefault(payload.server, '')
-  // const allowAll = typeof payload.allowAll === 'boolean' ? payload.allowAll : true
-
-  const visibilityMode: GatewayVisibilityMode = serverName
-    ? 'server'
-    : tags.length > 0
-      ? 'tags'
-      : 'all'
 
   const accessMode: GatewayAccessMode = isLocalHost(httpAddr) ? 'local' : 'network'
 
   return {
     enabled: typeof payload.enabled === 'boolean' ? payload.enabled : true,
-    visibilityMode,
-    tagsInput: tags.join(', '),
-    serverName,
     accessMode,
     httpAddr,
     httpPath,
@@ -105,8 +77,6 @@ export function toGatewayFormState(section: unknown): GatewayFormState {
 }
 
 export function buildGatewayPayload(values: GatewayFormState): GatewaySectionPayload {
-  const tags = parseTags(values.tagsInput)
-
   const payload: GatewaySectionPayload = {
     enabled: Boolean(values.enabled),
     binaryPath: values.binaryPath.trim(),
@@ -117,14 +87,6 @@ export function buildGatewayPayload(values: GatewayFormState): GatewaySectionPay
     caller: values.caller.trim() || defaultCaller,
     rpc: values.rpc.trim(),
     healthUrl: values.healthUrl.trim(),
-    allowAll: values.visibilityMode === 'all',
-    server: values.visibilityMode === 'server' ? values.serverName.trim() : '',
-    tags: values.visibilityMode === 'tags' ? tags : [],
-  }
-
-  if (values.visibilityMode === 'all') {
-    payload.server = ''
-    payload.tags = []
   }
 
   return payload
@@ -146,8 +108,9 @@ export function isLocalHost(addr: string) {
 export function normalizeHTTPPath(path: string) {
   const trimmed = path.trim()
   if (!trimmed) return defaultHTTPPath
-  if (trimmed.startsWith('/')) return trimmed
-  return `/${trimmed}`
+  const withPrefix = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  if (withPrefix === '/') return withPrefix
+  return withPrefix.replace(/\/+$/, '')
 }
 
 function resolveSectionObject(section: unknown): GatewaySectionPayload | null {
@@ -178,15 +141,6 @@ function parseArgs(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return []
   return trimmed.split('\n').map(line => line.trim()).filter(Boolean)
-}
-
-function parseTags(input: string) {
-  const trimmed = input.trim()
-  if (!trimmed) return []
-  return trimmed
-    .split(',')
-    .map(tag => tag.trim())
-    .filter(Boolean)
 }
 
 function extractHost(addr: string) {

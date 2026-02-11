@@ -19,23 +19,30 @@ import (
 )
 
 type Gateway struct {
-	cfg             rpc.ClientConfig
-	caller          string
-	tags            []string
-	serverName      string
-	logger          *zap.Logger
-	server          *mcp.Server
-	clients         *clientManager
-	registry        *toolRegistry
-	resources       *resourceRegistry
-	prompts         *promptRegistry
-	callerPID       int64
-	registered      atomic.Bool
-	subAgentEnabled atomic.Bool
-	toolsReadyCh    chan struct{}
-	toolsReadyOnce  sync.Once
-	toolsReadyWarn  atomic.Bool
-	toolsReadyWait  time.Duration
+	cfg               rpc.ClientConfig
+	caller            string
+	tags              []string
+	serverName        string
+	logger            *zap.Logger
+	server            *mcp.Server
+	clients           *clientManager
+	registry          *toolRegistry
+	resources         *resourceRegistry
+	prompts           *promptRegistry
+	callerPID         int64
+	registered        atomic.Bool
+	subAgentEnabled   atomic.Bool
+	toolsReadyCh      chan struct{}
+	toolsReadyOnce    sync.Once
+	toolsReadyWarn    atomic.Bool
+	toolsReadyWait    time.Duration
+	serverReadyCh     chan struct{}
+	registerReadyCh   chan struct{}
+	registerReadyOnce sync.Once
+	runtimeMu         sync.Mutex
+	runtimeCancel     context.CancelFunc
+	runtimeDone       chan error
+	runtimeStarted    bool
 }
 
 const defaultHeartbeatInterval = 2 * time.Second
@@ -65,17 +72,8 @@ func (g *Gateway) Run(ctx context.Context) error {
 }
 
 func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) error {
-	if g.cfg.Address == "" {
-		return errors.New("rpc address is required")
-	}
-	if g.cfg.MaxRecvMsgSize <= 0 {
-		return errors.New("rpc max recv message size must be > 0")
-	}
-	if g.cfg.MaxSendMsgSize <= 0 {
-		return errors.New("rpc max send message size must be > 0")
-	}
-	if g.caller == "" {
-		return errors.New("caller is required")
+	if err := g.validateRuntimeConfig(); err != nil {
+		return err
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
@@ -89,6 +87,9 @@ func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) e
 		HasResources: true,
 		HasPrompts:   true,
 	})
+	if g.serverReadyCh != nil {
+		close(g.serverReadyCh)
+	}
 	g.server.AddReceivingMiddleware(g.toolsReadyMiddleware())
 
 	g.clients = newClientManager(g.cfg, g.logger)
@@ -119,6 +120,120 @@ func (g *Gateway) run(ctx context.Context, runner func(context.Context) error) e
 	err := runner(runCtx)
 	g.clients.close()
 	return err
+}
+
+func (g *Gateway) StartRuntime(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	g.runtimeMu.Lock()
+	if g.runtimeStarted {
+		g.runtimeMu.Unlock()
+		return nil
+	}
+	g.runtimeStarted = true
+	g.serverReadyCh = make(chan struct{})
+	g.registerReadyCh = make(chan struct{})
+	runtimeCtx, cancel := context.WithCancel(ctx)
+	g.runtimeCancel = cancel
+	doneCh := make(chan error, 1)
+	g.runtimeDone = doneCh
+	g.runtimeMu.Unlock()
+
+	go func() {
+		doneCh <- g.run(runtimeCtx, func(runCtx context.Context) error {
+			<-runCtx.Done()
+			return runCtx.Err()
+		})
+	}()
+
+	select {
+	case <-g.registerReadyCh:
+	case err := <-doneCh:
+		g.runtimeMu.Lock()
+		g.runtimeStarted = false
+		g.runtimeCancel = nil
+		g.runtimeDone = nil
+		g.registerReadyCh = nil
+		g.registerReadyOnce = sync.Once{}
+		g.runtimeMu.Unlock()
+		return err
+	case <-ctx.Done():
+		g.runtimeMu.Lock()
+		g.runtimeStarted = false
+		g.runtimeCancel = nil
+		g.runtimeDone = nil
+		g.registerReadyCh = nil
+		g.registerReadyOnce = sync.Once{}
+		g.runtimeMu.Unlock()
+		return ctx.Err()
+	}
+
+	select {
+	case err := <-doneCh:
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+	default:
+	}
+
+	return nil
+}
+
+func (g *Gateway) StopRuntime(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	g.runtimeMu.Lock()
+	if !g.runtimeStarted {
+		g.runtimeMu.Unlock()
+		return nil
+	}
+	cancel := g.runtimeCancel
+	done := g.runtimeDone
+	g.runtimeCancel = nil
+	g.runtimeDone = nil
+	g.runtimeStarted = false
+	g.registerReadyCh = nil
+	g.registerReadyOnce = sync.Once{}
+	g.runtimeMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case err := <-done:
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (g *Gateway) Server() *mcp.Server {
+	return g.server
+}
+
+func (g *Gateway) validateRuntimeConfig() error {
+	if g.cfg.Address == "" {
+		return errors.New("rpc address is required")
+	}
+	if g.cfg.MaxRecvMsgSize <= 0 {
+		return errors.New("rpc max recv message size must be > 0")
+	}
+	if g.cfg.MaxSendMsgSize <= 0 {
+		return errors.New("rpc max send message size must be > 0")
+	}
+	if g.caller == "" {
+		return errors.New("caller is required")
+	}
+	return nil
 }
 
 func (g *Gateway) heartbeat(ctx context.Context) {
@@ -157,7 +272,16 @@ func (g *Gateway) registerCaller(ctx context.Context) error {
 	if !g.registered.Swap(true) && resp != nil && resp.GetProfile() != "" {
 		g.logger.Info("caller registered", zap.String("profile", resp.GetProfile()))
 	}
+	g.markRegisterReady()
 	return nil
+}
+
+func (g *Gateway) markRegisterReady() {
+	g.registerReadyOnce.Do(func() {
+		if g.registerReadyCh != nil {
+			close(g.registerReadyCh)
+		}
+	})
 }
 
 func (g *Gateway) unregisterCaller(ctx context.Context) error {
