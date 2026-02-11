@@ -29,6 +29,7 @@ tasks:
           ARCH: '{{.ARCH}}'
           DEV: '{{.DEV}}'
           OUTPUT: '{{.OUTPUT}}'
+          CLI_OUTPUT: '{{.CLI_OUTPUT}}'
     vars:
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
