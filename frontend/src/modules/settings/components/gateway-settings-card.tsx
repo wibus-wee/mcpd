@@ -150,7 +150,7 @@ export const GatewaySettingsCard = ({
                 description="Append a selector to reach a specific server or tag group."
                 htmlFor="gateway-routing"
               >
-                <div id="gateway-routing" className="space-y-1 text-xs font-mono text-muted-foreground">
+                <div id="gateway-routing" className="space-y-1 text-xs font-mono wrap-break-word text-muted-foreground">
                   <div>{routingExamples.server}</div>
                   <div>{routingExamples.tags}</div>
                 </div>

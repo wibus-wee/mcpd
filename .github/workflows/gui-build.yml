@@ -39,7 +39,7 @@ jobs:
       - name: Install pnpm + dependencies
         uses: pnpm/action-setup@v4
         with:
-          run_install: true
+          run_install: false
           version: latest
 
       - name: Cache pnpm modules

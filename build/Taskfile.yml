@@ -29,6 +29,7 @@ tasks:
 
   install:frontend:deps:
     summary: Install frontend dependencies
+    run: once
     dir: frontend
     sources:
       - package.json
