@@ -9,7 +9,7 @@ LDFLAGS := -X mcpv/internal/buildinfo.Version=$(VERSION) -X mcpv/internal/buildi
 BIN_DIR ?= $(CURDIR)/bin
 WIRE := $(BIN_DIR)/wire
 
-.PHONY: dev obs down reload proto wire tools build
+.PHONY: dev obs down reload proto wire tools build bump
 
 export MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN)
 export CGO_CFLAGS=-mmacosx-version-min=$(MACOS_MIN)
@@ -87,3 +87,22 @@ wails-build:
 
 wails-package:
 	$(WAILS) package
+
+bump: $(WAILS)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "VERSION is required (e.g. make bump VERSION=1.2.3)"; \
+		exit 1; \
+	fi
+	@if git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null; then \
+		echo "Tag v$(VERSION) already exists"; \
+		exit 1; \
+	fi
+	./scripts/bump.js "$(VERSION)"
+	$(WAILS) task common:update:build-assets
+	git add build
+	@if git diff --cached --quiet; then \
+		echo "No changes to commit"; \
+		exit 1; \
+	fi
+	git commit -s -m "Release: v$(VERSION)"
+	git tag "v$(VERSION)"

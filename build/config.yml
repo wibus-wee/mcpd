@@ -8,10 +8,10 @@ info:
   companyName: "Wibus" # The name of the company
   productName: "MCPV UI" # The name of the application
   productIdentifier: "dev.wibus.mcpvui" # The unique product identifier
-  description: "A program that does X" # The application description
-  copyright: "(c) 2025, Wibus" # Copyright text
+  description: "Elastic Control Plane & Runtime for Model Context Protocol" # The application description
+  copyright: "(c) 2026, Wibus" # Copyright text
   comments: "" # Comments
-  version: "0.0.1" # The application version
+  version: "0.1.0" # The application version
 
 # iOS build configuration (uncomment to customise iOS project generation)
 # Note: Keys under `ios` OVERRIDE values under `info` when set.

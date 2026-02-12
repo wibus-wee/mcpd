@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A myapp application
+Name=MCPV UI
+Comment=Elastic Control Plane & Runtime for Model Context Protocol
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/myapp %u
+Exec=/usr/local/bin/mcpvui %u
 Terminal=false
 Type=Application
-Icon=myapp
+Icon=mcpvui
 Categories=Utility;
-StartupWMClass=myapp
+StartupWMClass=mcpvui
 
  
