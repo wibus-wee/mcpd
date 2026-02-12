@@ -121,38 +121,36 @@ jobs:
           ## Download Links
 
           ### macOS
-          - Apple Silicon (arm64): ${DOWNLOAD_URL}/mcpvui-macos-arm64.dmg
-          - Intel (amd64): ${DOWNLOAD_URL}/mcpvui-macos-amd64.dmg
-          - Universal: ${DOWNLOAD_URL}/mcpvui-macos-universal.dmg
+          - Apple Silicon (arm64): [mcpvui-macos-arm64.dmg](${DOWNLOAD_URL}/mcpvui-macos-arm64.dmg)
+          - Intel (amd64): [mcpvui-macos-amd64.dmg](${DOWNLOAD_URL}/mcpvui-macos-amd64.dmg)
+          - Universal: [mcpvui-macos-universal.dmg](${DOWNLOAD_URL}/mcpvui-macos-universal.dmg)
 
           ### CLI (macOS ZIP)
           - mcpv only:
-            - universal: ${DOWNLOAD_URL}/mcpv-macos-universal.zip
-            - arm64: ${DOWNLOAD_URL}/mcpv-macos-arm64.zip
-            - amd64: ${DOWNLOAD_URL}/mcpv-macos-amd64.zip
+            - universal: [mcpv-macos-universal.zip](${DOWNLOAD_URL}/mcpv-macos-universal.zip)
+            - arm64: [mcpv-macos-arm64.zip](${DOWNLOAD_URL}/mcpv-macos-arm64.zip)
+            - amd64: [mcpv-macos-amd64.zip](${DOWNLOAD_URL}/mcpv-macos-amd64.zip)
           - mcpvmcp only:
-            - universal: ${DOWNLOAD_URL}/mcpvmcp-macos-universal.zip
-            - arm64: ${DOWNLOAD_URL}/mcpvmcp-macos-arm64.zip
-            - amd64: ${DOWNLOAD_URL}/mcpvmcp-macos-amd64.zip
+            - universal: [mcpvmcp-macos-universal.zip](${DOWNLOAD_URL}/mcpvmcp-macos-universal.zip)
+            - arm64: [mcpvmcp-macos-arm64.zip](${DOWNLOAD_URL}/mcpvmcp-macos-arm64.zip)
+            - amd64: [mcpvmcp-macos-amd64.zip](${DOWNLOAD_URL}/mcpvmcp-macos-amd64.zip)
           - mcpv + mcpvmcp bundle:
-            - universal: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-universal.zip
-            - arm64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-arm64.zip
-            - amd64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-amd64.zip
+            - universal: [mcpv-mcpvmcp-macos-universal.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-universal.zip)
+            - arm64: [mcpv-mcpvmcp-macos-arm64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-arm64.zip)
+            - amd64: [mcpv-mcpvmcp-macos-amd64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-amd64.zip)
 
           ### Linux (Experimental)
 
           #### ZIP (CLI)
           - mcpv only:
-            - amd64: ${DOWNLOAD_URL}/mcpv-linux-amd64.zip
-            - arm64: ${DOWNLOAD_URL}/mcpv-linux-arm64.zip
+            - amd64: [mcpv-linux-amd64.zip](${DOWNLOAD_URL}/mcpv-linux-amd64.zip)
+            - arm64: [mcpv-linux-arm64.zip](${DOWNLOAD_URL}/mcpv-linux-arm64.zip)
           - mcpvmcp only:
-            - amd64: ${DOWNLOAD_URL}/mcpvmcp-linux-amd64.zip
-            - arm64: ${DOWNLOAD_URL}/mcpvmcp-linux-arm64.zip
+            - amd64: [mcpvmcp-linux-amd64.zip](${DOWNLOAD_URL}/mcpvmcp-linux-amd64.zip)
+            - arm64: [mcpvmcp-linux-arm64.zip](${DOWNLOAD_URL}/mcpvmcp-linux-arm64.zip)
           - mcpv + mcpvmcp bundle:
-            - amd64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-amd64.zip
-            - arm64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-arm64.zip
-
-          Created at ${BUILDTIME}.
+            - amd64: [mcpv-mcpvmcp-linux-amd64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-amd64.zip)
+            - arm64: [mcpv-mcpvmcp-linux-arm64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-arm64.zip)
           EOF
         shell: bash
 
