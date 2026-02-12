@@ -93,6 +93,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Set release env
+        run: |
+          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> "$GITHUB_ENV"
+          echo "TAG_NAME=${GITHUB_REF##*/}" >> "$GITHUB_ENV"
+          echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}" >> "$GITHUB_ENV"
+        shell: bash
+
       - name: Download GUI artifacts
         uses: actions/download-artifact@v4
         with:
@@ -107,8 +114,52 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Build release notes
+        run: |
+          cat > release.txt << EOF
+
+          ## Download Links
+
+          ### macOS
+          - Apple Silicon (arm64): ${DOWNLOAD_URL}/mcpvui-macos-arm64.dmg
+          - Intel (amd64): ${DOWNLOAD_URL}/mcpvui-macos-amd64.dmg
+          - Universal: ${DOWNLOAD_URL}/mcpvui-macos-universal.dmg
+
+          ### CLI (macOS ZIP)
+          - mcpv only:
+            - universal: ${DOWNLOAD_URL}/mcpv-macos-universal.zip
+            - arm64: ${DOWNLOAD_URL}/mcpv-macos-arm64.zip
+            - amd64: ${DOWNLOAD_URL}/mcpv-macos-amd64.zip
+          - mcpvmcp only:
+            - universal: ${DOWNLOAD_URL}/mcpvmcp-macos-universal.zip
+            - arm64: ${DOWNLOAD_URL}/mcpvmcp-macos-arm64.zip
+            - amd64: ${DOWNLOAD_URL}/mcpvmcp-macos-amd64.zip
+          - mcpv + mcpvmcp bundle:
+            - universal: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-universal.zip
+            - arm64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-arm64.zip
+            - amd64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-amd64.zip
+
+          ### Linux (Experimental)
+
+          #### ZIP (CLI)
+          - mcpv only:
+            - amd64: ${DOWNLOAD_URL}/mcpv-linux-amd64.zip
+            - arm64: ${DOWNLOAD_URL}/mcpv-linux-arm64.zip
+          - mcpvmcp only:
+            - amd64: ${DOWNLOAD_URL}/mcpvmcp-linux-amd64.zip
+            - arm64: ${DOWNLOAD_URL}/mcpvmcp-linux-arm64.zip
+          - mcpv + mcpvmcp bundle:
+            - amd64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-amd64.zip
+            - arm64: ${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-arm64.zip
+
+          Created at ${BUILDTIME}.
+          EOF
+        shell: bash
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG_NAME }}
           generate_release_notes: true
+          body_path: release.txt
           files: dist/**

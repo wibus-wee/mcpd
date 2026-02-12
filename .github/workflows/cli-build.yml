@@ -122,6 +122,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpvmcp ./cmd/mcpvmcp
           (cd dist && zip -9 -r "mcpv-linux-${{ matrix.goarch }}.zip" mcpv)
           (cd dist && zip -9 -r "mcpvmcp-linux-${{ matrix.goarch }}.zip" mcpvmcp)
+          (cd dist && zip -9 -r "mcpv-mcpvmcp-linux-${{ matrix.goarch }}.zip" mcpv mcpvmcp)
         shell: bash
 
       - name: Upload CLI artifacts (linux)

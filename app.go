@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"mcpv/internal/app"
+	"mcpv/internal/infra/envutil"
 	"mcpv/internal/infra/telemetry"
 	"mcpv/internal/ui"
 	"mcpv/internal/ui/services"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	envutil.PatchProcessPATHIfNeeded()
+
 	// 1. 初始化日志（带 LogBroadcaster）
 	logger, logBroadcaster := createLoggerWithBroadcaster()
 	defer func() {

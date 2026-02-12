@@ -44,3 +44,35 @@ func TestSetEnvValueReplacesAll(t *testing.T) {
 		t.Fatalf("PATH=%q, want %q", gotPaths[0], "PATH=/opt/bin")
 	}
 }
+
+func TestExtractMarkedPath(t *testing.T) {
+	output := "noise\n" + pathMarker + "/opt/bin:/usr/bin" + pathMarker + "\nmore"
+	got := extractMarkedPath(output)
+	want := "/opt/bin:/usr/bin"
+	if got != want {
+		t.Fatalf("extractMarkedPath=%q, want %q", got, want)
+	}
+}
+
+func TestExtractMarkedPathMissingMarker(t *testing.T) {
+	got := extractMarkedPath("no marker")
+	if got != "" {
+		t.Fatalf("extractMarkedPath=%q, want empty", got)
+	}
+}
+
+func TestShellArgsInteractive(t *testing.T) {
+	args := shellArgs("/bin/zsh", true)
+	want := []string{"-i", "-l", "-c"}
+	if strings.Join(args, " ") != strings.Join(want, " ") {
+		t.Fatalf("shellArgs=%v, want %v", args, want)
+	}
+}
+
+func TestShellArgsFallback(t *testing.T) {
+	args := shellArgs("/usr/local/bin/unknown", true)
+	want := []string{"-l", "-c"}
+	if strings.Join(args, " ") != strings.Join(want, " ") {
+		t.Fatalf("shellArgs=%v, want %v", args, want)
+	}
+}
