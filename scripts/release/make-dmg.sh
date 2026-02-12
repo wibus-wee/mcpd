@@ -16,7 +16,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cp -R "$APP_PATH" "$STAGING_DIR/"
+APP_NAME="${VOLUME_NAME}.app"
+cp -R "$APP_PATH" "$STAGING_DIR/$APP_NAME"
 if [ -f "$(dirname "$APP_PATH")/install-helper.sh" ]; then
   cp "$(dirname "$APP_PATH")/install-helper.sh" "$STAGING_DIR/"
   chmod +x "$STAGING_DIR/install-helper.sh"
