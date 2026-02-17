@@ -90,13 +90,14 @@ type RawObservabilityConfig struct {
 }
 
 type RawRPCConfig struct {
-	ListenAddress           string          `mapstructure:"listenAddress"`
-	MaxRecvMsgSize          int             `mapstructure:"maxRecvMsgSize"`
-	MaxSendMsgSize          int             `mapstructure:"maxSendMsgSize"`
-	KeepaliveTimeSeconds    int             `mapstructure:"keepaliveTimeSeconds"`
-	KeepaliveTimeoutSeconds int             `mapstructure:"keepaliveTimeoutSeconds"`
-	SocketMode              string          `mapstructure:"socketMode"`
-	TLS                     RawRPCTLSConfig `mapstructure:"tls"`
+	ListenAddress           string           `mapstructure:"listenAddress"`
+	MaxRecvMsgSize          int              `mapstructure:"maxRecvMsgSize"`
+	MaxSendMsgSize          int              `mapstructure:"maxSendMsgSize"`
+	KeepaliveTimeSeconds    int              `mapstructure:"keepaliveTimeSeconds"`
+	KeepaliveTimeoutSeconds int              `mapstructure:"keepaliveTimeoutSeconds"`
+	SocketMode              string           `mapstructure:"socketMode"`
+	TLS                     RawRPCTLSConfig  `mapstructure:"tls"`
+	Auth                    RawRPCAuthConfig `mapstructure:"auth"`
 }
 
 type RawRPCTLSConfig struct {
@@ -105,6 +106,13 @@ type RawRPCTLSConfig struct {
 	KeyFile    string `mapstructure:"keyFile"`
 	CAFile     string `mapstructure:"caFile"`
 	ClientAuth bool   `mapstructure:"clientAuth"`
+}
+
+type RawRPCAuthConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Mode     string `mapstructure:"mode"`
+	Token    string `mapstructure:"token"`
+	TokenEnv string `mapstructure:"tokenEnv"`
 }
 
 type RawProxyConfig struct {

@@ -109,6 +109,9 @@
         },
         "tls": {
           "$ref": "#/$defs/tlsConfig"
+        },
+        "auth": {
+          "$ref": "#/$defs/rpcAuthConfig"
         }
       }
     },
@@ -145,6 +148,28 @@
         },
         "clientAuth": {
           "type": "boolean"
+        }
+      }
+    },
+    "rpcAuthConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "token",
+            "mtls"
+          ]
+        },
+        "token": {
+          "type": "string"
+        },
+        "tokenEnv": {
+          "type": "string"
         }
       }
     },

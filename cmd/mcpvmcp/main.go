@@ -31,6 +31,8 @@ type gatewayOptions struct {
 	rpcTLSCertFile      string
 	rpcTLSKeyFile       string
 	rpcTLSCAFile        string
+	rpcToken            string
+	rpcTokenEnv         string
 	caller              string
 	selectorTags        []string
 	selectorServer      string
@@ -122,6 +124,12 @@ func main() {
 					KeyFile:  opts.rpcTLSKeyFile,
 					CAFile:   opts.rpcTLSCAFile,
 				},
+				Auth: domain.RPCAuthConfig{
+					Enabled:  strings.TrimSpace(opts.rpcToken) != "" || strings.TrimSpace(opts.rpcTokenEnv) != "",
+					Mode:     domain.RPCAuthModeToken,
+					Token:    strings.TrimSpace(opts.rpcToken),
+					TokenEnv: strings.TrimSpace(opts.rpcTokenEnv),
+				},
 			}
 
 			gatewayTags := append([]string(nil), opts.selectorTags...)
@@ -182,6 +190,8 @@ func main() {
 	root.PersistentFlags().StringVar(&opts.rpcTLSCertFile, "rpc-tls-cert", "", "client TLS certificate file")
 	root.PersistentFlags().StringVar(&opts.rpcTLSKeyFile, "rpc-tls-key", "", "client TLS key file")
 	root.PersistentFlags().StringVar(&opts.rpcTLSCAFile, "rpc-tls-ca", "", "RPC CA file")
+	root.PersistentFlags().StringVar(&opts.rpcToken, "rpc-token", "", "RPC bearer token (token auth)")
+	root.PersistentFlags().StringVar(&opts.rpcTokenEnv, "rpc-token-env", "", "RPC bearer token env var (token auth)")
 	root.PersistentFlags().StringVar(&opts.caller, "caller", "", "explicit caller name (optional)")
 	root.PersistentFlags().StringVar(&opts.selectorServer, "selector-server", "", "server selector for stdio transport")
 	root.PersistentFlags().StringArrayVar(&opts.selectorTags, "selector-tag", nil, "tag selector for stdio transport (repeatable)")
@@ -226,6 +236,10 @@ func applyGatewayFlagBindings(flags *pflag.FlagSet, opts *gatewayOptions) {
 			opts.rpcTLSKeyFile, _ = flags.GetString("rpc-tls-key")
 		case "rpc-tls-ca":
 			opts.rpcTLSCAFile, _ = flags.GetString("rpc-tls-ca")
+		case "rpc-token":
+			opts.rpcToken, _ = flags.GetString("rpc-token")
+		case "rpc-token-env":
+			opts.rpcTokenEnv, _ = flags.GetString("rpc-token-env")
 		case "caller":
 			opts.caller, _ = flags.GetString("caller")
 		case "selector-server":

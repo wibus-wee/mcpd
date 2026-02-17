@@ -35,6 +35,10 @@ observability:
 #     keyFile: ""
 #     caFile: ""
 #     clientAuth: false
+#   auth:
+#     enabled: false
+#     mode: "token" # token or mtls
+#     tokenEnv: "MCPV_RPC_TOKEN"
 subAgent:
   enabled: true
   enabledTags: ["vscode"] # Empty disables SubAgent

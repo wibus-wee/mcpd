@@ -91,10 +91,26 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 	}
 
+	authCfg, err := resolveServerAuth(s.cfg.Auth)
+	if err != nil {
+		return err
+	}
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		requestContextUnaryServerInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		requestContextStreamServerInterceptor(),
+	}
+	if authCfg.enabled {
+		unaryInterceptors = append([]grpc.UnaryServerInterceptor{authUnaryServerInterceptor(authCfg)}, unaryInterceptors...)
+		streamInterceptors = append([]grpc.StreamServerInterceptor{authStreamServerInterceptor(authCfg)}, streamInterceptors...)
+	}
+
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(requestContextUnaryServerInterceptor()),
-		grpc.ChainStreamInterceptor(requestContextStreamServerInterceptor()),
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
 		grpc.MaxRecvMsgSize(s.cfg.MaxRecvMsgSize),
 		grpc.MaxSendMsgSize(s.cfg.MaxSendMsgSize),
 	}

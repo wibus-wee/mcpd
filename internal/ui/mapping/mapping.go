@@ -370,6 +370,12 @@ func MapRuntimeConfigDetail(cfg domain.RuntimeConfig) types.RuntimeConfigDetail 
 				CAFile:     cfg.RPC.TLS.CAFile,
 				ClientAuth: cfg.RPC.TLS.ClientAuth,
 			},
+			Auth: types.RPCAuthConfigDetail{
+				Enabled:  cfg.RPC.Auth.Enabled,
+				Mode:     string(cfg.RPC.Auth.Mode),
+				Token:    cfg.RPC.Auth.Token,
+				TokenEnv: cfg.RPC.Auth.TokenEnv,
+			},
 		},
 	}
 }

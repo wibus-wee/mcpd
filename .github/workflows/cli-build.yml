@@ -51,15 +51,24 @@ jobs:
           cp dist/mcpvmcp-amd64 dist/amd64/mcpvmcp
           cp dist/mcpvmcp-arm64 dist/arm64/mcpvmcp
 
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/mcpvctl-amd64 ./cmd/mcpvctl
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/mcpvctl-arm64 ./cmd/mcpvctl
+          lipo -create -output dist/mcpvctl dist/mcpvctl-amd64 dist/mcpvctl-arm64
+          cp dist/mcpvctl-amd64 dist/amd64/mcpvctl
+          cp dist/mcpvctl-arm64 dist/arm64/mcpvctl
+
           (cd dist && zip -9 -r "mcpv-macos-universal.zip" mcpv)
           (cd dist && zip -9 -r "mcpvmcp-macos-universal.zip" mcpvmcp)
-          (cd dist && zip -9 -r "mcpv-mcpvmcp-macos-universal.zip" mcpv mcpvmcp)
+          (cd dist && zip -9 -r "mcpvctl-macos-universal.zip" mcpvctl)
+          (cd dist && zip -9 -r "mcpv-mcpvmcp-macos-universal.zip" mcpv mcpvmcp mcpvctl)
           (cd dist/amd64 && zip -9 -r "../mcpv-macos-amd64.zip" mcpv)
           (cd dist/amd64 && zip -9 -r "../mcpvmcp-macos-amd64.zip" mcpvmcp)
-          (cd dist/amd64 && zip -9 -r "../mcpv-mcpvmcp-macos-amd64.zip" mcpv mcpvmcp)
+          (cd dist/amd64 && zip -9 -r "../mcpvctl-macos-amd64.zip" mcpvctl)
+          (cd dist/amd64 && zip -9 -r "../mcpv-mcpvmcp-macos-amd64.zip" mcpv mcpvmcp mcpvctl)
           (cd dist/arm64 && zip -9 -r "../mcpv-macos-arm64.zip" mcpv)
           (cd dist/arm64 && zip -9 -r "../mcpvmcp-macos-arm64.zip" mcpvmcp)
-          (cd dist/arm64 && zip -9 -r "../mcpv-mcpvmcp-macos-arm64.zip" mcpv mcpvmcp)
+          (cd dist/arm64 && zip -9 -r "../mcpvctl-macos-arm64.zip" mcpvctl)
+          (cd dist/arm64 && zip -9 -r "../mcpv-mcpvmcp-macos-arm64.zip" mcpv mcpvmcp mcpvctl)
         shell: bash
 
       - name: Upload CLI artifacts (universal)
@@ -69,6 +78,7 @@ jobs:
           path: |
             dist/mcpv
             dist/mcpvmcp
+            dist/mcpvctl
             dist/*-macos-universal.zip
 
       - name: Upload CLI artifacts (arm64)
@@ -78,6 +88,7 @@ jobs:
           path: |
             dist/mcpv-arm64
             dist/mcpvmcp-arm64
+            dist/mcpvctl-arm64
             dist/*-macos-arm64.zip
 
       - name: Upload CLI artifacts (amd64)
@@ -87,6 +98,7 @@ jobs:
           path: |
             dist/mcpv-amd64
             dist/mcpvmcp-amd64
+            dist/mcpvctl-amd64
             dist/*-macos-amd64.zip
 
   build-cli-linux:
@@ -120,9 +132,11 @@ jobs:
           LDFLAGS="-s -w -X mcpv/internal/buildinfo.Version=${{ env.VERSION }} -X mcpv/internal/buildinfo.Build=${{ env.BUILD }}"
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpv ./cmd/mcpv
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpvmcp ./cmd/mcpvmcp
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -ldflags "$LDFLAGS" -o dist/mcpvctl ./cmd/mcpvctl
           (cd dist && zip -9 -r "mcpv-linux-${{ matrix.goarch }}.zip" mcpv)
           (cd dist && zip -9 -r "mcpvmcp-linux-${{ matrix.goarch }}.zip" mcpvmcp)
-          (cd dist && zip -9 -r "mcpv-mcpvmcp-linux-${{ matrix.goarch }}.zip" mcpv mcpvmcp)
+          (cd dist && zip -9 -r "mcpvctl-linux-${{ matrix.goarch }}.zip" mcpvctl)
+          (cd dist && zip -9 -r "mcpv-mcpvmcp-linux-${{ matrix.goarch }}.zip" mcpv mcpvmcp mcpvctl)
         shell: bash
 
       - name: Upload CLI artifacts (linux)
@@ -132,4 +146,5 @@ jobs:
           path: |
             dist/mcpv
             dist/mcpvmcp
+            dist/mcpvctl
             dist/*.zip

@@ -148,6 +148,22 @@ type ObservabilityConfig struct {
 	HealthzEnabled *bool  `json:"healthzEnabled,omitempty"`
 }
 
+// RPCAuthMode defines the authentication mode for RPC.
+type RPCAuthMode string
+
+const (
+	RPCAuthModeToken RPCAuthMode = "token"
+	RPCAuthModeMTLS  RPCAuthMode = "mtls"
+)
+
+// RPCAuthConfig configures RPC authentication.
+type RPCAuthConfig struct {
+	Enabled  bool        `json:"enabled"`
+	Mode     RPCAuthMode `json:"mode"`
+	Token    string      `json:"token,omitempty"`
+	TokenEnv string      `json:"tokenEnv,omitempty"`
+}
+
 // RPCConfig configures the RPC server.
 type RPCConfig struct {
 	ListenAddress           string `json:"listenAddress"`
@@ -157,6 +173,7 @@ type RPCConfig struct {
 	KeepaliveTimeoutSeconds int    `json:"keepaliveTimeoutSeconds"`
 	SocketMode              string `json:"socketMode"`
 	TLS                     RPCTLSConfig
+	Auth                    RPCAuthConfig `json:"auth"`
 }
 
 // RPCTLSConfig configures TLS for the RPC server.

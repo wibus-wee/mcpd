@@ -28,6 +28,7 @@ With `mcpv`, you can manage MCP servers like containers: **On-demand startup, Sc
 
 - **Elastic Runtime**: Automatically launches MCP server instances upon request and shuts them down after idle timeouts, significantly reducing local CPU and memory usage.
 - **Unified Gateway (`mcpvmcp`)**: Provides a single entry point for all your MCP servers. Supports sticky sessions and concurrency control for high-frequency AI interactions.
+- **CLI Control (`mcpvctl`)**: A dedicated CLI client for the control plane, useful for automation and remote administration.
 - **GUI Support (`mcpvui`)**: A desktop client built with Wails 3. Features real-time log streaming, tool inspection, resource browsing, and intuitive configuration editing.
 - **Single Config File**: Server-centric configuration with tag-based visibility. Configure MCP servers with optional tags and filter toolsets for clients like VSCode, Cursor, or specific projects based on tag matching.
 
@@ -45,7 +46,12 @@ The project is designed with a three-layer architecture for maximum decoupling:
 
 1.  **Core (`mcpv`)**: The central control plane managing instance lifecycles, scheduling algorithms, and aggregation indexes.
 2.  **Gateway (`mcpvmcp`)**: The protocol bridge. Acts as a standard MCP server to communicate with AI clients (e.g., Claude Desktop, Cursor).
-3.  **App (`mcpvui`)**: The Wails-driven GUI for configuration, real-time monitoring, and core lifecycle hosting.
+3.  **CLI (`mcpvctl`)**: A control-plane client for scripts and automation.
+4.  **App (`mcpvui`)**: The Wails-driven GUI for configuration, real-time monitoring, and core lifecycle hosting.
+
+## RPC Authentication
+
+The control plane supports optional authentication. Configure `rpc.auth` in your `runtime.yaml` to enable token or mTLS. When enabled, clients (including `mcpvctl` and `mcpvmcp`) must supply a Bearer token (`--rpc-token` / `--rpc-token-env`) or valid client certificates (mTLS) to connect.
 
 
 ## 🔗 References

@@ -134,7 +134,11 @@ jobs:
             - universal: [mcpvmcp-macos-universal.zip](${DOWNLOAD_URL}/mcpvmcp-macos-universal.zip)
             - arm64: [mcpvmcp-macos-arm64.zip](${DOWNLOAD_URL}/mcpvmcp-macos-arm64.zip)
             - amd64: [mcpvmcp-macos-amd64.zip](${DOWNLOAD_URL}/mcpvmcp-macos-amd64.zip)
-          - mcpv + mcpvmcp bundle:
+          - mcpvctl only:
+            - universal: [mcpvctl-macos-universal.zip](${DOWNLOAD_URL}/mcpvctl-macos-universal.zip)
+            - arm64: [mcpvctl-macos-arm64.zip](${DOWNLOAD_URL}/mcpvctl-macos-arm64.zip)
+            - amd64: [mcpvctl-macos-amd64.zip](${DOWNLOAD_URL}/mcpvctl-macos-amd64.zip)
+          - mcpv + mcpvmcp + mcpvctl bundle:
             - universal: [mcpv-mcpvmcp-macos-universal.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-universal.zip)
             - arm64: [mcpv-mcpvmcp-macos-arm64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-arm64.zip)
             - amd64: [mcpv-mcpvmcp-macos-amd64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-macos-amd64.zip)
@@ -148,7 +152,10 @@ jobs:
           - mcpvmcp only:
             - amd64: [mcpvmcp-linux-amd64.zip](${DOWNLOAD_URL}/mcpvmcp-linux-amd64.zip)
             - arm64: [mcpvmcp-linux-arm64.zip](${DOWNLOAD_URL}/mcpvmcp-linux-arm64.zip)
-          - mcpv + mcpvmcp bundle:
+          - mcpvctl only:
+            - amd64: [mcpvctl-linux-amd64.zip](${DOWNLOAD_URL}/mcpvctl-linux-amd64.zip)
+            - arm64: [mcpvctl-linux-arm64.zip](${DOWNLOAD_URL}/mcpvctl-linux-arm64.zip)
+          - mcpv + mcpvmcp + mcpvctl bundle:
             - amd64: [mcpv-mcpvmcp-linux-amd64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-amd64.zip)
             - arm64: [mcpv-mcpvmcp-linux-arm64.zip](${DOWNLOAD_URL}/mcpv-mcpvmcp-linux-arm64.zip)
           EOF

@@ -23,6 +23,7 @@ build:
 	mkdir -p bin/core
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core/mcpv ./cmd/mcpv
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core/mcpvmcp ./cmd/mcpvmcp
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/core/mcpvctl ./cmd/mcpvctl
 
 test:
 	$(GO) test ./...

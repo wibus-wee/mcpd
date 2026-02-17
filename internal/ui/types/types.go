@@ -241,13 +241,14 @@ type ObservabilityConfigDetail struct {
 
 // RPCConfigDetail for frontend.
 type RPCConfigDetail struct {
-	ListenAddress           string             `json:"listenAddress"`
-	MaxRecvMsgSize          int                `json:"maxRecvMsgSize"`
-	MaxSendMsgSize          int                `json:"maxSendMsgSize"`
-	KeepaliveTimeSeconds    int                `json:"keepaliveTimeSeconds"`
-	KeepaliveTimeoutSeconds int                `json:"keepaliveTimeoutSeconds"`
-	SocketMode              string             `json:"socketMode"`
-	TLS                     RPCTLSConfigDetail `json:"tls"`
+	ListenAddress           string              `json:"listenAddress"`
+	MaxRecvMsgSize          int                 `json:"maxRecvMsgSize"`
+	MaxSendMsgSize          int                 `json:"maxSendMsgSize"`
+	KeepaliveTimeSeconds    int                 `json:"keepaliveTimeSeconds"`
+	KeepaliveTimeoutSeconds int                 `json:"keepaliveTimeoutSeconds"`
+	SocketMode              string              `json:"socketMode"`
+	TLS                     RPCTLSConfigDetail  `json:"tls"`
+	Auth                    RPCAuthConfigDetail `json:"auth"`
 }
 
 // RPCTLSConfigDetail for frontend.
@@ -257,6 +258,14 @@ type RPCTLSConfigDetail struct {
 	KeyFile    string `json:"keyFile"`
 	CAFile     string `json:"caFile"`
 	ClientAuth bool   `json:"clientAuth"`
+}
+
+// RPCAuthConfigDetail for frontend.
+type RPCAuthConfigDetail struct {
+	Enabled  bool   `json:"enabled"`
+	Mode     string `json:"mode,omitempty"`
+	Token    string `json:"token,omitempty"`
+	TokenEnv string `json:"tokenEnv,omitempty"`
 }
 
 // ServerSpecDetail contains server specification for frontend.

@@ -21,6 +21,7 @@ type ClientConfig struct {
 	KeepaliveTimeSeconds    int
 	KeepaliveTimeoutSeconds int
 	TLS                     domain.RPCTLSConfig
+	Auth                    domain.RPCAuthConfig
 }
 
 func (c ClientConfig) keepaliveDuration() time.Duration {
@@ -50,10 +51,23 @@ func Dial(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		return nil, err
 	}
 
+	unaryInterceptors := []grpc.UnaryClientInterceptor{
+		requestContextUnaryClientInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamClientInterceptor{
+		requestContextStreamClientInterceptor(),
+	}
+	if token, err := resolveClientToken(cfg.Auth); err != nil {
+		return nil, err
+	} else if token != "" {
+		unaryInterceptors = append([]grpc.UnaryClientInterceptor{authUnaryClientInterceptor(token)}, unaryInterceptors...)
+		streamInterceptors = append([]grpc.StreamClientInterceptor{authStreamClientInterceptor(token)}, streamInterceptors...)
+	}
+
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithChainUnaryInterceptor(requestContextUnaryClientInterceptor()),
-		grpc.WithChainStreamInterceptor(requestContextStreamClientInterceptor()),
+		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+		grpc.WithChainStreamInterceptor(streamInterceptors...),
 	}
 
 	if cfg.MaxRecvMsgSize > 0 || cfg.MaxSendMsgSize > 0 {

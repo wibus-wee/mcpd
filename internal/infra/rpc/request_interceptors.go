@@ -34,6 +34,24 @@ func requestContextStreamServerInterceptor() grpc.StreamServerInterceptor {
 	}
 }
 
+func authUnaryServerInterceptor(auth resolvedAuth) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if err := authorizeContext(ctx, auth); err != nil {
+			return nil, err
+		}
+		return handler(ctx, req)
+	}
+}
+
+func authStreamServerInterceptor(auth resolvedAuth) grpc.StreamServerInterceptor {
+	return func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if err := authorizeContext(stream.Context(), auth); err != nil {
+			return err
+		}
+		return handler(srv, stream)
+	}
+}
+
 func requestContextUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		ctx = injectRequestID(ctx)
@@ -44,6 +62,20 @@ func requestContextUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 func requestContextStreamClientInterceptor() grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 		ctx = injectRequestID(ctx)
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
+
+func authUnaryClientInterceptor(token string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		ctx = attachBearerToken(ctx, token)
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+func authStreamClientInterceptor(token string) grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		ctx = attachBearerToken(ctx, token)
 		return streamer(ctx, desc, cc, method, opts...)
 	}
 }

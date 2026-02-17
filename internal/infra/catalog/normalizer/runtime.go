@@ -206,6 +206,9 @@ func normalizeRPCConfig(cfg RawRPCConfig) (domain.RPCConfig, []string) {
 		}
 	}
 
+	authCfg, authErrs := normalizeRPCAuthConfig(cfg.Auth, addr, tlsCfg)
+	errs = append(errs, authErrs...)
+
 	return domain.RPCConfig{
 		ListenAddress:           addr,
 		MaxRecvMsgSize:          cfg.MaxRecvMsgSize,
@@ -214,5 +217,65 @@ func normalizeRPCConfig(cfg RawRPCConfig) (domain.RPCConfig, []string) {
 		KeepaliveTimeoutSeconds: cfg.KeepaliveTimeoutSeconds,
 		SocketMode:              socketMode,
 		TLS:                     tlsCfg,
+		Auth:                    authCfg,
+	}, errs
+}
+
+func normalizeRPCAuthConfig(cfg RawRPCAuthConfig, listenAddress string, tlsCfg domain.RPCTLSConfig) (domain.RPCAuthConfig, []string) {
+	var errs []string
+
+	enabled := cfg.Enabled
+	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
+	token := strings.TrimSpace(cfg.Token)
+	tokenEnv := strings.TrimSpace(cfg.TokenEnv)
+
+	if !enabled {
+		return domain.RPCAuthConfig{
+			Enabled:  false,
+			Mode:     "",
+			Token:    "",
+			TokenEnv: "",
+		}, nil
+	}
+
+	if mode == "" {
+		mode = string(domain.RPCAuthModeToken)
+	}
+
+	switch domain.RPCAuthMode(mode) {
+	case domain.RPCAuthModeToken, domain.RPCAuthModeMTLS:
+	default:
+		errs = append(errs, "rpc.auth.mode must be \"token\" or \"mtls\"")
+	}
+
+	if token != "" && tokenEnv != "" {
+		errs = append(errs, "rpc.auth.token and rpc.auth.tokenEnv are mutually exclusive")
+	}
+
+	switch domain.RPCAuthMode(mode) {
+	case domain.RPCAuthModeToken:
+		if token == "" && tokenEnv == "" {
+			errs = append(errs, "rpc.auth.token or rpc.auth.tokenEnv is required when rpc.auth.mode is token")
+		}
+		if !tlsCfg.Enabled && !strings.HasPrefix(listenAddress, "unix://") {
+			errs = append(errs, "rpc.tls.enabled is required for token auth on non-unix listen addresses")
+		}
+	case domain.RPCAuthModeMTLS:
+		if token != "" || tokenEnv != "" {
+			errs = append(errs, "rpc.auth.token and rpc.auth.tokenEnv must be empty when rpc.auth.mode is mtls")
+		}
+		if !tlsCfg.Enabled {
+			errs = append(errs, "rpc.tls.enabled is required when rpc.auth.mode is mtls")
+		}
+		if !tlsCfg.ClientAuth {
+			errs = append(errs, "rpc.tls.clientAuth must be true when rpc.auth.mode is mtls")
+		}
+	}
+
+	return domain.RPCAuthConfig{
+		Enabled:  enabled,
+		Mode:     domain.RPCAuthMode(mode),
+		Token:    token,
+		TokenEnv: tokenEnv,
 	}, errs
 }
