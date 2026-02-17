@@ -1,5 +1,7 @@
 Profile Store Migration Guide
 
+**Deprecated**: The profile store layout (`profiles/` + `callers.yaml`) is no longer supported. Current releases use a single configuration file (see `dev/catalog.example.yaml`). This document is retained for historical reference only.
+
 Overview
 - This document describes how to migrate configuration management from a monolithic runtime.yaml to a profile-store layout:
   - runtime.yaml at the repository root (global runtime settings)

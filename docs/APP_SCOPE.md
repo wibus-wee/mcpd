@@ -1,5 +1,7 @@
 # App 范围与职责
 
+**注意**：本文档包含已废弃的 profile/caller 描述，当前版本仅支持单一配置文件（参考 `dev/catalog.example.yaml`）。本文档保留作历史参考，请以现行配置模型为准。
+
 ## 核心定位
 
 App 作为 MCP Host 的唯一入口，负责下游 server 的生命周期、权限、可观测性与用户体验。用户只与 App 交互，不直接接触 catalog 与协议细节。
@@ -18,12 +20,11 @@ App 作为 MCP Host 的唯一入口，负责下游 server 的生命周期、权�
 - 启动状态与错误提示
 - 退出时的优雅关闭策略（拒绝新请求，等待 in-flight 完成）
 
-### Profile 管理
+### 配置管理
 
-- caller -> profile 映射
-- default profile 回退
-- profile 列表与切换
-- profile 的可视化配置编辑
+- 配置文件路径选择与校验
+- servers 的可视化配置编辑
+- runtime 运行参数编辑
 
 ### Tools 管理
 
@@ -69,6 +70,6 @@ App 作为 MCP Host 的唯一入口，负责下游 server 的生命周期、权�
 
 ## 演进节奏
 
-- P0：运行控制 + tools + logs + profile 选择
+- P0：运行控制 + tools + logs + 配置选择
 - P1：资源与 prompts 展示 + 可视化配置编辑
 - P2：专业模式与诊断增强

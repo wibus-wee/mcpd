@@ -21,7 +21,7 @@ type serveOptions struct {
 
 func main() {
 	opts := serveOptions{
-		configPath: ".",
+		configPath: "runtime.yaml",
 		// logStderr:  false,
 		logger: zap.NewNop(),
 	}
@@ -50,7 +50,7 @@ func main() {
 		},
 	}
 
-	root.PersistentFlags().StringVar(&opts.configPath, "config", opts.configPath, "path to profile store directory")
+	root.PersistentFlags().StringVar(&opts.configPath, "config", opts.configPath, "path to config file")
 	// root.PersistentFlags().BoolVar(&opts.logStderr, "log-stderr", opts.logStderr, "enable structured logs to stderr (off by default to avoid stdio noise)")
 
 	root.AddCommand(

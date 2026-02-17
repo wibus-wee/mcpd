@@ -23,7 +23,6 @@ internal/ui/
 ├── core_service.go    # CoreService
 ├── discovery_service.go
 ├── config_service.go
-├── profile_service.go
 ├── runtime_service.go
 ├── log_service.go
 ├── subagent_service.go
@@ -117,7 +116,6 @@ frontend/bindings/
     ├── debugservice.ts
     ├── discoveryservice.ts
     ├── logservice.ts
-    ├── profileservice.ts
     ├── runtimeservice.ts
     ├── subagentservice.ts
     └── systemservice.ts

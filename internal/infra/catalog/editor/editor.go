@@ -60,7 +60,7 @@ type Editor struct {
 	logger *zap.Logger
 }
 
-// NewEditor constructs a catalog editor scoped to a profile store path.
+// NewEditor constructs a catalog editor scoped to a config file path.
 func NewEditor(path string, logger *zap.Logger) *Editor {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -104,7 +104,7 @@ func (e *Editor) ImportServers(ctx context.Context, req ImportRequest) error {
 	return nil
 }
 
-// UpdateRuntimeConfig updates runtime.yaml in the profile store.
+// UpdateRuntimeConfig updates runtime settings in the config file.
 func (e *Editor) UpdateRuntimeConfig(ctx context.Context, update RuntimeConfigUpdate) error {
 	_ = ctx
 	configPath, err := e.configPath(false)

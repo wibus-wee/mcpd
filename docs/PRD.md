@@ -90,7 +90,7 @@
 - pkg/api: 对外可复用类型（可选）。
 - internal/ui: 预留 Wails 入口（后续）。
 
-八、配置示例（profile store 目录）
+八、配置示例（单文件）
 
 runtime.yaml
 ```yaml
@@ -98,8 +98,8 @@ routeTimeoutSeconds: 10
 pingIntervalSeconds: 30
 toolRefreshSeconds: 60
 toolRefreshConcurrency: 4
-callerCheckSeconds: 5
-callerInactiveSeconds: 300
+clientCheckSeconds: 5
+clientInactiveSeconds: 300
 bootstrapMode: "metadata"
 defaultActivationMode: "on-demand"
 exposeTools: true
@@ -119,17 +119,6 @@ rpc:
     keyFile: ""
     caFile: ""
     clientAuth: false
-```
-
-callers.yaml
-```yaml
-callers:
-  default-client: default
-  vscode: vscode
-```
-
-profiles/default.yaml
-```yaml
 servers:
   - name: git-helper
     cmd: ["./mcp-git-helper"]
@@ -188,7 +177,7 @@ servers:
 - 进程泄漏：StopFn 实现需优雅终止，超时强杀；注册退出钩子。
 
 十五、验收标准（MVP）
-- `mcpv serve --config <profile-store-dir>` 能加载并运行，无 panic；能处理至少一个 serverType 的 JSON-RPC 请求并返回响应。
+- `mcpv serve --config <config-file>` 能加载并运行，无 panic；能处理至少一个 serverType 的 JSON-RPC 请求并返回响应。
 - idleSeconds 到期自动回收实例（非 persistent/singleton 且 stateful 无有效绑定）。
 - 日志包含关键事件，metrics 能暴露（可选）。
 - `mcpv validate` 对合法配置返回 0，对非法配置输出错误并返回非 0。
